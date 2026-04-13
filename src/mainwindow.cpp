@@ -23,6 +23,7 @@
 #include <QDataStream>
 #include <QByteArray>
 #include <QBuffer>
+#include <QSettings>
 #include <zlib.h>
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -631,8 +632,104 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
         move(int(g.width()*0.06), int(g.height()*0.06));
     }
 
+    loadSettings();   // restore globals before building UI
     buildUI();
     applyTheme();
+
+    // Re-apply language direction after building UI
+    qApp->setLayoutDirection(g_lang == AppLanguage::Arabic ? Qt::RightToLeft : Qt::LeftToRight);
+
+    // Re-apply saved font size
+    if (g_fontSize != 12) {
+        QFont f = qApp->font();
+        f.setPointSize(g_fontSize);
+        qApp->setFont(f);
+    }
+
+    loadTableDataLocally(); // restore entered data
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Persistence: Settings
+// ─────────────────────────────────────────────────────────────────────────────
+void MainWindow::loadSettings()
+{
+    QSettings s(QStringLiteral("AccountAssistant"), QStringLiteral("AccountAssistant"));
+    g_lang        = static_cast<AppLanguage>(s.value(QStringLiteral("language"),    0).toInt());
+    g_lightMode   = s.value(QStringLiteral("lightMode"),   false).toBool();
+    g_currency    = static_cast<AppCurrency>(s.value(QStringLiteral("currency"),    0).toInt());
+    g_fontSize    = s.value(QStringLiteral("fontSize"),    12).toInt();
+    g_classicView = s.value(QStringLiteral("classicView"), false).toBool();
+}
+
+void MainWindow::saveSettings()
+{
+    QSettings s(QStringLiteral("AccountAssistant"), QStringLiteral("AccountAssistant"));
+    s.setValue(QStringLiteral("language"),    static_cast<int>(g_lang));
+    s.setValue(QStringLiteral("lightMode"),   g_lightMode);
+    s.setValue(QStringLiteral("currency"),    static_cast<int>(g_currency));
+    s.setValue(QStringLiteral("fontSize"),    g_fontSize);
+    s.setValue(QStringLiteral("classicView"), g_classicView);
+    s.sync();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Persistence: Table data
+// ─────────────────────────────────────────────────────────────────────────────
+void MainWindow::saveTableDataLocally()
+{
+    const AppData data = collectTableData();
+    QSettings s(QStringLiteral("AccountAssistant"), QStringLiteral("AccountAssistant"));
+    s.beginGroup(QStringLiteral("tableData"));
+    s.setValue(QStringLiteral("hasData"), true);
+    for (int i = 0; i < 12; ++i) {
+        const auto& m = data.months[i];
+        s.beginGroup(QString::number(i));
+        s.setValue(QStringLiteral("sales"),             m.sales);
+        s.setValue(QStringLiteral("salesReturn"),       m.salesReturn);
+        s.setValue(QStringLiteral("supplierPurchases"), m.supplierPurchases);
+        s.setValue(QStringLiteral("supplierPayments"),  m.supplierPayments);
+        s.setValue(QStringLiteral("expenseAccount"),    m.expenseAccount);
+        s.setValue(QStringLiteral("expenseAmount"),     m.expenseAmount);
+        s.setValue(QStringLiteral("inventoryFirst"),    m.inventoryFirst);
+        s.setValue(QStringLiteral("inventoryLast"),     m.inventoryLast);
+        s.endGroup();
+    }
+    s.endGroup();
+    s.sync();
+}
+
+void MainWindow::loadTableDataLocally()
+{
+    QSettings s(QStringLiteral("AccountAssistant"), QStringLiteral("AccountAssistant"));
+    s.beginGroup(QStringLiteral("tableData"));
+    const bool hasData = s.value(QStringLiteral("hasData"), false).toBool();
+    if (!hasData) { s.endGroup(); return; }
+
+    AppData data;
+    for (int i = 0; i < 12; ++i) {
+        auto& m = data.months[i];
+        s.beginGroup(QString::number(i));
+        m.sales             = s.value(QStringLiteral("sales"),             0.0).toDouble();
+        m.salesReturn       = s.value(QStringLiteral("salesReturn"),       0.0).toDouble();
+        m.supplierPurchases = s.value(QStringLiteral("supplierPurchases"), 0.0).toDouble();
+        m.supplierPayments  = s.value(QStringLiteral("supplierPayments"),  0.0).toDouble();
+        m.expenseAccount    = s.value(QStringLiteral("expenseAccount"),    QString()).toString();
+        m.expenseAmount     = s.value(QStringLiteral("expenseAmount"),     0.0).toDouble();
+        m.inventoryFirst    = s.value(QStringLiteral("inventoryFirst"),    0.0).toDouble();
+        m.inventoryLast     = s.value(QStringLiteral("inventoryLast"),     0.0).toDouble();
+        s.endGroup();
+    }
+    s.endGroup();
+    setTableData(data);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+void MainWindow::closeEvent(QCloseEvent* event)
+{
+    saveSettings();
+    saveTableDataLocally();
+    QMainWindow::closeEvent(event);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -947,6 +1044,8 @@ void MainWindow::onSettings()
             f.setPointSize(g_fontSize);
             qApp->setFont(f);
         }
+
+        saveSettings(); // persist immediately
     }
 }
 

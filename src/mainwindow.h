@@ -4,6 +4,7 @@
 #include <QStackedWidget>
 #include <QPushButton>
 #include <QLabel>
+#include <QCloseEvent>
 #include "appdata.h"
 #include "datatablewidget.h"
 #include "ClassicDataTableWidget.h"
@@ -15,6 +16,9 @@ class MainWindow : public QMainWindow
     Q_OBJECT
 public:
     explicit MainWindow(QWidget* parent = nullptr);
+
+protected:
+    void closeEvent(QCloseEvent* event) override;
 
 private slots:
     void onCalculate();
@@ -30,6 +34,12 @@ private:
     void applyTheme();
     void retranslate();
     void switchTableView(bool classic);
+
+    // Persistence helpers
+    void loadSettings();
+    void saveSettings();
+    void loadTableDataLocally();
+    void saveTableDataLocally();
 
     // Helper: active table interface wrappers
     AppData       collectTableData() const;

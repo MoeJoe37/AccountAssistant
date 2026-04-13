@@ -41,6 +41,27 @@
 
 using namespace Qt::StringLiterals;
 
+// ─── Stay-open menu (doesn't close when clicking checkable items) ─────────────
+class StayOpenMenu : public QMenu {
+public:
+    using QMenu::QMenu;
+protected:
+    void mouseReleaseEvent(QMouseEvent* e) override {
+        QAction* a = activeAction();
+        if (a && a->isEnabled()) {
+            if (a->isCheckable()) {
+                a->trigger();
+            } else {
+                a->trigger();
+                QMenu::mouseReleaseEvent(e); // non-checkable items close menu normally
+                return;
+            }
+            return; // stay open for checkable items
+        }
+        QMenu::mouseReleaseEvent(e);
+    }
+};
+
 static const QList<QColor> kPal = {
     "#4f86f7", "#f0a500", "#e05c6a", "#3ecf8e",
     "#9b6cf9", "#f06c6c", "#62c4e3", "#b0e96a",
@@ -627,7 +648,7 @@ ResultsWidget::ResultsWidget(QWidget* parent) : QWidget(parent)
     m_monthBtn->setPopupMode(QToolButton::InstantPopup);
     m_monthBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     m_monthBtn->setArrowType(Qt::DownArrow);
-    m_monthMenu = new QMenu(m_monthBtn);
+    m_monthMenu = new StayOpenMenu(m_monthBtn);
     m_monthBtn->setMenu(m_monthMenu);
     bl->addWidget(m_monthBtn, 0, Qt::AlignVCenter);
 
@@ -810,9 +831,8 @@ void ResultsWidget::buildResults(const AppData& data)
         if (item.kind == ResultFlowItemKind::MonthCard && item.index >= 0 && item.index <= 12 && !m_visibleMonths.contains(item.index))
             m_visibleMonths << item.index;
     }
-    if (m_visibleMonths.isEmpty()) {
-        for (int i = 0; i < 13; ++i) m_visibleMonths << i;
-    }
+    // NOTE: intentionally allow empty — means no month cards shown by default
+    // User selects which months to display via the Months dropdown
 
     for (const auto& req : data.chartRequests) {
         QChartView* view = createChartView(data, req);
@@ -943,46 +963,92 @@ void ResultsWidget::rebuildMonthSelectorMenu()
     if (!m_monthMenu || !m_monthBtn) return;
     m_monthMenu->clear();
 
-    if (m_visibleMonths.isEmpty()) {
-        for (int i = 0; i < 13; ++i) m_visibleMonths << i;
-    }
-
     const auto months = monthNames();
+
+    // ── Select All / Deselect All ──────────────────────────────────────────
+    auto* selAll   = m_monthMenu->addAction(T("✓  Select All",   "✓  تحديد الكل"));
+    auto* deselAll = m_monthMenu->addAction(T("✗  Deselect All", "✗  إلغاء الكل"));
+    m_monthMenu->addSeparator();
+
+    // ── All-months summary card (index 0) + individual months (1–12) ──────
     QList<QAction*> acts;
-    for (int i = 0; i < 13; ++i) {
-        const QString label = (i == 0) ? T("All months", "كل الأشهر") : months.value(i - 1);
+    for (int i = 0; i <= 12; ++i) {
+        const QString label = (i == 0)
+            ? T("All months (summary)", "كل الأشهر (ملخص)")
+            : months.value(i - 1);
         QAction* act = m_monthMenu->addAction(label);
         act->setCheckable(true);
         act->setChecked(m_visibleMonths.contains(i));
         act->setData(i);
         acts << act;
-        connect(act, &QAction::toggled, this, [this]() {
-            QList<int> selected;
-            if (m_monthMenu) {
-                for (QAction* a : m_monthMenu->actions()) {
-                    if (a && a->isCheckable() && a->isChecked()) selected << a->data().toInt();
-                }
+    }
+
+    // Helper: rebuild button label from current check state
+    auto updateLabel = [this, acts]() {
+        QList<int> sel;
+        for (auto* a : acts)
+            if (a->isChecked()) sel << a->data().toInt();
+
+        QString txt;
+        if (sel.isEmpty()) {
+            txt = T("Months: None selected", "الأشهر: لا شيء محدد");
+        } else if (sel.size() == 13) {
+            txt = T("Months: All", "الأشهر: الكل");
+        } else {
+            // Build a readable label (skip index-0 "All months" summary in the name list)
+            QStringList names;
+            for (int x : sel) {
+                names << (x == 0 ? T("Summary", "ملخص") : monthNames().value(x - 1));
             }
-            setVisibleMonths(selected);
+            txt = (names.size() <= 3)
+                ? T("Months: ", "الأشهر: ") + names.join(", ")
+                : T("Months: ", "الأشهر: ") + names.mid(0, 3).join(", ")
+                  + QStringLiteral(" +%1").arg(names.size() - 3);
+        }
+        m_monthBtn->setText(txt);
+    };
+
+    // Helper: apply checked state → m_visibleMonths → rebuild flow
+    auto applySelection = [this, acts, updateLabel]() {
+        m_visibleMonths.clear();
+        for (auto* a : acts)
+            if (a->isChecked()) m_visibleMonths << a->data().toInt();
+        updateLabel();
+        ensureDefaultFlowOrder();
+        rebuildFlow();
+    };
+
+    // Select All
+    QObject::connect(selAll, &QAction::triggered, m_monthBtn, [acts, applySelection]() {
+        for (auto* a : acts) a->setChecked(true);
+        applySelection();
+    });
+
+    // Deselect All
+    QObject::connect(deselAll, &QAction::triggered, m_monthBtn, [acts, applySelection]() {
+        for (auto* a : acts) a->setChecked(false);
+        applySelection();
+    });
+
+    // Individual month toggles
+    for (auto* act : acts) {
+        QObject::connect(act, &QAction::toggled, m_monthBtn, [applySelection](bool) {
+            applySelection();
         });
     }
 
-    const QString txt = (m_visibleMonths.size() == 13)
-        ? T("Months: All 13", "الأشهر: جميع الـ13")
-        : T("Months: %1 selected", "الأشهر: %1 محددة").arg(m_visibleMonths.size());
-    m_monthBtn->setText(txt);
+    // Set initial label
+    updateLabel();
 }
 
 void ResultsWidget::setVisibleMonths(const QList<int>& months)
 {
     m_visibleMonths.clear();
     for (int m : months) {
-        if (m < 0 || m > 12) continue;
+        if (m < 0 || m > 12) continue;   // 0=summary, 1-12=individual months
         if (!m_visibleMonths.contains(m)) m_visibleMonths << m;
     }
-    if (m_visibleMonths.isEmpty()) {
-        for (int i = 0; i < 13; ++i) m_visibleMonths << i;
-    }
+    // Allow empty — shows no month cards; user picks via dropdown
     rebuildMonthSelectorMenu();
     ensureDefaultFlowOrder();
     rebuildFlow();
@@ -1002,9 +1068,8 @@ void ResultsWidget::updatePageMode()
 
 void ResultsWidget::ensureDefaultFlowOrder()
 {
-    if (m_visibleMonths.isEmpty()) {
-        for (int i = 0; i < 13; ++i) m_visibleMonths << i;
-    }
+    // m_visibleMonths may be empty — that's valid (no month cards shown)
+    // Values: 0 = "All months" summary card, 1-12 = individual month cards
 
     QSet<int> seenMonths;
     m_flowOrder.clear();
@@ -1092,6 +1157,7 @@ void ResultsWidget::rebuildFlow()
     for (int i = 0; i < m_flowOrder.size(); ++i) {
         auto& item = m_flowOrder[i];
         if (item.kind == ResultFlowItemKind::MonthCard) {
+            // item.index: 0 = "All months" summary card, 1-12 = individual month cards
             if (item.index < 0 || item.index >= m_monthCards.size()) continue;
             auto* card = m_monthCards[item.index];
             if (!card) continue;
