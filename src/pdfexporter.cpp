@@ -33,6 +33,12 @@ static const QColor kRed     ("#e05c6a");
 static const QColor kRowEven ("#f8f9ff");
 static const QColor kRowOdd  ("#ffffff");
 static const QColor kHdrBg   ("#eef0fa");
+static const QList<QColor> kPal = {
+    "#4f86f7", "#f0a500", "#e05c6a", "#3ecf8e",
+    "#9b6cf9", "#f06c6c", "#62c4e3", "#b0e96a",
+    "#ff9f43", "#fd79a8", "#00cec9", "#fdcb6e"
+};
+
 
 struct ChartMeta {
     QString title;
@@ -132,7 +138,7 @@ static ChartMeta metaForRequest(const AppData& d, const ChartRequest& req)
         m.values = seriesForMetric(d, req.metricA, &m.labels, months);
         break;
     case ChartKind::MetricLine:
-        m.type = "compareline";
+        m.type = "line";
         m.values = seriesForMetric(d, req.metricA, &m.labels, months);
         break;
     case ChartKind::CompareBar:
@@ -183,19 +189,33 @@ static void drawMetricCard(QPainter& p, const QRect& rect, const QString& label,
     p.drawText(valueRect, Qt::AlignVCenter | alignStart(), value);
 }
 
+static QColor pieColorAt(int index)
+{
+    return kPal.isEmpty() ? kAccent : kPal[index % kPal.size()];
+}
+
 static QList<LegendItem> chartLegendItems(const ChartMeta& meta)
 {
     QList<LegendItem> items;
 
     if (meta.type == QStringLiteral("comparebar")) {
-        items.push_back({kAccent, meta.nameA});
+        items.push_back({kAmber, meta.nameA});
         items.push_back({kGreen, meta.nameB});
         return items;
     }
 
+    if (meta.type == QStringLiteral("line")) {
+        items.push_back({kAccent, meta.nameA.isEmpty() ? meta.title : meta.nameA});
+        return items;
+    }
+
     if (meta.type == QStringLiteral("compareline")) {
-        items.push_back({kAmber, meta.nameA});
-        items.push_back({kGreen, meta.nameB});
+        if (!meta.values2.isEmpty()) {
+            items.push_back({kAmber, meta.nameA});
+            items.push_back({kGreen, meta.nameB});
+        } else {
+            items.push_back({kAccent, meta.nameA.isEmpty() ? meta.title : meta.nameA});
+        }
         return items;
     }
 
@@ -211,7 +231,7 @@ static QList<LegendItem> chartLegendItems(const ChartMeta& meta)
     }
 
     if (!meta.values2.isEmpty()) {
-        items.push_back({kAccent, meta.nameA});
+        items.push_back({kAmber, meta.nameA});
         items.push_back({kGreen, meta.nameB});
         return items;
     }
@@ -336,7 +356,7 @@ static void drawPiePreview(QPainter& p, const QRect& rect, const ChartMeta& meta
         const double v = qAbs(meta.values[i]);
         if (v < 0.001) continue;
         const double spanDeg = -360.0 * 16 * (v / total);
-        p.setBrush(QColor::fromHsv((i * 40) % 360, 170, 220));
+        p.setBrush(pieColorAt(i));
         p.setPen(Qt::NoPen);
         p.drawPie(pie, int(startDeg), int(spanDeg));
         startDeg += spanDeg;
@@ -351,7 +371,7 @@ static void drawPiePreview(QPainter& p, const QRect& rect, const ChartMeta& meta
     int y = legendRect.top() + 24;
     const int maxRows = qMin(meta.labels.size(), 10);
     for (int i = 0; i < maxRows; ++i) {
-        p.fillRect(QRect(legendRect.left(), y + 3, 10, 10), QColor::fromHsv((i * 40) % 360, 170, 220));
+        p.fillRect(QRect(legendRect.left(), y + 3, 10, 10), pieColorAt(i));
         p.setPen(kText);
         p.drawText(QRect(legendRect.left() + 16, y, legendRect.width() - 16, 18), Qt::AlignVCenter | alignStart(),
                    meta.labels.value(i) + QStringLiteral(" — ") + money(meta.values.value(i)));
@@ -375,17 +395,21 @@ static void drawBarPreview(QPainter& p, const QRect& rect, const ChartMeta& meta
     p.drawText(QRect(chart.left(), chart.top(), chart.width(), 14), Qt::AlignVCenter | alignStart(), T("Timeline", "\u0627\u0644\u0632\u0645\u0646"));
     const int n = meta.values.size();
     const double step = double(plot.width()) / qMax(1, n);
-    const double barW = grouped ? qMax(4.0, step * 0.22) : qMax(8.0, step * 0.6);
+    const double barW = grouped ? qMax(5.0, step * 0.28) : qMax(8.0, step * 0.6);
+
+    const QColor colA = grouped ? kAmber : kAccent;
+    const QColor colB = grouped ? kGreen : kGreen;
+
     for (int i = 0; i < n; ++i) {
         const double h = plot.height() * (qAbs(meta.values[i]) / maxV);
         QRectF bar(plot.left() + i * step + (step - barW) / 2.0, plot.bottom() - h, barW, h);
-        p.fillRect(bar, grouped ? QColor::fromHsv((i * 35) % 360, 170, 220) : kAccent);
+        p.fillRect(bar, colA);
     }
     if (grouped && !meta.values2.isEmpty()) {
         for (int i = 0; i < qMin(meta.values2.size(), n); ++i) {
             const double h = plot.height() * (qAbs(meta.values2[i]) / maxV);
             QRectF bar(plot.left() + i * step + (step - barW) / 2.0 + barW + 4, plot.bottom() - h, barW, h);
-            p.fillRect(bar, kGreen);
+            p.fillRect(bar, colB);
         }
     }
     p.setPen(kMuted);
@@ -461,6 +485,41 @@ static void drawCandles(QPainter& p, const QRect& rect, const ChartMeta& meta)
     }
 }
 
+static void drawSingleLinePreview(QPainter& p, const QRect& rect, const ChartMeta& meta)
+{
+    if (meta.values.isEmpty()) return;
+    double maxV = 0.0;
+    for (double v : meta.values) maxV = qMax(maxV, qAbs(v));
+    if (maxV < 0.001) maxV = 1.0;
+
+    QRect chart = rect.adjusted(16, 16, -16, -16);
+    QRect plot(chart.left() + 48, chart.top() + 12, chart.width() - 58, chart.height() - 40);
+    p.setPen(QPen(kBorder, 1));
+    p.drawRect(plot);
+
+    QPolygonF poly;
+    const int n = meta.values.size();
+    const double step = double(plot.width()) / qMax(1, n - 1);
+    for (int i = 0; i < n; ++i) {
+        const double x = plot.left() + i * step;
+        const double y = plot.bottom() - plot.height() * (qAbs(meta.values[i]) / maxV);
+        poly << QPointF(x, y);
+    }
+    p.setPen(QPen(kAccent, 2));
+    p.drawPolyline(poly);
+    p.setBrush(kAccent);
+    for (const auto& pt : poly)
+        p.drawEllipse(pt, 3, 3);
+
+    p.setPen(kMuted);
+    p.setFont(pdfFont(8));
+    const int maxLabels = qMin(meta.labels.size(), 12);
+    for (int i = 0; i < maxLabels; ++i) {
+        const int x = plot.left() + int(i * step) - 30;
+        p.drawText(QRect(x, plot.bottom() + 4, 60, 18), Qt::AlignHCenter, meta.labels.value(i));
+    }
+}
+
 static void drawLineCompare(QPainter& p, const QRect& rect, const ChartMeta& meta)
 {
     if (meta.values.isEmpty() || meta.values2.isEmpty()) return;
@@ -514,6 +573,7 @@ static void drawChartPreview(QPainter& p, const QRect& chartArea, const ChartMet
     if (meta.type == QStringLiteral("pie") || meta.type == QStringLiteral("comparepie")) drawPiePreview(p, plotRect, meta);
     else if (meta.type == QStringLiteral("rankedbar")) drawRankedBars(p, plotRect, meta);
     else if (meta.type == QStringLiteral("candle")) drawCandles(p, plotRect, meta);
+    else if (meta.type == QStringLiteral("line")) drawSingleLinePreview(p, plotRect, meta);
     else if (meta.type == QStringLiteral("compareline")) drawLineCompare(p, plotRect, meta);
     else drawBarPreview(p, plotRect, meta, true);
 
