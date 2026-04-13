@@ -24,13 +24,34 @@ inline QString T(const char* en, const char* ar)
 
 inline QStringList monthNames()
 {
-    if (g_lang == AppLanguage::English)
-        return { "Jan","Feb","Mar","Apr","May","Jun",
-                 "Jul","Aug","Sep","Oct","Nov","Dec" };
+    if (g_lang == AppLanguage::English) {
+        return {
+            QStringLiteral("January"),
+            QStringLiteral("February"),
+            QStringLiteral("March"),
+            QStringLiteral("April"),
+            QStringLiteral("May"),
+            QStringLiteral("June"),
+            QStringLiteral("July"),
+            QStringLiteral("August"),
+            QStringLiteral("September"),
+            QStringLiteral("October"),
+            QStringLiteral("November"),
+            QStringLiteral("December")
+        };
+    }
     return {
-        "\u064A\u0646\u0627","\u0641\u0628\u0631","\u0645\u0627\u0631",
-        "\u0623\u0628\u0631","\u0645\u0627\u064A","\u064A\u0648\u0646",
-        "\u064A\u0648\u0644","\u0623\u063A\u0633","\u0633\u0628\u062A",
-        "\u0623\u0643\u062A","\u0646\u0648\u0641","\u062F\u064A\u0633"
+        QStringLiteral("يناير"),
+        QStringLiteral("فبراير"),
+        QStringLiteral("مارس"),
+        QStringLiteral("أبريل"),
+        QStringLiteral("مايو"),
+        QStringLiteral("يونيو"),
+        QStringLiteral("يوليو"),
+        QStringLiteral("أغسطس"),
+        QStringLiteral("سبتمبر"),
+        QStringLiteral("أكتوبر"),
+        QStringLiteral("نوفمبر"),
+        QStringLiteral("ديسمبر")
     };
 }

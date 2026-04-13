@@ -81,10 +81,10 @@ QWidget#sumCard {
     padding:14px 22px;
 }
 QLabel#sumTitle {
-    color:#5a6490; font-size:11px; font-weight:700;
+    color:#5a6490; font-weight:700;
     letter-spacing:1px; background:transparent;
 }
-QLabel#sumValue { font-size:24px; font-weight:900; background:transparent; }
+QLabel#sumValue { font-weight:900; background:transparent; }
 QToolButton#hiddenChartsBtn, QToolButton#monthSelectBtn, QToolButton#pageModeBtn {
     background:#1a1f38; color:#c8d0ed; border:1px solid #252b52;
     border-radius:8px; padding:8px 14px; font-weight:700;
@@ -93,9 +93,9 @@ QToolButton#hiddenChartsBtn:hover, QToolButton#monthSelectBtn:hover, QToolButton
 QWidget#gridContainer { background:#0d1020; }
 QWidget#reportSection, QWidget#pageBreakSection, QWidget#chartsSection { background:transparent; }
 QFrame#pageBreakLine { background:#252b52; min-height:1px; max-height:1px; border:none; }
-QLabel#pageBreakLabel { color:#5a6490; font-size:11px; font-weight:800; letter-spacing:1px; background:transparent; }
-QLabel#sectionTitle { color:#c8d0ed; font-size:15px; font-weight:800; }
-QLabel#sectionSub { color:#5a6490; font-size:11px; }
+QLabel#pageBreakLabel { color:#5a6490; font-weight:800; letter-spacing:1px; background:transparent; }
+QLabel#sectionTitle { color:#c8d0ed; font-weight:800; }
+QLabel#sectionSub { color:#5a6490; }
 QTableWidget {
     background:#111526; color:#c8d0ed; gridline-color:#252b52;
     border:1px solid #252b52; border-radius:10px;
@@ -106,7 +106,7 @@ QHeaderView::section {
 }
 QTableWidget::item { padding:6px; }
 QTableWidget::item:selected { background:#1e2445; }
-QLabel#emptyMsg { color:#2e3860; font-size:32px; font-weight:700; }
+QLabel#emptyMsg { color:#2e3860; font-weight:700; }
 )";
 
 static const char* kResultsSSLight = R"(
@@ -120,10 +120,10 @@ QWidget#sumCard {
     padding:14px 22px;
 }
 QLabel#sumTitle {
-    color:#8892b8; font-size:11px; font-weight:700;
+    color:#8892b8; font-weight:700;
     letter-spacing:1px; background:transparent;
 }
-QLabel#sumValue { font-size:24px; font-weight:900; background:transparent; }
+QLabel#sumValue { font-weight:900; background:transparent; }
 QToolButton#hiddenChartsBtn, QToolButton#monthSelectBtn, QToolButton#pageModeBtn {
     background:#ffffff; color:#1e2340; border:1px solid #dde2f0;
     border-radius:8px; padding:8px 14px; font-weight:700;
@@ -132,9 +132,9 @@ QToolButton#hiddenChartsBtn:hover, QToolButton#monthSelectBtn:hover, QToolButton
 QWidget#gridContainer { background:#f4f6fb; }
 QWidget#reportSection, QWidget#pageBreakSection, QWidget#chartsSection { background:transparent; }
 QFrame#pageBreakLine { background:#dde2f0; min-height:1px; max-height:1px; border:none; }
-QLabel#pageBreakLabel { color:#8892b8; font-size:11px; font-weight:800; letter-spacing:1px; background:transparent; }
-QLabel#sectionTitle { color:#1e2340; font-size:15px; font-weight:800; }
-QLabel#sectionSub { color:#6b7280; font-size:11px; }
+QLabel#pageBreakLabel { color:#8892b8; font-weight:800; letter-spacing:1px; background:transparent; }
+QLabel#sectionTitle { color:#1e2340; font-weight:800; }
+QLabel#sectionSub { color:#6b7280; }
 QTableWidget {
     background:#ffffff; color:#1e2340; gridline-color:#dde2f0;
     border:1px solid #dde2f0; border-radius:10px;
@@ -145,7 +145,7 @@ QHeaderView::section {
 }
 QTableWidget::item { padding:6px; }
 QTableWidget::item:selected { background:#eef0fa; }
-QLabel#emptyMsg { color:#8aa0c8; font-size:32px; font-weight:700; }
+QLabel#emptyMsg { color:#8aa0c8; font-weight:700; }
 )";
 
 static QString money(double v)
@@ -237,13 +237,11 @@ QWidget#monthHandle {
 }
 QLabel#monthTitle {
     color:#c8d0ed;
-    font-size:13px;
     font-weight:800;
     background:transparent;
 }
 QLabel#monthHint {
     color:#5a6490;
-    font-size:18px;
     font-weight:700;
     background:transparent;
 }
@@ -254,13 +252,11 @@ QFrame#metricBox {
 }
 QLabel#metricLabel {
     color:#5a6490;
-    font-size:10px;
     font-weight:700;
     background:transparent;
 }
 QLabel#metricValue {
     color:#c8d0ed;
-    font-size:16px;
     font-weight:900;
     background:transparent;
 }
@@ -282,13 +278,11 @@ QWidget#monthHandle {
 }
 QLabel#monthTitle {
     color:#1e2340;
-    font-size:13px;
     font-weight:800;
     background:transparent;
 }
 QLabel#monthHint {
     color:#8aa0c8;
-    font-size:18px;
     font-weight:700;
     background:transparent;
 }
@@ -299,13 +293,11 @@ QFrame#metricBox {
 }
 QLabel#metricLabel {
     color:#8892b8;
-    font-size:10px;
     font-weight:700;
     background:transparent;
 }
 QLabel#metricValue {
     color:#1e2340;
-    font-size:16px;
     font-weight:900;
     background:transparent;
 }
@@ -342,7 +334,7 @@ public:
 
         auto* dot = new QLabel("◆");
         dot->setAttribute(Qt::WA_TransparentForMouseEvents, true);
-        dot->setStyleSheet(QString("color:%1;background:transparent;font-size:13px;font-weight:900;").arg(accent.name()));
+        dot->setStyleSheet(QString("color:%1;background:transparent;font-weight:900;").arg(accent.name()));
         m_title = new QLabel(month.toUpper());
         m_title->setObjectName("monthTitle");
         m_title->setAttribute(Qt::WA_TransparentForMouseEvents, true);
@@ -375,7 +367,7 @@ public:
             auto* val = new QLabel(value);
             val->setObjectName("metricValue");
             val->setAttribute(Qt::WA_TransparentForMouseEvents, true);
-            val->setStyleSheet(QString("color:%1;background:transparent;font-size:15px;font-weight:900;").arg(valueColor.name()));
+            val->setStyleSheet(QString("color:%1;background:transparent;font-weight:900;").arg(valueColor.name()));
             bl->addWidget(lbl);
             bl->addWidget(val);
             grid->addWidget(box, row, col);
@@ -763,7 +755,7 @@ void ResultsWidget::buildResults(const AppData& data)
     m_sumNetSales->setText(money(data.totalNetSales));
     m_sumCOGS->setText(money(data.totalCOGS));
     m_sumProfit->setText(money(data.totalProfit));
-    m_sumProfit->setStyleSheet(QString("color:%1;font-size:24px;font-weight:900;background:transparent;")
+    m_sumProfit->setStyleSheet(QString("color:%1;font-weight:900;background:transparent;")
                                .arg(data.totalProfit >= 0 ? "#3ecf8e" : "#e05c6a"));
 
     m_flowSection = new QWidget;
@@ -1128,6 +1120,7 @@ void ResultsWidget::addCard(const ChartRequest& request, QChartView* view)
     connect(card, &DraggableChartCard::swapRequested, this, &ResultsWidget::onSwapFlowItems);
     connect(card, &DraggableChartCard::insertSeparatorRequested, this, &ResultsWidget::onAddSeparatorAfter);
     connect(card, &DraggableChartCard::hideRequested, this, &ResultsWidget::onHideCard);
+    connect(card, &DraggableChartCard::editRequested, this, [this](int) { emit editChartsRequested(); });
     m_cards.append(card);
     m_cardRequests.append(request);
 }
@@ -1379,20 +1372,14 @@ QChartView* ResultsWidget::makePieChart(const QString& title,
         auto* sl = series->append(labels[i], v);
         sl->setColor(kPal[i % kPal.size()]);
         sl->setBorderColor(borderCol);
-        sl->setLabelVisible(false);
-        QObject::connect(sl, &QPieSlice::hovered, sl, [sl, v, total](bool on) {
-            if (on) {
-                sl->setExploded(true);
-                sl->setLabelVisible(true);
-                sl->setLabel(QString("%1\n$%2  (%3%)")
-                    .arg(sl->label().split('\n').first())
-                    .arg(v, 0, 'f', 0)
-                    .arg(v / total * 100, 0, 'f', 1));
-            } else {
-                sl->setExploded(false);
-                sl->setLabelVisible(false);
-                sl->setLabel(sl->label().split('\n').first());
-            }
+        sl->setLabelVisible(true);
+        sl->setLabel(QString("%1\n%2 (%3%)")
+            .arg(labels[i])
+            .arg(v, 0, 'f', 0)
+            .arg(v / total * 100, 0, 'f', 1));
+        sl->setLabelPosition(QPieSlice::LabelOutside);
+        QObject::connect(sl, &QPieSlice::hovered, sl, [sl](bool on) {
+            sl->setExploded(on);
         });
     }
 
@@ -1413,17 +1400,15 @@ QChartView* ResultsWidget::makeCandleChart(const QString& title,
     series->setDecreasingColor(QColor("#e05c6a"));
     series->setBodyOutlineVisible(false);
 
-    double prev = 0.0;
     for (int i = 0; i < values.size(); ++i) {
         const double cur = values[i];
-        const double open = prev;
+        const double open = 0.0;
         const double close = cur;
         double hi = qMax(open, close) * 1.02;
         double lo = qMin(open, close) * 0.98;
         if (hi <= lo + 0.001) hi = lo + 1;
         auto* cs = new QCandlestickSet(open, hi, lo, close, static_cast<qreal>(i));
         series->append(cs);
-        prev = cur;
     }
 
     auto* chart = new QChart;
@@ -1436,6 +1421,7 @@ QChartView* ResultsWidget::makeCandleChart(const QString& title,
     auto* axX = new QBarCategoryAxis;
     axX->append(labels);
     axX->setLabelsColor(axisCol);
+    axX->setLabelsAngle(-45);
     axX->setGridLineColor(gridCol);
     axX->setLabelsFont(QFont("Segoe UI", 8));
     chart->addAxis(axX, Qt::AlignBottom);
@@ -1445,6 +1431,10 @@ QChartView* ResultsWidget::makeCandleChart(const QString& title,
     axY->setGridLineColor(gridCol);
     axY->setLabelsFont(QFont("Segoe UI", 8));
     axY->setLabelFormat("$%'i");
+    double maxV = 0.0;
+    for (double v : values) maxV = qMax(maxV, qAbs(v));
+    if (maxV < 0.001) maxV = 1.0;
+    axY->setRange(0.0, maxV * 1.1);
     chart->addAxis(axY, Qt::AlignLeft);
     series->attachAxis(axY);
 
@@ -1502,6 +1492,7 @@ QChartView* ResultsWidget::makeRankedBarChart(const QString& title,
     auto* axX = new QBarCategoryAxis;
     axX->append(labels);
     axX->setLabelsColor(axisCol);
+    axX->setLabelsAngle(-45);
     axX->setGridLineColor(gridCol);
     axX->setLabelsFont(QFont("Segoe UI", 8));
     chart->addAxis(axX, Qt::AlignBottom);
@@ -1521,6 +1512,55 @@ QChartView* ResultsWidget::makeRankedBarChart(const QString& title,
     QVariantList vl; for (double x : values) vl << x;
     view->setProperty("chartValues", vl);
     view->setProperty("chartType", "rankedbar");
+    view->setProperty("chartTitle", title);
+    return view;
+}
+
+QChartView* ResultsWidget::makeSingleLineChart(const QString& title,
+                                               const QStringList& labels,
+                                               const QList<double>& values)
+{
+    auto* line = new QLineSeries;
+    line->setName(title);
+    line->setColor(QColor("#4f86f7"));
+    for (int i = 0; i < values.size(); ++i)
+        line->append(i, values[i]);
+
+    auto* chart = new QChart;
+    chart->addSeries(line);
+    applyThemeToChart(chart);
+    chart->setTitle(title);
+    chart->legend()->setVisible(false);
+
+    auto* axisX = new QCategoryAxis;
+    for (int i = 0; i < labels.size(); ++i)
+        axisX->append(labels[i], i);
+    axisX->setRange(0, qMax(0, labels.size() - 1));
+    axisX->setLabelsFont(QFont("Segoe UI", 8));
+    axisX->setLabelsColor(g_lightMode ? QColor("#5a6490") : QColor("#8892b8"));
+    axisX->setGridLineColor(g_lightMode ? QColor("#e5e7eb") : QColor("#1e2445"));
+    chart->addAxis(axisX, Qt::AlignBottom);
+    line->attachAxis(axisX);
+
+    auto* axisY = new QValueAxis;
+    axisY->setLabelsFont(QFont("Segoe UI", 8));
+    axisY->setLabelsColor(g_lightMode ? QColor("#5a6490") : QColor("#8892b8"));
+    axisY->setGridLineColor(g_lightMode ? QColor("#e5e7eb") : QColor("#1e2445"));
+    double maxV = 0.0;
+    for (double v : values) maxV = qMax(maxV, qAbs(v));
+    if (maxV < 0.001) maxV = 1.0;
+    axisY->setRange(0.0, maxV * 1.1);
+    chart->addAxis(axisY, Qt::AlignLeft);
+    line->attachAxis(axisY);
+
+    auto* view = makeChartView(chart);
+    view->setStyleSheet(g_lightMode
+        ? "background:#ffffff; border:none; border-radius:0 0 10px 10px;"
+        : "background:#151929; border:none; border-radius:0 0 10px 10px;");
+    view->setProperty("chartLabels", labels);
+    QVariantList vl; for (double x : values) vl << x;
+    view->setProperty("chartValues", vl);
+    view->setProperty("chartType", "line");
     view->setProperty("chartTitle", title);
     return view;
 }
@@ -1557,6 +1597,7 @@ QChartView* ResultsWidget::makeCompareBarChart(const QString& title,
     auto* axX = new QBarCategoryAxis;
     axX->append(labels);
     axX->setLabelsColor(axisCol);
+    axX->setLabelsAngle(-45);
     axX->setGridLineColor(gridCol);
     axX->setLabelsFont(QFont("Segoe UI", 8));
     chart->addAxis(axX, Qt::AlignBottom);
@@ -1659,10 +1700,15 @@ QChartView* ResultsWidget::makeComparePieChart(const QString& title,
         valueA = 1;
         valueB = 1;
     }
+    const double total = qMax(0.0001, qAbs(valueA) + qAbs(valueB));
     auto* a = series->append(nameA, qMax(0.0, valueA));
     auto* b = series->append(nameB, qMax(0.0, valueB));
     a->setLabelVisible(true);
     b->setLabelVisible(true);
+    a->setLabel(QString("%1\n%2 (%3%)").arg(nameA).arg(valueA, 0, 'f', 0).arg(qAbs(valueA) / total * 100, 0, 'f', 1));
+    b->setLabel(QString("%1\n%2 (%3%)").arg(nameB).arg(valueB, 0, 'f', 0).arg(qAbs(valueB) / total * 100, 0, 'f', 1));
+    a->setLabelPosition(QPieSlice::LabelOutside);
+    b->setLabelPosition(QPieSlice::LabelOutside);
     a->setColor(kPal[0]);
     b->setColor(kPal[1]);
 
@@ -1690,7 +1736,10 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
             return makeRankedBarChart(title, labels, a);
         return makeCandleChart(title, labels, a);
     case ChartKind::RankedBar:
+    case ChartKind::MetricBar:
         return makeRankedBarChart(title, labels, a);
+    case ChartKind::MetricLine:
+        return makeSingleLineChart(title, labels, a);
     case ChartKind::CompareBar:
         b = metricSeriesValues(data, request.metricB, &labels, months);
         return makeCompareBarChart(title, labels, a, b,

@@ -13,6 +13,7 @@
 #include <QStyle>
 #include <QMenu>
 #include <QContextMenuEvent>
+#include <QEvent>
 
 static const char* kCardSSDark = R"(
 QFrame#card {
@@ -31,12 +32,11 @@ QWidget#handle {
 }
 QLabel#cardTitle {
     color:#c8d0ed;
-    font-size:13px; font-weight:700;
+    font-weight:700;
     background:transparent;
 }
 QLabel#dragHint {
     color:#3a4470;
-    font-size:18px;
     background:transparent;
     padding:0 6px 0 0;
 }
@@ -59,16 +59,34 @@ QWidget#handle {
 }
 QLabel#cardTitle {
     color:#1e2340;
-    font-size:13px; font-weight:700;
+    font-weight:700;
     background:transparent;
 }
 QLabel#dragHint {
     color:#c8d0ed;
-    font-size:18px;
     background:transparent;
     padding:0 6px 0 0;
 }
 )";
+
+static void execCardMenu(DraggableChartCard* self, const QPoint& globalPos)
+{
+    if (!self)
+        return;
+
+    QMenu menu(self);
+    QAction* editAct = menu.addAction(T("Edit chart", "تعديل الرسم"));
+    QAction* insertSep = menu.addAction(T("Add page separator below", "إضافة فاصل صفحة أسفلها"));
+    QAction* hideAct = menu.addAction(T("Hide chart", "إخفاء الرسم"));
+    QAction* chosen = menu.exec(globalPos);
+    if (chosen == editAct) {
+        self->editRequested(self->cardIndex());
+    } else if (chosen == insertSep) {
+        self->insertSeparatorRequested(self->flowIndex());
+    } else if (chosen == hideAct) {
+        self->hideRequested(self->cardIndex());
+    }
+}
 
 DraggableChartCard::DraggableChartCard(const QString& title,
                                        QChartView*    view,
@@ -106,6 +124,9 @@ DraggableChartCard::DraggableChartCard(const QString& title,
 
     view->setParent(this);
     view->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+    view->installEventFilter(this);
+    if (view->viewport())
+        view->viewport()->installEventFilter(this);
     vl->addWidget(view);
 }
 
@@ -114,6 +135,18 @@ void DraggableChartCard::setHighlight(bool on)
     setProperty("highlighted", on ? "true" : "false");
     style()->unpolish(this);
     style()->polish(this);
+}
+
+bool DraggableChartCard::eventFilter(QObject* watched, QEvent* event)
+{
+    if (watched == m_view || (m_view && watched == m_view->viewport())) {
+        if (event->type() == QEvent::ContextMenu) {
+            auto* ce = static_cast<QContextMenuEvent*>(event);
+            execCardMenu(this, ce->globalPos());
+            return true;
+        }
+    }
+    return QFrame::eventFilter(watched, event);
 }
 
 void DraggableChartCard::mousePressEvent(QMouseEvent* e)
@@ -192,13 +225,5 @@ void DraggableChartCard::dropEvent(QDropEvent* e)
 
 void DraggableChartCard::contextMenuEvent(QContextMenuEvent* e)
 {
-    QMenu menu(this);
-    QAction* insertSep = menu.addAction(T("Add page separator below", "إضافة فاصل صفحة أسفلها"));
-    QAction* hideAct = menu.addAction(T("Hide chart", "إخفاء الرسم"));
-    QAction* chosen = menu.exec(e->globalPos());
-    if (chosen == insertSep) {
-        emit insertSeparatorRequested(m_flowIndex);
-    } else if (chosen == hideAct) {
-        emit hideRequested(m_index);
-    }
+    execCardMenu(this, e->globalPos());
 }

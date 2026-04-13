@@ -60,7 +60,9 @@ enum class ChartKind {
     CompareBar,
     CompareLine,
     ComparePie,
-    RankedBar
+    RankedBar,
+    MetricBar,
+    MetricLine
 };
 
 struct ChartRequest {

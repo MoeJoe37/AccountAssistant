@@ -8,19 +8,18 @@
 
 static const char* kSetSSDark = R"(
 QDialog { background:#12152a; }
-QLabel#title { color:#4f86f7; font-size:16px; font-weight:800; }
+QLabel#title { color:#4f86f7; font-weight:800; }
 QGroupBox {
-    color:#5a6490; font-weight:700; font-size:12px;
-    border:1px solid #252b52; border-radius:8px; margin-top:12px; padding:12px;
+    color:#5a6490; font-weight:700; border:1px solid #252b52; border-radius:8px; margin-top:12px; padding:12px;
 }
 QGroupBox::title { subcontrol-origin:margin; left:12px; padding:0 6px; color:#4f86f7; }
-QRadioButton { color:#c8d0ed; font-size:13px; spacing:10px; }
+QRadioButton { color:#c8d0ed; spacing:10px; }
 QRadioButton::indicator {
     width:18px; height:18px;
     border:2px solid #3a4470; border-radius:9px; background:#252d4a;
 }
 QRadioButton::indicator:checked { background:#4f86f7; border-color:#4f86f7; }
-QCheckBox { color:#c8d0ed; font-size:13px; spacing:10px; }
+QCheckBox { color:#c8d0ed; spacing:10px; }
 QCheckBox::indicator {
     width:18px; height:18px;
     border:2px solid #3a4470; border-radius:5px; background:#252d4a;
@@ -36,8 +35,7 @@ QPushButton#cancel { background:#1e2340; color:#8892b8; border:1px solid #2e3455
 QPushButton#cancel:hover { background:#252b50; }
 QComboBox {
     background:#252d4a; color:#c8d0ed; border:1px solid #3a4268;
-    border-radius:5px; padding:4px 8px; font-size:13px;
-}
+    border-radius:5px; padding:4px 8px; }
 QComboBox::drop-down { border:none; }
 QComboBox QAbstractItemView {
     background:#1e2340; color:#c8d0ed; border:1px solid #3a4470;
@@ -47,19 +45,18 @@ QComboBox QAbstractItemView {
 
 static const char* kSetSSLt = R"(
 QDialog { background:#f4f6fb; }
-QLabel#title { color:#1e2340; font-size:16px; font-weight:800; }
+QLabel#title { color:#1e2340; font-weight:800; }
 QGroupBox {
-    color:#5a6490; font-weight:700; font-size:12px;
-    border:1px solid #dde2f0; border-radius:8px; margin-top:12px; padding:12px; background:#ffffff;
+    color:#5a6490; font-weight:700; border:1px solid #dde2f0; border-radius:8px; margin-top:12px; padding:12px; background:#ffffff;
 }
 QGroupBox::title { subcontrol-origin:margin; left:12px; padding:0 6px; color:#4f86f7; }
-QRadioButton { color:#1e2340; font-size:13px; spacing:10px; }
+QRadioButton { color:#1e2340; spacing:10px; }
 QRadioButton::indicator {
     width:18px; height:18px;
     border:2px solid #cfd7ea; border-radius:9px; background:#ffffff;
 }
 QRadioButton::indicator:checked { background:#4f86f7; border-color:#4f86f7; }
-QCheckBox { color:#1e2340; font-size:13px; spacing:10px; }
+QCheckBox { color:#1e2340; spacing:10px; }
 QCheckBox::indicator {
     width:18px; height:18px;
     border:2px solid #cfd7ea; border-radius:5px; background:#ffffff;
@@ -75,8 +72,7 @@ QPushButton#cancel { background:#eef0fa; color:#5a6490; border:1px solid #dde2f0
 QPushButton#cancel:hover { background:#e6e9f6; }
 QComboBox {
     background:#ffffff; color:#1e2340; border:1px solid #cfd7ea;
-    border-radius:5px; padding:4px 8px; font-size:13px;
-}
+    border-radius:5px; padding:4px 8px; }
 QComboBox::drop-down { border:none; }
 QComboBox QAbstractItemView {
     background:#ffffff; color:#1e2340; border:1px solid #dde2f0;
@@ -136,7 +132,7 @@ SettingsDialog::SettingsDialog(AppLanguage current, bool lightMode,
     {
         auto* row = new QHBoxLayout;
         auto* lbl = new QLabel(T("Text Size:", "\u062d\u062c\u0645 \u0627\u0644\u062e\u0637:"));
-        lbl->setStyleSheet("background:transparent; font-size:13px;");
+        lbl->setStyleSheet("background:transparent; ");
         m_fontSizeCombo = new QComboBox;
         m_fontSizeCombo->addItem(T("Normal (12px)", "\u0639\u0627\u062f\u064a (12px)"), 12);
         m_fontSizeCombo->addItem(T("Large (14px)",  "\u0643\u0628\u064a\u0631 (14px)"),  14);

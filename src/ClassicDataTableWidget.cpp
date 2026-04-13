@@ -20,28 +20,28 @@ static const int CHDR_H        = 40;
 static const char* cRowLabelSSDk =
     "background:#1c2033;"
     "color:#7b8ab8;"
-    "font-size:12px; font-weight:700;"
+    "font-weight:700;"
     "padding:0 14px;"
     "border-right:2px solid #2e3455;"
     "border-bottom:1px solid #252b42;";
 static const char* cRowLabelSSLt =
     "background:#f7f9fe;"
     "color:#5a6490;"
-    "font-size:12px; font-weight:700;"
+    "font-weight:700;"
     "padding:0 14px;"
     "border-right:2px solid #dce2f2;"
     "border-bottom:1px solid #dce2f2;";
 static const char* cHdrCellSSDk =
     "background:#1a1f38;"
     "color:#4f86f7;"
-    "font-size:12px; font-weight:800;"
+    "font-weight:800;"
     "padding:0 10px;"
     "border-right:1px solid #252b42;"
     "border-bottom:2px solid #4f86f7;";
 static const char* cHdrCellSSLt =
     "background:#f6f8fe;"
     "color:#4f86f7;"
-    "font-size:12px; font-weight:800;"
+    "font-weight:800;"
     "padding:0 10px;"
     "border-right:1px solid #dce2f2;"
     "border-bottom:2px solid #4f86f7;";
@@ -54,13 +54,13 @@ static const char* cDataCellSSLt =
     "border-right:1px solid #dce2f2;"
     "border-bottom:1px solid #dce2f2;";
 static const char* cSubLabelSSDk =
-    "color:#5a6490; font-size:10px; font-weight:600; background:transparent;";
+    "color:#5a6490; font-weight:600; background:transparent;";
 static const char* cSubLabelSSLt =
-    "color:#6b7280; font-size:10px; font-weight:600; background:transparent;";
+    "color:#6b7280; font-weight:600; background:transparent;";
 static const char* cSpinSSDark =
     "QDoubleSpinBox {"
     "  background:#252d4a; border:1px solid #3a4268; border-radius:4px;"
-    "  color:#c8d0ed; font-size:12px; padding:3px 6px;"
+    "  color:#c8d0ed; padding:3px 6px;"
     "}"
     "QDoubleSpinBox:focus { border-color:#4f86f7; }"
     "QDoubleSpinBox::up-button,QDoubleSpinBox::down-button{"
@@ -72,7 +72,7 @@ static const char* cSpinSSDark =
 static const char* cSpinSSLight =
     "QDoubleSpinBox {"
     "  background:#ffffff; border:1px solid #cfd7ea; border-radius:4px;"
-    "  color:#1e2340; font-size:12px; padding:3px 6px;"
+    "  color:#1e2340; padding:3px 6px;"
     "}"
     "QDoubleSpinBox:focus { border-color:#4f86f7; }"
     "QDoubleSpinBox::up-button,QDoubleSpinBox::down-button{"
@@ -84,13 +84,13 @@ static const char* cSpinSSLight =
 static const char* cEditSSDark =
     "QLineEdit {"
     "  background:#252d4a; border:1px solid #3a4268; border-radius:4px;"
-    "  color:#c8d0ed; font-size:12px; padding:3px 6px;"
+    "  color:#c8d0ed; padding:3px 6px;"
     "}"
     "QLineEdit:focus { border-color:#4f86f7; }";
 static const char* cEditSSLight =
     "QLineEdit {"
     "  background:#ffffff; border:1px solid #cfd7ea; border-radius:4px;"
-    "  color:#1e2340; font-size:12px; padding:3px 6px;"
+    "  color:#1e2340; padding:3px 6px;"
     "}"
     "QLineEdit:focus { border-color:#4f86f7; }";
 

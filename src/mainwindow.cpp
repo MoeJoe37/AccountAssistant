@@ -46,7 +46,7 @@ QTabWidget::tab-bar { alignment:left; }
 QTabBar::tab {
     background:#111526;
     color:#5a6490;
-    font-size:13px; font-weight:700;
+    font-weight:700;
     padding:12px 28px;
     border-bottom:3px solid transparent;
     margin-right:1px;
@@ -125,7 +125,7 @@ QTabWidget::tab-bar { alignment:left; }
 QTabBar::tab {
     background:#eef0fa;
     color:#8892b8;
-    font-size:13px; font-weight:700;
+    font-weight:700;
     padding:12px 28px;
     border-bottom:3px solid transparent;
     margin-right:1px;
@@ -624,6 +624,25 @@ static bool loadAppDataXlsx(const QString& path, AppData* data)
 } // namespace
 
 // ─────────────────────────────────────────────────────────────────────────────
+static void applyFontRecursive(QWidget* widget, const QFont& font)
+{
+    if (!widget)
+        return;
+    widget->setFont(font);
+    const auto children = widget->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly);
+    for (QWidget* child : children)
+        applyFontRecursive(child, font);
+}
+
+static void applyGlobalAppFont(int pointSize)
+{
+    QFont f = qApp->font();
+    f.setPointSize(pointSize);
+    qApp->setFont(f);
+    for (QWidget* w : qApp->topLevelWidgets())
+        applyFontRecursive(w, f);
+}
+
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
 {
     if (auto* scr = QGuiApplication::primaryScreen()) {
@@ -639,12 +658,8 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     // Re-apply language direction after building UI
     qApp->setLayoutDirection(g_lang == AppLanguage::Arabic ? Qt::RightToLeft : Qt::LeftToRight);
 
-    // Re-apply saved font size
-    if (g_fontSize != 12) {
-        QFont f = qApp->font();
-        f.setPointSize(g_fontSize);
-        qApp->setFont(f);
-    }
+    // Re-apply saved font size everywhere
+    applyGlobalAppFont(g_fontSize);
 
     loadTableDataLocally(); // restore entered data
 }
@@ -755,7 +770,7 @@ void MainWindow::buildUI()
         // App logo/title
         m_titleLabel = new QLabel;
         m_titleLabel->setObjectName("appTitle");
-        m_titleLabel->setStyleSheet("font-size:18px; font-weight:900; letter-spacing:1px; background:transparent;");
+        m_titleLabel->setStyleSheet("font-weight:900; letter-spacing:1px; background:transparent;");
         hl->addWidget(m_titleLabel);
         hl->addStretch();
 
@@ -774,7 +789,7 @@ void MainWindow::buildUI()
         const char* kBtnBase =
             "QPushButton{"
             "  border:none; border-radius:7px;"
-            "  font-size:12px; font-weight:700;"
+            "  font-weight:700;"
             "  padding:0 18px; min-width:120px;"
             "}";
 
@@ -833,7 +848,7 @@ void MainWindow::buildUI()
         m_clearBtn->setCursor(Qt::PointingHandCursor);
         m_clearBtn->setFixedHeight(30);
         m_clearBtn->setStyleSheet(
-            "QPushButton{border:1px solid #c0392b; border-radius:6px; font-size:11px; font-weight:700;"
+            "QPushButton{border:1px solid #c0392b; border-radius:6px; font-weight:700;"
             " padding:0 16px; background:#1e1010; color:#e74c3c;}"
             "QPushButton:hover{background:#2c1515; color:#ff6b6b;}"
             "QPushButton:pressed{background:#3a1a1a;}");
@@ -856,6 +871,7 @@ void MainWindow::buildUI()
     // Tab 1: Results
     {
         m_results = new ResultsWidget;
+        connect(m_results, &ResultsWidget::editChartsRequested, this, &MainWindow::onEditCharts);
         m_tabs->addTab(m_results, "");
     }
 
@@ -866,25 +882,53 @@ void MainWindow::buildUI()
 // ─────────────────────────────────────────────────────────────────────────────
 void MainWindow::onCalculate()
 {
-    AppData newData = collectTableData();
-    newData.calculate();
-    newData.chartRequests = m_lastChartRequests;
-    newData.resultFlowOrder = m_lastFlowOrder;
+    AppData working = collectTableData();
+    working.calculate();
+    working.chartRequests = m_lastChartRequests;
+    working.resultFlowOrder = m_lastFlowOrder;
 
-    ChartSelectionDialog dlg(newData, this);
-    if (dlg.exec() != QDialog::Accepted) return;
+    ChartSelectionDialog dlg(working, this);
+    if (dlg.exec() != QDialog::Accepted)
+        return;
 
-    m_data = newData;
-    m_data.sel = dlg.selections();
-    m_data.chartRequests = dlg.chartRequests();
+    working.sel = dlg.selections();
+    working.chartRequests = dlg.chartRequests();
+    m_data = working;
     m_hasResults = true;
 
-    m_results->buildResults(m_data);
-    m_lastChartRequests = m_results->chartRequests();
-    m_lastFlowOrder = m_results->flowOrder();
+    if (m_results) {
+        m_results->buildResults(m_data);
+        m_lastChartRequests = m_results->chartRequests();
+        m_lastFlowOrder = m_results->flowOrder();
+    }
     m_tabs->setCurrentIndex(1);
 }
 
+
+void MainWindow::onEditCharts()
+{
+    if (!m_hasResults)
+        return;
+
+    AppData working = m_data;
+    working.chartRequests = m_lastChartRequests;
+    working.resultFlowOrder = m_lastFlowOrder;
+
+    ChartSelectionDialog dlg(working, this);
+    if (dlg.exec() != QDialog::Accepted)
+        return;
+
+    working.sel = dlg.selections();
+    working.chartRequests = dlg.chartRequests();
+    m_data = working;
+
+    if (m_results) {
+        m_results->buildResults(m_data);
+        m_lastChartRequests = m_results->chartRequests();
+        m_lastFlowOrder = m_results->flowOrder();
+    }
+    m_tabs->setCurrentIndex(1);
+}
 
 void MainWindow::onSaveData()
 {
@@ -1040,9 +1084,7 @@ void MainWindow::onSettings()
             updateTableCurrency();
 
         if (fontChanged) {
-            QFont f = qApp->font();
-            f.setPointSize(g_fontSize);
-            qApp->setFont(f);
+            applyGlobalAppFont(g_fontSize);
         }
 
         saveSettings(); // persist immediately
@@ -1053,22 +1095,23 @@ void MainWindow::onSettings()
 void MainWindow::applyTheme()
 {
     qApp->setStyleSheet(g_lightMode ? kGlobalSSLight : kGlobalSS);
+    applyGlobalAppFont(g_fontSize);
 
     if (m_titleLabel) {
         m_titleLabel->setStyleSheet(g_lightMode
-            ? "font-size:18px; font-weight:900; letter-spacing:1px; color:#1e2340; background:transparent;"
-            : "font-size:18px; font-weight:900; letter-spacing:1px; color:#4f86f7; background:transparent;");
+            ? "font-weight:900; letter-spacing:1px; color:#1e2340; background:transparent;"
+            : "font-weight:900; letter-spacing:1px; color:#4f86f7; background:transparent;");
     }
 
     const QString primaryBtn = g_lightMode
-        ? "QPushButton{border:none; border-radius:7px; font-size:12px; font-weight:700; padding:0 18px; min-width:120px; background:qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #4f86f7, stop:1 #2a5cc4); color:white;}"
+        ? "QPushButton{border:none; border-radius:7px; font-weight:700; padding:0 18px; min-width:120px; background:qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #4f86f7, stop:1 #2a5cc4); color:white;}"
           "QPushButton:hover{background:#5e91f8;} QPushButton:pressed{background:#3a6fe0;}"
-        : "QPushButton{border:none; border-radius:7px; font-size:12px; font-weight:700; padding:0 18px; min-width:120px; background:qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #4f86f7, stop:1 #2a5cc4); color:white;}"
+        : "QPushButton{border:none; border-radius:7px; font-weight:700; padding:0 18px; min-width:120px; background:qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 #4f86f7, stop:1 #2a5cc4); color:white;}"
           "QPushButton:hover{background:#5e91f8;} QPushButton:pressed{background:#3a6fe0;}";
     const QString secondaryBtn = g_lightMode
-        ? "QPushButton{border:1px solid #d9e0ef; border-radius:7px; font-size:12px; font-weight:700; padding:0 18px; min-width:120px; background:#ffffff; color:#1e2340;}"
+        ? "QPushButton{border:1px solid #d9e0ef; border-radius:7px; font-weight:700; padding:0 18px; min-width:120px; background:#ffffff; color:#1e2340;}"
           "QPushButton:hover{background:#f2f4fb;} QPushButton:pressed{background:#e9edf7;}"
-        : "QPushButton{border:1px solid #252b52; border-radius:7px; font-size:12px; font-weight:700; padding:0 18px; min-width:120px; background:#1a1f38; color:#8892b8;}"
+        : "QPushButton{border:1px solid #252b52; border-radius:7px; font-weight:700; padding:0 18px; min-width:120px; background:#1a1f38; color:#8892b8;}"
           "QPushButton:hover{background:#1e2445; color:#c8d0ed;} QPushButton:pressed{background:#171b31;}";
 
     if (m_calcBtn)     m_calcBtn->setStyleSheet(primaryBtn);
@@ -1078,11 +1121,11 @@ void MainWindow::applyTheme()
     if (m_settingsBtn) m_settingsBtn->setStyleSheet(secondaryBtn);
     if (m_clearBtn) {
         m_clearBtn->setStyleSheet(g_lightMode
-            ? "QPushButton{border:1px solid #e74c3c; border-radius:5px; font-size:11px; font-weight:700;"
+            ? "QPushButton{border:1px solid #e74c3c; border-radius:5px; font-weight:700;"
               " padding:0 14px; background:#fff5f5; color:#c0392b;}"
               "QPushButton:hover{background:#fde8e8; color:#e74c3c;}"
               "QPushButton:pressed{background:#f5d0d0;}"
-            : "QPushButton{border:1px solid #c0392b; border-radius:5px; font-size:11px; font-weight:700;"
+            : "QPushButton{border:1px solid #c0392b; border-radius:5px; font-weight:700;"
               " padding:0 14px; background:#1e1010; color:#e74c3c;}"
               "QPushButton:hover{background:#2c1515; color:#ff6b6b;}"
               "QPushButton:pressed{background:#3a1a1a;}");

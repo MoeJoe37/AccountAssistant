@@ -49,26 +49,26 @@ static const char* kHdrLt =
     "QWidget#cardHeader:hover{ background:#eef0fa; }";
 
 // Section title
-static const char* kSecTitleDk = "color:#4f86f7; font-size:12px; font-weight:800; background:transparent;";
-static const char* kSecTitleLt = "color:#2563eb; font-size:12px; font-weight:800; background:transparent;";
+static const char* kSecTitleDk = "color:#4f86f7; font-weight:800; background:transparent;";
+static const char* kSecTitleLt = "color:#2563eb; font-weight:800; background:transparent;";
 
 // Field label
-static const char* kFieldLblDk = "color:#5a6490; font-size:11px; font-weight:600; background:transparent;";
-static const char* kFieldLblLt = "color:#6b7280; font-size:11px; font-weight:600; background:transparent;";
+static const char* kFieldLblDk = "color:#5a6490; font-weight:600; background:transparent;";
+static const char* kFieldLblLt = "color:#6b7280; font-weight:600; background:transparent;";
 
 // Month name label
-static const char* kMonthLblDk = "color:#c8d0ed; font-size:15px; font-weight:700; background:transparent;";
-static const char* kMonthLblLt = "color:#1e2340; font-size:15px; font-weight:700; background:transparent;";
+static const char* kMonthLblDk = "color:#c8d0ed; font-weight:700; background:transparent;";
+static const char* kMonthLblLt = "color:#1e2340; font-weight:700; background:transparent;";
 
 // Chevron
-static const char* kChevronDk  = "color:#5a6490; font-size:16px; background:transparent;";
-static const char* kChevronLt  = "color:#8892b8; font-size:16px; background:transparent;";
+static const char* kChevronDk  = "color:#5a6490; background:transparent;";
+static const char* kChevronLt  = "color:#8892b8; background:transparent;";
 
 // Spinbox dark
 static const char* kSpinDk =
     "QDoubleSpinBox{"
     "  background:#252d4a; border:1px solid #3a4268; border-radius:6px;"
-    "  color:#c8d0ed; font-size:13px; font-family:'Consolas','Courier New',monospace;"
+    "  color:#c8d0ed; font-family:'Consolas','Courier New',monospace;"
     "  padding:4px 8px; text-align:right;"
     "}"
     "QDoubleSpinBox:focus{ border-color:#4f86f7; background:#2a3255; }"
@@ -79,7 +79,7 @@ static const char* kSpinDk =
 static const char* kSpinLt =
     "QDoubleSpinBox{"
     "  background:#ffffff; border:1px solid #cfd7ea; border-radius:6px;"
-    "  color:#1e2340; font-size:13px; font-family:'Consolas','Courier New',monospace;"
+    "  color:#1e2340; font-family:'Consolas','Courier New',monospace;"
     "  padding:4px 8px; text-align:right;"
     "}"
     "QDoubleSpinBox:focus{ border-color:#4f86f7; background:#f8faff; }"
@@ -90,7 +90,7 @@ static const char* kSpinLt =
 static const char* kSpinRedDk =
     "QDoubleSpinBox{"
     "  background:#2a1a1a; border:1px solid #6b2a2a; border-radius:6px;"
-    "  color:#ff8080; font-size:13px; font-family:'Consolas','Courier New',monospace;"
+    "  color:#ff8080; font-family:'Consolas','Courier New',monospace;"
     "  padding:4px 8px; text-align:right;"
     "}"
     "QDoubleSpinBox:focus{ border-color:#e74c3c; background:#311a1a; }"
@@ -100,7 +100,7 @@ static const char* kSpinRedDk =
 static const char* kSpinRedLt =
     "QDoubleSpinBox{"
     "  background:#fff5f5; border:1px solid #f5c6c6; border-radius:6px;"
-    "  color:#c0392b; font-size:13px; font-family:'Consolas','Courier New',monospace;"
+    "  color:#c0392b; font-family:'Consolas','Courier New',monospace;"
     "  padding:4px 8px; text-align:right;"
     "}"
     "QDoubleSpinBox:focus{ border-color:#e74c3c; background:#fff0f0; }"
@@ -111,14 +111,14 @@ static const char* kSpinRedLt =
 static const char* kEditDk =
     "QLineEdit{"
     "  background:#252d4a; border:1px solid #3a4268; border-radius:6px;"
-    "  color:#c8d0ed; font-size:13px; padding:4px 8px;"
+    "  color:#c8d0ed; padding:4px 8px;"
     "}"
     "QLineEdit:focus{ border-color:#4f86f7; background:#2a3255; }";
 
 static const char* kEditLt =
     "QLineEdit{"
     "  background:#ffffff; border:1px solid #cfd7ea; border-radius:6px;"
-    "  color:#1e2340; font-size:13px; padding:4px 8px;"
+    "  color:#1e2340; padding:4px 8px;"
     "}"
     "QLineEdit:focus{ border-color:#4f86f7; background:#f8faff; }";
 
@@ -236,7 +236,7 @@ void MonthCard::buildHeader()
     m_monthLabel->setStyleSheet(g_lightMode ? kMonthLblLt : kMonthLblDk);
 
     m_warnIcon = new QLabel("⚠");
-    m_warnIcon->setStyleSheet("color:#f59e0b; font-size:14px; background:transparent;");
+    m_warnIcon->setStyleSheet("color:#f59e0b; background:transparent;");
     m_warnIcon->setVisible(false);
     m_warnIcon->setToolTip(T("Data warnings exist", "يوجد تحذيرات في البيانات"));
 
@@ -343,11 +343,11 @@ void MonthCard::buildContent()
     wl->setSpacing(4);
 
     auto* warnHdr = new QLabel("⚠  " + T("Warnings", "تحذيرات"));
-    warnHdr->setStyleSheet("color:#f59e0b; font-size:12px; font-weight:700; background:transparent;");
+    warnHdr->setStyleSheet("color:#f59e0b; font-weight:700; background:transparent;");
     wl->addWidget(warnHdr);
 
     m_warnList = new QLabel;
-    m_warnList->setStyleSheet("color:#d97706; font-size:11px; background:transparent;");
+    m_warnList->setStyleSheet("color:#d97706; background:transparent;");
     m_warnList->setWordWrap(true);
     wl->addWidget(m_warnList);
 
@@ -642,11 +642,11 @@ DataTableWidget::DataTableWidget(QWidget* parent) : QWidget(parent)
 
     auto* h2 = new QLabel(T("Data Entry", "إدخال البيانات"));
     h2->setStyleSheet(g_lightMode
-        ? "color:#1e2340; font-size:22px; font-weight:800; background:transparent;"
-        : "color:#c8d0ed; font-size:22px; font-weight:800; background:transparent;");
+        ? "color:#1e2340; font-weight:800; background:transparent;"
+        : "color:#c8d0ed; font-weight:800; background:transparent;");
     auto* sub = new QLabel(T("Enter monthly figures below. Click a month to expand it.",
                               "أدخل الأرقام الشهرية أدناه. انقر على الشهر لتوسيعه."));
-    sub->setStyleSheet("color:#5a6490; font-size:12px; background:transparent;");
+    sub->setStyleSheet("color:#5a6490; background:transparent;");
 
     tl->addWidget(h2);
     tl->addWidget(sub);

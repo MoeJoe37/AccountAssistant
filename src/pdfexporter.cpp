@@ -302,9 +302,8 @@ static void drawCandles(QPainter& p, const QRect& rect, const ChartMeta& meta)
     const int n = meta.values.size();
     const double step = double(plot.width()) / qMax(1, n);
     const double bodyW = qMax(6.0, step * 0.45);
-    double prev = 0.0;
     for (int i = 0; i < n; ++i) {
-        const double open = prev;
+        const double open = 0.0;
         const double close = meta.values[i];
         const double hi = qMax(open, close) * 1.02 + 0.01;
         const double lo = qMin(open, close) * 0.98;
@@ -318,7 +317,6 @@ static void drawCandles(QPainter& p, const QRect& rect, const ChartMeta& meta)
         p.drawLine(QPointF(midX, yHi), QPointF(midX, yLo));
         QRectF body(midX - bodyW / 2.0, qMin(yOpen, yClose), bodyW, qMax(3.0, qAbs(yClose - yOpen)));
         p.fillRect(body, rising ? kGreen : kRed);
-        prev = close;
     }
     p.setPen(kMuted);
     p.setFont(QFont("Segoe UI", 8));

@@ -31,6 +31,9 @@ public:
     QList<ResultFlowItem> flowOrder() const;
     bool pageLandscape() const { return m_pageLandscape; }
 
+signals:
+    void editChartsRequested();
+
 private slots:
     void onSwapFlowItems(int fromIdx, int toIdx);
     void onAddSeparatorAfter(int flowIndex);
@@ -64,6 +67,9 @@ private:
     static QChartView* makeRankedBarChart(const QString& title,
                                           const QStringList& labels,
                                           const QList<double>& values);
+    static QChartView* makeSingleLineChart(const QString& title,
+                                           const QStringList& labels,
+                                           const QList<double>& values);
     static QChartView* makeCompareBarChart(const QString& title,
                                            const QStringList& labels,
                                            const QList<double>& seriesA,

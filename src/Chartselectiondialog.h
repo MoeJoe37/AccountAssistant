@@ -26,8 +26,8 @@ private:
     struct MetricRow {
         MetricId id{M_SALES};
         QFrame*    frame{};
-        QCheckBox* pie{};
-        QCheckBox* candle{};
+        QCheckBox* enabled{};
+        QComboBox* type{};
         QToolButton* monthsBtn{};
         QMenu*     monthsMenu{};
         QVector<QAction*> monthActions;
@@ -53,11 +53,11 @@ private:
     QVBoxLayout*          m_compareLayout{};
 
     void buildUI(const AppData& data);
-    void appendMetricRow(MetricId id, const MetricRow* cloneFrom = nullptr, int insertAt = -1);
+    void appendMetricRow(MetricId id, ChartKind kind, const QList<int>& months = {}, int insertAt = -1);
     void removeMetricRow(int rowIndex);
     void syncMonthButton(MetricRow& row);
     QList<int> selectedMonths(const MetricRow& row) const;
-    void appendCompareRow();
+    void appendCompareRow(const ChartRequest* preset = nullptr);
     void removeCompareRow(int rowIndex);
     QList<int> selectedMonths(const CompareRow& row) const;
 };

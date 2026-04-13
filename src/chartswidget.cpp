@@ -211,11 +211,11 @@ QChartView* ChartsWidget::makePie(const QString& title,
     for (int i = 0; i < labels.size() && i < values.size(); ++i) {
         double val = qAbs(values[i]);
         if (val == 0) continue;
-        auto* slice = series->append(
-            QString("%1  (%2%)").arg(labels[i]).arg(val/total*100, 0,'f',1),
-            val);
+        auto* slice = series->append(labels[i], val);
         slice->setColor(kPalette[i % kPalette.size()]);
-        slice->setLabelVisible(false);  // shown in legend
+        slice->setLabelVisible(true);
+        slice->setLabel(QString("%1\n%2 (%3%)").arg(labels[i]).arg(val, 0, 'f', 0).arg(val/total*100, 0,'f',1));
+        slice->setLabelPosition(QPieSlice::LabelOutside);
     }
 
     auto* chart = new QChart;
@@ -247,10 +247,9 @@ QChartView* ChartsWidget::makeCandle(const QString& title,
     series->setIncreasingColor(QColor("#59A14F"));
     series->setDecreasingColor(QColor("#E15759"));
 
-    double prev = 0.0;
     for (int i = 0; i < values.size(); ++i) {
         double cur = values[i];
-        double open  = prev;
+        double open  = 0.0;
         double close = cur;
         double high  = qMax(open, close);
         double low   = qMin(open, close);
@@ -258,7 +257,6 @@ QChartView* ChartsWidget::makeCandle(const QString& title,
         auto* cs = new QCandlestickSet(open, high, low, close,
                                        static_cast<qreal>(i));
         series->append(cs);
-        prev = cur;
     }
 
     auto* chart = new QChart;
@@ -272,6 +270,7 @@ QChartView* ChartsWidget::makeCandle(const QString& title,
     auto* axisX = new QBarCategoryAxis;
     axisX->append(labels);
     axisX->setLabelsColor(Qt::white);
+    axisX->setLabelsAngle(-45);
     axisX->setGridLineColor(QColor("#3a3f55"));
     chart->addAxis(axisX, Qt::AlignBottom);
     series->attachAxis(axisX);
@@ -279,6 +278,10 @@ QChartView* ChartsWidget::makeCandle(const QString& title,
     auto* axisY = new QValueAxis;
     axisY->setLabelsColor(Qt::white);
     axisY->setGridLineColor(QColor("#3a3f55"));
+    double maxV = 0.0;
+    for (double v : values) maxV = qMax(maxV, qAbs(v));
+    if (maxV < 0.001) maxV = 1.0;
+    axisY->setRange(0.0, maxV * 1.1);
     chart->addAxis(axisY, Qt::AlignLeft);
     series->attachAxis(axisY);
 

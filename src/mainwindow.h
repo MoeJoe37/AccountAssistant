@@ -27,6 +27,7 @@ private slots:
     void onExportPdf();
     void onSettings();
     void onClearData();
+    void onEditCharts();
 
 private:
     void buildUI();
