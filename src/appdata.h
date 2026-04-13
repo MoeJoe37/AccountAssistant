@@ -35,6 +35,8 @@ struct ExpenseSummary {
 struct ChartSel {
     bool pie    = false;
     bool candle = false;
+    bool bar    = false;
+    bool line   = false;
 };
 
 enum MetricId {

@@ -14,6 +14,7 @@
 #include <QAbstractItemView>
 #include <QAction>
 #include <QMouseEvent>
+#include <QSizePolicy>
 #include <algorithm>
 #include <type_traits>
 
@@ -170,6 +171,16 @@ QPushButton#addBtn {
     border-radius:8px; min-height:36px; padding:0 20px;
 }
 QPushButton#addBtn:hover { background:#141829; border-color:#4f86f7; }
+QPushButton#metricSelBtn {
+    background:#252d4a; color:#c8d0ed;
+    border:1px solid #3a4470; border-radius:6px;
+    padding:5px 12px; min-height:28px;
+    font-weight:700;
+}
+QPushButton#metricSelBtn:hover {
+    border-color:#4f86f7;
+    background:#293252;
+}
 QPushButton#removeBtn {
     background:transparent; color:#5a6490;
     border:none; font-weight:700;
@@ -266,6 +277,16 @@ QPushButton#addBtn {
     border-radius:8px; min-height:36px; padding:0 20px;
 }
 QPushButton#addBtn:hover { background:#eef1fb; border-color:#4f86f7; }
+QPushButton#metricSelBtn {
+    background:#ffffff; color:#1e2340;
+    border:1px solid #cfd7ea; border-radius:6px;
+    padding:5px 12px; min-height:28px;
+    font-weight:700;
+}
+QPushButton#metricSelBtn:hover {
+    border-color:#4f86f7;
+    background:#eef1fb;
+}
 QPushButton#removeBtn {
     background:transparent; color:#8892b8;
     border:none; font-weight:700;
@@ -428,13 +449,40 @@ void ChartSelectionDialog::buildUI(const AppData& data)
 
     auto* metricHost = new QWidget;
     metricHost->setVisible(false);
-    m_metricLayout = new QVBoxLayout(metricHost);
+    metricHost->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+    auto* metricHostLayout = new QVBoxLayout(metricHost);
+    metricHostLayout->setContentsMargins(0, 0, 0, 0);
+    metricHostLayout->setSpacing(8);
+
+    auto* metricControls = new QHBoxLayout;
+    metricControls->setContentsMargins(0, 0, 0, 0);
+    metricControls->setSpacing(8);
+    auto* selectAllBtn = new QPushButton(T("Select all", "تحديد الكل"));
+    selectAllBtn->setObjectName("metricSelBtn");
+    auto* deselectAllBtn = new QPushButton(T("Deselect all", "إلغاء التحديد"));
+    deselectAllBtn->setObjectName("metricSelBtn");
+    metricControls->addWidget(selectAllBtn);
+    metricControls->addWidget(deselectAllBtn);
+    metricControls->addStretch();
+    metricHostLayout->addLayout(metricControls);
+
+    m_metricLayout = new QVBoxLayout;
     m_metricLayout->setContentsMargins(0, 0, 0, 0);
     m_metricLayout->setSpacing(8);
+    metricHostLayout->addLayout(m_metricLayout);
+
     vl->addWidget(metricHost);
     connect(metricToggle, &QToolButton::toggled, this, [metricHost, metricToggle](bool on) {
         metricHost->setVisible(on);
         metricToggle->setArrowType(on ? Qt::DownArrow : Qt::RightArrow);
+    });
+    connect(selectAllBtn, &QPushButton::clicked, this, [this]() {
+        for (auto& row : m_metricRows)
+            if (row.enabled) row.enabled->setChecked(true);
+    });
+    connect(deselectAllBtn, &QPushButton::clicked, this, [this]() {
+        for (auto& row : m_metricRows)
+            if (row.enabled) row.enabled->setChecked(false);
     });
 
     auto* sec2 = new QLabel(T("Custom comparisons", "المقارنات المخصصة"));
@@ -822,7 +870,9 @@ std::array<ChartSel, M_COUNT> ChartSelectionDialog::selections() const
         }
         const ChartKind kind = row.type ? ChartKind(row.type->currentData().toInt()) : ChartKind::Candle;
         s.pie = (kind == ChartKind::Pie);
-        s.candle = (kind == ChartKind::Candle || kind == ChartKind::MetricBar || kind == ChartKind::MetricLine);
+        s.candle = (kind == ChartKind::Candle);
+        s.bar = (kind == ChartKind::MetricBar);
+        s.line = (kind == ChartKind::MetricLine);
     }
     return out;
 }

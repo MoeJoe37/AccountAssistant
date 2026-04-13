@@ -882,6 +882,8 @@ void MainWindow::buildUI()
 // ─────────────────────────────────────────────────────────────────────────────
 void MainWindow::onCalculate()
 {
+    if (auto* popup = QApplication::activePopupWidget())
+        popup->hide();
     AppData working = collectTableData();
     working.calculate();
     working.chartRequests = m_lastChartRequests;
@@ -909,6 +911,9 @@ void MainWindow::onEditCharts()
 {
     if (!m_hasResults)
         return;
+
+    if (auto* popup = QApplication::activePopupWidget())
+        popup->hide();
 
     AppData working = m_data;
     working.chartRequests = m_lastChartRequests;
