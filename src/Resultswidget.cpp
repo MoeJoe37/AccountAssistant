@@ -4,6 +4,7 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QChart>
+#include <QAbstractSeries>
 #include <QPieSeries>
 #include <QPieSlice>
 #include <QLegendMarker>
@@ -28,6 +29,7 @@
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QContextMenuEvent>
+#include <QTimer>
 #include <QGridLayout>
 #include <QScrollBar>
 #include <QFrame>
@@ -1394,6 +1396,24 @@ void ResultsWidget::applyChartTheme(QChart* chart, const QString& title)
     chart->setTitle(title);
 }
 
+static void applyLegendMarkerColorsLater(QChart* chart,
+                                         QAbstractSeries* series,
+                                         const QStringList& labels,
+                                         const QList<QColor>& colors)
+{
+    if (!chart || !series) return;
+    QTimer::singleShot(0, chart, [chart, series, labels, colors]() {
+        const auto markers = chart->legend()->markers(series);
+        for (int i = 0; i < markers.size() && i < colors.size(); ++i) {
+            if (!markers[i]) continue;
+            if (i < labels.size() && !labels[i].isEmpty())
+                markers[i]->setLabel(labels[i]);
+            markers[i]->setBrush(QBrush(colors[i]));
+            markers[i]->setPen(QPen(colors[i].darker(140)));
+        }
+    });
+}
+
 QChartView* ResultsWidget::makePieChart(const QString& title,
                                         const QStringList& labels,
                                         const QList<double>& values)
@@ -1404,17 +1424,20 @@ QChartView* ResultsWidget::makePieChart(const QString& title,
     if (total < 0.001) total = 1;
 
     QColor borderCol = g_lightMode ? QColor("#f4f6fb") : QColor("#0d1020");
+    QList<QColor> sliceColors;
     for (int i = 0; i < labels.size() && i < values.size(); ++i) {
         const double v = qAbs(values[i]);
         if (v < 0.001) continue;
+        const QColor c = kPal[i % kPal.size()];
         auto* sl = series->append(labels[i], v);
-        sl->setColor(kPal[i % kPal.size()]);
+        sl->setColor(c);
         sl->setBorderColor(borderCol);
         sl->setLabelVisible(true);
         sl->setLabel(QString("%1%").arg(v / total * 100.0, 0, 'f', 1));
         sl->setLabelPosition(QPieSlice::LabelOutside);
         sl->setLabelArmLengthFactor(0.18);
         sl->setLabelColor(g_lightMode ? QColor("#1e2340") : QColor("#ffffff"));
+        sliceColors << c;
         QObject::connect(sl, &QPieSlice::hovered, sl, [sl](bool on) {
             sl->setExploded(on);
         });
@@ -1423,20 +1446,15 @@ QChartView* ResultsWidget::makePieChart(const QString& title,
     series->setPieSize(0.72);
     auto* chart = new QChart;
     chart->addSeries(series);
-    chart->legend()->setVisible(true);
+    chart->legend()->setVisible(false);
     applyThemeToChart(chart);
-    chart->legend()->setAlignment(Qt::AlignBottom);
-    chart->legend()->setMarkerShape(QLegend::MarkerShapeFromSeries);
-    chart->legend()->setBackgroundVisible(false);
     chart->setTitle(title);
 
-    const auto markers = chart->legend()->markers(series);
-    for (int i = 0; i < markers.size() && i < labels.size(); ++i) {
-        if (markers[i])
-            markers[i]->setLabel(labels[i]);
-    }
-
-    return makeChartView(chart, false);
+    auto* view = makeChartView(chart, false);
+    view->setProperty("legendLabels", labels);
+    QStringList colors; for (const auto& c : sliceColors) colors << c.name();
+    view->setProperty("legendColors", colors);
+    return view;
 }
 
 QChartView* ResultsWidget::makeCandleChart(const QString& title,
@@ -1486,7 +1504,6 @@ QChartView* ResultsWidget::makeCandleChart(const QString& title,
     chart->addAxis(axY, Qt::AlignLeft);
     series->attachAxis(axY);
 
-    // Add invisible dummy line series so the legend shows green/red key
     auto* legInc = new QLineSeries;
     legInc->setName(T("↗ Increasing", "↗ ارتفاع"));
     legInc->setColor(QColor("#3ecf8e"));
@@ -1500,15 +1517,14 @@ QChartView* ResultsWidget::makeCandleChart(const QString& title,
     legDec->attachAxis(axX);
     legDec->attachAxis(axY);
 
-    chart->legend()->setVisible(true);
-    chart->legend()->setAlignment(Qt::AlignBottom);
-    chart->legend()->setMarkerShape(QLegend::MarkerShapeFromSeries);
-    chart->legend()->setBackgroundVisible(false);
+    chart->legend()->setVisible(false);
 
     auto* view = makeChartView(chart);
     view->setStyleSheet(g_lightMode
         ? "background:#ffffff; border:none; border-radius:0 0 10px 10px;"
         : "background:#151929; border:none; border-radius:0 0 10px 10px;");
+    view->setProperty("legendLabels", QStringList{T("↗ Increasing", "↗ ارتفاع"), T("↘ Decreasing", "↘ انخفاض")});
+    view->setProperty("legendColors", QStringList{QString("#3ecf8e"), QString("#e05c6a")});
     view->setProperty("chartLabels", labels);
     QVariantList vl; for (double x : values) vl << x;
     view->setProperty("chartValues", vl);
@@ -1574,7 +1590,7 @@ QChartView* ResultsWidget::makeSingleLineChart(const QString& title,
     line->setName(title);
     line->setColor(QColor("#4f86f7"));
     for (int i = 0; i < values.size(); ++i)
-        line->append(i, values[i]);
+        line->append(i + 0.5, values[i]);
 
     auto* chart = new QChart;
     chart->addSeries(line);
@@ -1584,8 +1600,8 @@ QChartView* ResultsWidget::makeSingleLineChart(const QString& title,
 
     auto* axisX = new QCategoryAxis;
     for (int i = 0; i < labels.size(); ++i)
-        axisX->append(labels[i], i);
-    axisX->setRange(0, qMax(0, labels.size() - 1));
+        axisX->append(labels[i], i + 1);
+    axisX->setRange(0, qMax(1, labels.size()));
     axisX->setLabelsFont(QFont("Segoe UI", 8));
     axisX->setLabelsColor(g_lightMode ? QColor("#5a6490") : QColor("#8892b8"));
     axisX->setGridLineColor(g_lightMode ? QColor("#e5e7eb") : QColor("#1e2445"));
@@ -1651,9 +1667,7 @@ QChartView* ResultsWidget::makeCompareCandleChart(const QString& title,
     chart->addSeries(candA);
     chart->addSeries(candB);
     applyChartTheme(chart, title);
-    chart->legend()->setVisible(true);
-    chart->legend()->setAlignment(Qt::AlignBottom);
-    chart->legend()->setMarkerShape(QLegend::MarkerShapeFromSeries);
+    chart->legend()->setVisible(false);
 
     QColor axisCol = g_lightMode ? QColor("#5a6490") : QColor("#8892b8");
     QColor gridCol = g_lightMode ? QColor("#e5e7eb") : QColor("#1e2445");
@@ -1684,6 +1698,8 @@ QChartView* ResultsWidget::makeCompareCandleChart(const QString& title,
     view->setStyleSheet(g_lightMode
         ? "background:#ffffff; border:none; border-radius:0 0 10px 10px;"
         : "background:#151929; border:none; border-radius:0 0 10px 10px;");
+    view->setProperty("legendLabels", QStringList{nameA, nameB});
+    view->setProperty("legendColors", QStringList{QString("#3ecf8e"), QString("#f0a500")});
     view->setProperty("chartLabels", labels);
     QVariantList vl; for (double x : seriesA) vl << x;
     view->setProperty("chartValues", vl);
@@ -1774,8 +1790,8 @@ QChartView* ResultsWidget::makeCompareLineChart(const QString& title,
 
     const int n = qMin(seriesA.size(), seriesB.size());
     for (int i = 0; i < n; ++i) {
-        lineA->append(i, seriesA[i]);
-        lineB->append(i, seriesB[i]);
+        lineA->append(i + 0.5, seriesA[i]);
+        lineB->append(i + 0.5, seriesB[i]);
     }
 
     auto* chart = new QChart;
@@ -1787,8 +1803,8 @@ QChartView* ResultsWidget::makeCompareLineChart(const QString& title,
 
     auto* axisX = new QCategoryAxis;
     for (int i = 0; i < labels.size(); ++i)
-        axisX->append(labels[i], i);
-    axisX->setRange(0, qMax(0, labels.size() - 1));
+        axisX->append(labels[i], i + 1);
+    axisX->setRange(0, qMax(1, labels.size()));
     axisX->setLabelsFont(QFont("Segoe UI", 8));
     axisX->setLabelsColor(g_lightMode ? QColor("#5a6490") : QColor("#8892b8"));
     axisX->setGridLineColor(g_lightMode ? QColor("#e5e7eb") : QColor("#1e2445"));
@@ -1845,20 +1861,20 @@ QChartView* ResultsWidget::makeComparePieChart(const QString& title,
     b->setLabelArmLengthFactor(0.18);
     a->setLabelColor(g_lightMode ? QColor("#1e2340") : QColor("#ffffff"));
     b->setLabelColor(g_lightMode ? QColor("#1e2340") : QColor("#ffffff"));
-    a->setColor(kPal[0]);
-    b->setColor(kPal[1]);
+    const QColor colA = kPal[0];
+    const QColor colB = kPal[1];
+    a->setColor(colA);
+    b->setColor(colB);
 
     series->setPieSize(0.72);
     auto* chart = new QChart;
     chart->addSeries(series);
     applyChartTheme(chart, title);
-    chart->legend()->setVisible(true);
-    chart->legend()->setAlignment(Qt::AlignBottom);
-    chart->legend()->setMarkerShape(QLegend::MarkerShapeFromSeries);
-    const auto markers = chart->legend()->markers(series);
-    if (markers.size() > 0 && markers[0]) markers[0]->setLabel(nameA);
-    if (markers.size() > 1 && markers[1]) markers[1]->setLabel(nameB);
-    return makeChartView(chart, false);
+    chart->legend()->setVisible(false);
+    auto* view = makeChartView(chart, false);
+    view->setProperty("legendLabels", QStringList{nameA, nameB});
+    view->setProperty("legendColors", QStringList{colA.name(), colB.name()});
+    return view;
 }
 
 QChartView* ResultsWidget::createChartView(const AppData& data, const ChartRequest& request)

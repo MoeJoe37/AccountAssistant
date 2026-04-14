@@ -2,6 +2,7 @@
 #include "translations.h"
 
 #include <QChart>
+#include <QAbstractSeries>
 #include <QPieSeries>
 #include <QPieSlice>
 #include <QLegendMarker>
@@ -13,6 +14,8 @@
 #include <QValueAxis>
 #include <QLineSeries>
 #include <QVBoxLayout>
+#include <QFrame>
+#include <QGridLayout>
 #include <QLabel>
 #include <QFont>
 #include <QColor>
@@ -21,6 +24,7 @@
 #include <QMouseEvent>
 #include <QWheelEvent>
 #include <QCategoryAxis>
+#include <QTimer>
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Palette
@@ -75,6 +79,69 @@ static QChartView* makeSafeView(QChart* chart)
     return new SafeChartView(chart);
 }
 
+static void applyLegendMarkerColorsLater(QChart* chart,
+                                         QAbstractSeries* series,
+                                         const QStringList& labels,
+                                         const QList<QColor>& colors)
+{
+    if (!chart || !series) return;
+    QTimer::singleShot(0, chart, [chart, series, labels, colors]() {
+        const auto markers = chart->legend()->markers(series);
+        for (int i = 0; i < markers.size() && i < colors.size(); ++i) {
+            if (!markers[i]) continue;
+            if (i < labels.size() && !labels[i].isEmpty())
+                markers[i]->setLabel(labels[i]);
+            markers[i]->setBrush(QBrush(colors[i]));
+            markers[i]->setPen(QPen(colors[i].darker(140)));
+        }
+    });
+}
+
+static QWidget* makeLegendWidget(QWidget* parent, const QStringList& labels, const QList<QColor>& colors)
+{
+    if (labels.isEmpty() || colors.isEmpty())
+        return nullptr;
+
+    auto* wrap = new QWidget(parent);
+    auto* grid = new QGridLayout(wrap);
+    grid->setContentsMargins(8, 4, 8, 8);
+    grid->setHorizontalSpacing(10);
+    grid->setVerticalSpacing(6);
+
+    const int cols = labels.size() > 4 ? 2 : 3;
+    for (int i = 0; i < labels.size() && i < colors.size(); ++i) {
+        auto* item = new QWidget(wrap);
+        auto* hl = new QHBoxLayout(item);
+        hl->setContentsMargins(0, 0, 0, 0);
+        hl->setSpacing(6);
+        auto* swatch = new QFrame(item);
+        swatch->setFixedSize(10, 10);
+        swatch->setAutoFillBackground(true);
+        swatch->setStyleSheet(QString("background-color:%1; border:1px solid #d4dbea; border-radius:2px;").arg(colors[i].name()));
+        auto* lab = new QLabel(labels[i], item);
+        lab->setStyleSheet("background:transparent;color:#ffffff;font-size:11px;");
+        hl->addWidget(swatch);
+        hl->addWidget(lab);
+        hl->addStretch();
+        grid->addWidget(item, i / cols, i % cols);
+    }
+    return wrap;
+}
+
+static QWidget* wrapChartWithLegend(QWidget* parent, QChartView* view,
+                                    const QStringList& labels, const QList<QColor>& colors)
+{
+    auto* wrap = new QWidget(parent);
+    auto* vl = new QVBoxLayout(wrap);
+    vl->setContentsMargins(0, 0, 0, 0);
+    vl->setSpacing(4);
+    view->setParent(wrap);
+    vl->addWidget(view, 1);
+    if (auto* legend = makeLegendWidget(wrap, labels, colors))
+        vl->addWidget(legend, 0);
+    return wrap;
+}
+
 ChartsWidget::ChartsWidget(QWidget* parent) : QWidget(parent)
 {
     auto* root = new QVBoxLayout(this);
@@ -101,8 +168,11 @@ ChartsWidget::ChartsWidget(QWidget* parent) : QWidget(parent)
 void ChartsWidget::clear()
 {
     for (auto* v : m_views) {
-        m_layout->removeWidget(v);
-        v->deleteLater();
+        if (!v) continue;
+        QWidget* w = v->parentWidget();
+        if (!w) w = v;
+        m_layout->removeWidget(w);
+        w->deleteLater();
     }
     m_views.clear();
 }
@@ -224,7 +294,11 @@ void ChartsWidget::addPieChart(const QString& title,
 {
     auto* cv = makePie(title, labels, values);
     m_views << cv;
-    m_layout->insertWidget(m_layout->count()-1, cv);
+    QList<QColor> colors;
+    for (int i = 0; i < labels.size() && i < values.size(); ++i)
+        colors << kPalette[i % kPalette.size()];
+    auto* wrap = wrapChartWithLegend(m_container, cv, labels, colors);
+    m_layout->insertWidget(m_layout->count()-1, wrap);
 }
 
 void ChartsWidget::addCandleChart(const QString& title,
@@ -233,7 +307,10 @@ void ChartsWidget::addCandleChart(const QString& title,
 {
     auto* cv = makeCandle(title, labels, values);
     m_views << cv;
-    m_layout->insertWidget(m_layout->count()-1, cv);
+    auto* wrap = wrapChartWithLegend(m_container, cv,
+                                     QStringList{T("Increasing", "ارتفاع"), T("Decreasing", "انخفاض")},
+                                     QList<QColor>{QColor("#59A14F"), QColor("#E15759")});
+    m_layout->insertWidget(m_layout->count()-1, wrap);
 }
 
 void ChartsWidget::addLineChart(const QString& title,
@@ -255,11 +332,14 @@ QChartView* ChartsWidget::makePie(const QString& title,
     for (double v : values) total += qAbs(v);
     if (total == 0) total = 1;
 
+    QList<QColor> sliceColors;
     for (int i = 0; i < labels.size() && i < values.size(); ++i) {
         double val = qAbs(values[i]);
         if (val == 0) continue;
+        const QColor c = kPalette[i % kPalette.size()];
         auto* slice = series->append(labels[i], val);
-        slice->setColor(kPalette[i % kPalette.size()]);
+        slice->setColor(c);
+        sliceColors << c;
         slice->setLabelVisible(true);
         slice->setLabel(QString("%1%").arg(val / total * 100.0, 0, 'f', 1));
         slice->setLabelPosition(QPieSlice::LabelOutside);
@@ -274,20 +354,11 @@ QChartView* ChartsWidget::makePie(const QString& title,
     chart->setTitleFont(QFont("Segoe UI", 11, QFont::Bold));
     chart->setBackgroundBrush(QBrush(QColor("#1e2235")));
     chart->setTitleBrush(QBrush(Qt::white));
-    chart->legend()->setVisible(true);
-    chart->legend()->setAlignment(Qt::AlignBottom);
-    chart->legend()->setFont(QFont("Segoe UI", 9));
-    chart->legend()->setLabelColor(Qt::white);
-    chart->legend()->setBackgroundVisible(false);
-    chart->legend()->setMarkerShape(QLegend::MarkerShapeFromSeries);
+    chart->legend()->setVisible(false);
     chart->setMargins(QMargins(2, 2, 2, 20));
     chart->setAnimationOptions(QChart::AllAnimations);
 
-    const auto markers = chart->legend()->markers(series);
-    for (int i = 0; i < markers.size() && i < labels.size(); ++i) {
-        if (markers[i])
-            markers[i]->setLabel(labels[i]);
-    }
+    applyLegendMarkerColorsLater(chart, series, labels, sliceColors);
 
     auto* view = makeSafeView(chart);
     view->setFixedSize(380, 320);
@@ -357,12 +428,9 @@ QChartView* ChartsWidget::makeCandle(const QString& title,
     legendDec->attachAxis(axisX);
     legendDec->attachAxis(axisY);
 
-    chart->legend()->setVisible(true);
-    chart->legend()->setAlignment(Qt::AlignBottom);
-    chart->legend()->setFont(QFont("Segoe UI", 9));
-    chart->legend()->setLabelColor(Qt::white);
-    chart->legend()->setBackgroundVisible(false);
-    chart->legend()->setMarkerShape(QLegend::MarkerShapeFromSeries);
+    chart->legend()->setVisible(false);
+    applyLegendMarkerColorsLater(chart, legendInc, QStringList{T("↗ Increasing", "↗ ارتفاع")}, QList<QColor>{QColor("#59A14F")});
+    applyLegendMarkerColorsLater(chart, legendDec, QStringList{T("↘ Decreasing", "↘ انخفاض")}, QList<QColor>{QColor("#E15759")});
     chart->setMargins(QMargins(2, 2, 2, 20));
     chart->setAnimationOptions(QChart::AllAnimations);
 

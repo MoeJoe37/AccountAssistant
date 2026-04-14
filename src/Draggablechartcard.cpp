@@ -2,6 +2,8 @@
 #include "translations.h"
 
 #include <QVBoxLayout>
+#include <QFrame>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QMouseEvent>
 #include <QDrag>
@@ -98,6 +100,38 @@ static void execCardMenu(DraggableChartCard* self, const QPoint& globalPos)
     }
 }
 
+static QWidget* makeLegendWidget(QWidget* parent, const QStringList& labels, const QStringList& colors)
+{
+    if (labels.isEmpty() || colors.isEmpty())
+        return nullptr;
+
+    auto* wrap = new QWidget(parent);
+    auto* grid = new QGridLayout(wrap);
+    grid->setContentsMargins(8, 4, 8, 8);
+    grid->setHorizontalSpacing(10);
+    grid->setVerticalSpacing(6);
+
+    const int cols = labels.size() > 4 ? 2 : 3;
+    for (int i = 0; i < labels.size() && i < colors.size(); ++i) {
+        auto* item = new QWidget(wrap);
+        auto* hl = new QHBoxLayout(item);
+        hl->setContentsMargins(0, 0, 0, 0);
+        hl->setSpacing(6);
+        auto* swatch = new QFrame(item);
+        swatch->setFixedSize(10, 10);
+        swatch->setStyleSheet(QString("background:%1;border:1px solid #d4dbea;border-radius:2px;").arg(colors[i]));
+        auto* lab = new QLabel(labels[i], item);
+        lab->setStyleSheet(g_lightMode
+            ? "background:transparent;color:#1e2340;font-size:11px;"
+            : "background:transparent;color:#c8d0ed;font-size:11px;");
+        hl->addWidget(swatch);
+        hl->addWidget(lab);
+        hl->addStretch();
+        grid->addWidget(item, i / cols, i % cols);
+    }
+    return wrap;
+}
+
 DraggableChartCard::DraggableChartCard(const QString& title,
                                        QChartView*    view,
                                        QWidget*       parent)
@@ -138,6 +172,11 @@ DraggableChartCard::DraggableChartCard(const QString& title,
     if (view->viewport())
         view->viewport()->installEventFilter(this);
     vl->addWidget(view);
+
+    const QStringList legendLabels = m_view->property("legendLabels").toStringList();
+    const QStringList legendColors = m_view->property("legendColors").toStringList();
+    if (auto* legend = makeLegendWidget(this, legendLabels, legendColors))
+        vl->addWidget(legend);
 }
 
 void DraggableChartCard::setHighlight(bool on)
