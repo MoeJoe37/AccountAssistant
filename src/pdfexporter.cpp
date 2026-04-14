@@ -276,6 +276,27 @@ static QImage renderPieChartPreview(const ChartMeta& meta, const QSize& size)
     return img;
 }
 
+static void drawLegendRow(QPainter& p, const QRect& rect, const QList<QPair<QString, QColor>>& items)
+{
+    if (items.isEmpty()) return;
+    const int swatch = 10;
+    const int gap = 12;
+    int x = rect.left();
+    p.setFont(QFont("Segoe UI", 8));
+    for (const auto& item : items) {
+        const QString label = item.first;
+        const int itemW = 12 + p.fontMetrics().horizontalAdvance(label) + 18;
+        if (x + itemW > rect.right())
+            break;
+        p.fillRect(QRect(x, rect.top() + 2, swatch, swatch), item.second);
+        p.setPen(QPen(kBorder, 1));
+        p.drawRect(QRect(x, rect.top() + 2, swatch, swatch));
+        p.setPen(kText);
+        p.drawText(QRect(x + 14, rect.top(), itemW - 14, 16), Qt::AlignVCenter | Qt::AlignLeft, label);
+        x += itemW + gap;
+    }
+}
+
 static void drawPieLabel(QPainter& p, const QRectF& pie, double startDeg, double spanDeg, const QString& label, const QColor& color)
 {
     constexpr double kPi = 3.14159265358979323846;
@@ -339,6 +360,12 @@ static void drawBarPreview(QPainter& p, const QRect& rect, const ChartMeta& meta
         const int x = plot.left() + int(i * step + step * 0.5) - 30;
         p.drawText(QRect(x, plot.bottom() + 4, 60, 18), Qt::AlignHCenter, meta.labels.value(i));
     }
+
+    const QRect legendRect(chart.left() + 10, chart.bottom() - 18, chart.width() - 20, 16);
+    drawLegendRow(p, legendRect, QList<QPair<QString, QColor>>{
+        { T("Increasing", "الارتفاع"), kGreen },
+        { T("Decreasing", "الانخفاض"), kRed },
+    });
 }
 
 static void drawCompareCandles(QPainter& p, const QRect& rect, const ChartMeta& meta)
@@ -388,6 +415,12 @@ static void drawCompareCandles(QPainter& p, const QRect& rect, const ChartMeta& 
         const int x = plot.left() + int(i * step + step * 0.5) - 30;
         p.drawText(QRect(x, plot.bottom() + 4, 60, 18), Qt::AlignHCenter, meta.labels.value(i));
     }
+
+    const QRect legendRect(chart.left() + 10, chart.bottom() - 18, chart.width() - 20, 16);
+    drawLegendRow(p, legendRect, QList<QPair<QString, QColor>>{
+        { meta.nameA.isEmpty() ? T("Series A", "السلسلة الأولى") : meta.nameA, kAmber },
+        { meta.nameB.isEmpty() ? T("Series B", "السلسلة الثانية") : meta.nameB, kGreen },
+    });
 }
 
 static void drawRankedBars(QPainter& p, const QRect& rect, const ChartMeta& meta)
@@ -452,6 +485,12 @@ static void drawCandles(QPainter& p, const QRect& rect, const ChartMeta& meta)
         const int x = plot.left() + int(i * step + step * 0.5) - 30;
         p.drawText(QRect(x, plot.bottom() + 4, 60, 18), Qt::AlignHCenter, meta.labels.value(i));
     }
+
+    const QRect legendRect(chart.left() + 10, chart.bottom() - 18, chart.width() - 20, 16);
+    drawLegendRow(p, legendRect, QList<QPair<QString, QColor>>{
+        { T("Increasing", "الارتفاع"), kGreen },
+        { T("Decreasing", "الانخفاض"), kRed },
+    });
 }
 
 static void drawLineCompare(QPainter& p, const QRect& rect, const ChartMeta& meta)

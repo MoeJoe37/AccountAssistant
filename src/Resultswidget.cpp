@@ -19,6 +19,7 @@
 #include <QColor>
 #include <QPainter>
 #include <QMouseEvent>
+#include <QWheelEvent>
 #include <QDragMoveEvent>
 #include <QLabel>
 #include <QApplication>
@@ -192,32 +193,47 @@ static QString pageModeText(bool landscape)
 class SafeChartView : public QChartView
 {
 public:
-    using QChartView::QChartView;
+    explicit SafeChartView(QChart* chart) : QChartView(chart)
+    {
+        setRenderHint(QPainter::Antialiasing);
+        setDragMode(QGraphicsView::NoDrag);
+        setInteractive(false);
+        setRubberBand(QChartView::NoRubberBand);
+        setMouseTracking(false);
+    }
+
 protected:
+    void wheelEvent(QWheelEvent* e) override
+    {
+        if (e) e->accept();
+    }
+
     void mousePressEvent(QMouseEvent* e) override
     {
         if (e && e->button() == Qt::RightButton) {
             e->accept();
             return;
         }
-        QChartView::mousePressEvent(e);
+        if (e) e->accept();
     }
 
     void mouseReleaseEvent(QMouseEvent* e) override
     {
-        if (e && e->button() == Qt::RightButton) {
-            e->accept();
-            return;
-        }
-        QChartView::mouseReleaseEvent(e);
+        if (e) e->accept();
+    }
+
+    void mouseMoveEvent(QMouseEvent* e) override
+    {
+        if (e) e->accept();
     }
 };
 
-static QChartView* makeChartView(QChart* chart, bool zoomable = true)
+static QChartView* makeChartView(QChart* chart, bool zoomable = false)
 {
     auto* view = new SafeChartView(chart);
-    view->setRenderHint(QPainter::Antialiasing);
-    view->setRubberBand(zoomable ? QChartView::RectangleRubberBand : QChartView::NoRubberBand);
+    if (zoomable) {
+        // intentionally left disabled; charts remain fixed and non-interactive
+    }
     return view;
 }
 
@@ -1411,6 +1427,7 @@ QChartView* ResultsWidget::makePieChart(const QString& title,
     applyThemeToChart(chart);
     chart->legend()->setAlignment(Qt::AlignBottom);
     chart->legend()->setMarkerShape(QLegend::MarkerShapeFromSeries);
+    chart->legend()->setBackgroundVisible(false);
     chart->setTitle(title);
 
     const auto markers = chart->legend()->markers(series);
@@ -1485,6 +1502,8 @@ QChartView* ResultsWidget::makeCandleChart(const QString& title,
 
     chart->legend()->setVisible(true);
     chart->legend()->setAlignment(Qt::AlignBottom);
+    chart->legend()->setMarkerShape(QLegend::MarkerShapeFromSeries);
+    chart->legend()->setBackgroundVisible(false);
 
     auto* view = makeChartView(chart);
     view->setStyleSheet(g_lightMode

@@ -19,6 +19,7 @@
 #include <QList>
 #include <QPainter>
 #include <QMouseEvent>
+#include <QWheelEvent>
 #include <QCategoryAxis>
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -34,32 +35,44 @@ static const QList<QColor> kPalette = {
 class SafeChartView : public QChartView
 {
 public:
-    using QChartView::QChartView;
+    explicit SafeChartView(QChart* chart) : QChartView(chart)
+    {
+        setRenderHint(QPainter::Antialiasing);
+        setDragMode(QGraphicsView::NoDrag);
+        setInteractive(false);
+        setRubberBand(QChartView::NoRubberBand);
+        setMouseTracking(false);
+    }
+
 protected:
+    void wheelEvent(QWheelEvent* e) override
+    {
+        if (e) e->accept();
+    }
+
     void mousePressEvent(QMouseEvent* e) override
     {
         if (e && e->button() == Qt::RightButton) {
             e->accept();
             return;
         }
-        QChartView::mousePressEvent(e);
+        if (e) e->accept();
     }
 
     void mouseReleaseEvent(QMouseEvent* e) override
     {
-        if (e && e->button() == Qt::RightButton) {
-            e->accept();
-            return;
-        }
-        QChartView::mouseReleaseEvent(e);
+        if (e) e->accept();
+    }
+
+    void mouseMoveEvent(QMouseEvent* e) override
+    {
+        if (e) e->accept();
     }
 };
 
 static QChartView* makeSafeView(QChart* chart)
 {
-    auto* view = new SafeChartView(chart);
-    view->setRenderHint(QPainter::Antialiasing);
-    return view;
+    return new SafeChartView(chart);
 }
 
 ChartsWidget::ChartsWidget(QWidget* parent) : QWidget(parent)
@@ -266,9 +279,9 @@ QChartView* ChartsWidget::makePie(const QString& title,
     chart->legend()->setFont(QFont("Segoe UI", 9));
     chart->legend()->setLabelColor(Qt::white);
     chart->legend()->setBackgroundVisible(false);
+    chart->legend()->setMarkerShape(QLegend::MarkerShapeFromSeries);
     chart->setMargins(QMargins(2, 2, 2, 20));
     chart->setAnimationOptions(QChart::AllAnimations);
-    chart->legend()->setMarkerShape(QLegend::MarkerShapeFromSeries);
 
     const auto markers = chart->legend()->markers(series);
     for (int i = 0; i < markers.size() && i < labels.size(); ++i) {
@@ -349,6 +362,7 @@ QChartView* ChartsWidget::makeCandle(const QString& title,
     chart->legend()->setFont(QFont("Segoe UI", 9));
     chart->legend()->setLabelColor(Qt::white);
     chart->legend()->setBackgroundVisible(false);
+    chart->legend()->setMarkerShape(QLegend::MarkerShapeFromSeries);
     chart->setMargins(QMargins(2, 2, 2, 20));
     chart->setAnimationOptions(QChart::AllAnimations);
 
