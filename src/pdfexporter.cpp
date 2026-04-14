@@ -3,6 +3,11 @@
 
 #include <QPdfWriter>
 #include <QPainter>
+#include <QChart>
+#include <QPieSeries>
+#include <QPieSlice>
+#include <QLegendMarker>
+#include <QChartView>
 #include <QPageSize>
 #include <QPageLayout>
 #include <QDateTime>
@@ -55,7 +60,7 @@ struct ValueStats {
 
 static QString money(double v)
 {
-    return QString("$%1").arg(v, 0, 'f', 0);
+    return QString("$%L1").arg(v, 0, 'f', 0);
 }
 
 static ValueStats statsFor(const QList<double>& values)
@@ -201,6 +206,56 @@ static void drawDataTable(QPainter& p, const QRect& rect, const ChartMeta& meta)
     }
 }
 
+static QImage renderPieChartPreview(const ChartMeta& meta, const QSize& size)
+{
+    QImage img(size, QImage::Format_ARGB32_Premultiplied);
+    img.fill(Qt::transparent);
+
+    auto* series = new QPieSeries;
+    double total = 0.0;
+    for (double v : meta.values) total += qAbs(v);
+    if (total < 0.001) total = 1.0;
+
+    for (int i = 0; i < meta.labels.size() && i < meta.values.size(); ++i) {
+        const double v = qAbs(meta.values[i]);
+        if (v < 0.001) continue;
+        auto* sl = series->append(meta.labels[i], v);
+        sl->setColor(QColor::fromHsv((i * 40) % 360, 170, 220));
+        sl->setBorderColor(kBg);
+        sl->setLabelVisible(true);
+        sl->setLabel(QString("%1%").arg(v / total * 100.0, 0, 'f', 1));
+        sl->setLabelPosition(QPieSlice::LabelOutside);
+        sl->setLabelArmLengthFactor(0.18);
+        sl->setLabelColor(kText);
+    }
+
+    auto* chart = new QChart;
+    chart->addSeries(series);
+    chart->legend()->setVisible(true);
+    chart->legend()->setAlignment(Qt::AlignBottom);
+    chart->legend()->setFont(QFont("Segoe UI", 9));
+    chart->legend()->setLabelColor(kText);
+    chart->legend()->setMarkerShape(QLegend::MarkerShapeFromSeries);
+    chart->setBackgroundBrush(QBrush(kBg));
+    chart->setPlotAreaBackgroundVisible(false);
+    chart->setMargins(QMargins(2, 2, 2, 2));
+
+    const auto markers = chart->legend()->markers(series);
+    for (int i = 0; i < markers.size() && i < meta.labels.size(); ++i) {
+        if (markers[i])
+            markers[i]->setLabel(meta.labels[i]);
+    }
+
+    QChartView view(chart);
+    view.setRenderHint(QPainter::Antialiasing, true);
+    view.setRenderHint(QPainter::TextAntialiasing, true);
+    view.resize(size);
+
+    QPainter painter(&img);
+    view.render(&painter, QRect(QPoint(0, 0), size));
+    return img;
+}
+
 static void drawPieLabel(QPainter& p, const QRectF& pie, double startDeg, double spanDeg, const QString& label, const QColor& color)
 {
     constexpr double kPi = 3.14159265358979323846;
@@ -216,42 +271,9 @@ static void drawPieLabel(QPainter& p, const QRectF& pie, double startDeg, double
 
 static void drawPiePreview(QPainter& p, const QRect& rect, const ChartMeta& meta)
 {
-    double total = 0.0; for (double v : meta.values) total += qAbs(v);
-    if (total < 0.001) total = 1.0;
-    QRect chartRect = rect.adjusted(10, 10, -10, -10);
-    QRect pieArea(chartRect.left(), chartRect.top(), chartRect.width() * 58 / 100, chartRect.height());
-    QRect legendRect(pieArea.right() + 10, chartRect.top(), chartRect.right() - pieArea.right() - 10, chartRect.height());
-    const int d = qMin(pieArea.width(), pieArea.height()) - 10;
-    QRectF pie(pieArea.center().x() - d / 2.0, pieArea.center().y() - d / 2.0, d, d);
-    double startDeg = 90.0 * 16;
-    for (int i = 0; i < meta.values.size() && i < meta.labels.size(); ++i) {
-        const double v = qAbs(meta.values[i]);
-        if (v < 0.001) continue;
-        const double spanDeg = -360.0 * 16 * (v / total);
-        const QColor sliceColor = QColor::fromHsv((i * 40) % 360, 170, 220);
-        p.setBrush(sliceColor);
-        p.setPen(Qt::NoPen);
-        p.drawPie(pie, int(startDeg), int(spanDeg));
-        const QColor textColor = sliceColor.lightness() < 150 ? Qt::white : QColor("#1e2340");
-        drawPieLabel(p, pie, startDeg, spanDeg, QString("%1%").arg(v / total * 100.0, 0, 'f', 1), textColor);
-        startDeg += spanDeg;
-    }
-    p.setBrush(QColor("#ffffff"));
-    p.setPen(Qt::NoPen);
-    p.drawEllipse(pie.adjusted(d * 0.24, d * 0.24, -d * 0.24, -d * 0.24));
-    p.setPen(kAccent);
-    p.setFont(QFont("Segoe UI", 9, QFont::Bold));
-    p.drawText(QRect(legendRect.left(), legendRect.top(), legendRect.width(), 18), Qt::AlignLeft, T("Legend", "\u0627\u0644\u0645\u0641\u062A\u0627\u062D"));
-    p.setFont(QFont("Segoe UI", 8));
-    int y = legendRect.top() + 24;
-    const int maxRows = qMin(meta.labels.size(), 10);
-    for (int i = 0; i < maxRows; ++i) {
-        p.fillRect(QRect(legendRect.left(), y + 3, 10, 10), QColor::fromHsv((i * 40) % 360, 170, 220));
-        p.setPen(kText);
-        p.drawText(QRect(legendRect.left() + 16, y, legendRect.width() - 16, 18), Qt::AlignLeft,
-                   meta.labels.value(i) + QStringLiteral(" — ") + money(meta.values.value(i)));
-        y += 18;
-    }
+    const QRect chartRect = rect.adjusted(10, 10, -10, -10);
+    const QImage img = renderPieChartPreview(meta, chartRect.size());
+    p.drawImage(chartRect.topLeft(), img);
 }
 
 static void drawComparePiePreview(QPainter& p, const QRect& rect, const ChartMeta& meta)
@@ -748,7 +770,7 @@ bool PdfExporter::exportToPdf(const QString& path, const AppData& data, const QL
             flushPage();
             continue;
         }
-        const int blockH = (item.kind == ResultFlowItemKind::MonthCard) ? 168 : 360;
+        const int blockH = (item.kind == ResultFlowItemKind::MonthCard) ? 168 : 400;
         if (y + blockH > pageSize.height() - margin) {
             flushPage();
         }

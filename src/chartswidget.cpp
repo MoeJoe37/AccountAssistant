@@ -4,6 +4,7 @@
 #include <QChart>
 #include <QPieSeries>
 #include <QPieSlice>
+#include <QLegendMarker>
 #include <QCandlestickSeries>
 #include <QCandlestickSet>
 #include <QBarSeries>
@@ -215,7 +216,8 @@ QChartView* ChartsWidget::makePie(const QString& title,
         slice->setColor(kPalette[i % kPalette.size()]);
         slice->setLabelVisible(true);
         slice->setLabel(QString("%1%").arg(val / total * 100.0, 0, 'f', 1));
-        slice->setLabelPosition(QPieSlice::LabelInsideTangential);
+        slice->setLabelPosition(QPieSlice::LabelOutside);
+        slice->setLabelArmLengthFactor(0.18);
         slice->setLabelColor(Qt::white);
     }
 
@@ -226,11 +228,18 @@ QChartView* ChartsWidget::makePie(const QString& title,
     chart->setBackgroundBrush(QBrush(QColor("#1e2235")));
     chart->setTitleBrush(QBrush(Qt::white));
     chart->legend()->setVisible(true);
-    chart->legend()->setAlignment(Qt::AlignRight);
+    chart->legend()->setAlignment(Qt::AlignBottom);
     chart->legend()->setFont(QFont("Segoe UI", 9));
     chart->legend()->setLabelColor(Qt::white);
     chart->legend()->setBackgroundVisible(false);
     chart->setAnimationOptions(QChart::AllAnimations);
+    chart->legend()->setMarkerShape(QLegend::MarkerShapeFromSeries);
+
+    const auto markers = chart->legend()->markers(series);
+    for (int i = 0; i < markers.size() && i < labels.size(); ++i) {
+        if (markers[i])
+            markers[i]->setLabel(labels[i]);
+    }
 
     auto* view = makeSafeView(chart);
     view->setFixedSize(380, 320);

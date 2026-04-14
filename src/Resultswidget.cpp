@@ -6,6 +6,7 @@
 #include <QChart>
 #include <QPieSeries>
 #include <QPieSlice>
+#include <QLegendMarker>
 #include <QCandlestickSeries>
 #include <QCandlestickSet>
 #include <QBarSeries>
@@ -1395,7 +1396,8 @@ QChartView* ResultsWidget::makePieChart(const QString& title,
         sl->setBorderColor(borderCol);
         sl->setLabelVisible(true);
         sl->setLabel(QString("%1%").arg(v / total * 100.0, 0, 'f', 1));
-        sl->setLabelPosition(QPieSlice::LabelInsideTangential);
+        sl->setLabelPosition(QPieSlice::LabelOutside);
+        sl->setLabelArmLengthFactor(0.18);
         sl->setLabelColor(g_lightMode ? QColor("#1e2340") : QColor("#ffffff"));
         QObject::connect(sl, &QPieSlice::hovered, sl, [sl](bool on) {
             sl->setExploded(on);
@@ -1406,7 +1408,16 @@ QChartView* ResultsWidget::makePieChart(const QString& title,
     chart->addSeries(series);
     chart->legend()->setVisible(true);
     applyThemeToChart(chart);
+    chart->legend()->setAlignment(Qt::AlignBottom);
+    chart->legend()->setMarkerShape(QLegend::MarkerShapeFromSeries);
     chart->setTitle(title);
+
+    const auto markers = chart->legend()->markers(series);
+    for (int i = 0; i < markers.size() && i < labels.size(); ++i) {
+        if (markers[i])
+            markers[i]->setLabel(labels[i]);
+    }
+
     return makeChartView(chart, false);
 }
 
@@ -1726,8 +1737,10 @@ QChartView* ResultsWidget::makeComparePieChart(const QString& title,
     b->setLabelVisible(true);
     a->setLabel(QString("%1%").arg(qAbs(valueA) / total * 100.0, 0, 'f', 1));
     b->setLabel(QString("%1%").arg(qAbs(valueB) / total * 100.0, 0, 'f', 1));
-    a->setLabelPosition(QPieSlice::LabelInsideTangential);
-    b->setLabelPosition(QPieSlice::LabelInsideTangential);
+    a->setLabelPosition(QPieSlice::LabelOutside);
+    b->setLabelPosition(QPieSlice::LabelOutside);
+    a->setLabelArmLengthFactor(0.18);
+    b->setLabelArmLengthFactor(0.18);
     a->setLabelColor(g_lightMode ? QColor("#1e2340") : QColor("#ffffff"));
     b->setLabelColor(g_lightMode ? QColor("#1e2340") : QColor("#ffffff"));
     a->setColor(kPal[0]);
@@ -1738,6 +1751,10 @@ QChartView* ResultsWidget::makeComparePieChart(const QString& title,
     applyChartTheme(chart, title);
     chart->legend()->setVisible(true);
     chart->legend()->setAlignment(Qt::AlignBottom);
+    chart->legend()->setMarkerShape(QLegend::MarkerShapeFromSeries);
+    const auto markers = chart->legend()->markers(series);
+    if (markers.size() > 0 && markers[0]) markers[0]->setLabel(nameA);
+    if (markers.size() > 1 && markers[1]) markers[1]->setLabel(nameB);
     return makeChartView(chart, false);
 }
 

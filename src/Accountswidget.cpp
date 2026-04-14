@@ -11,6 +11,7 @@
 #include <QMessageBox>
 #include <QWheelEvent>
 #include <algorithm>
+#include <QLocale>
 
 namespace {
 class NoWheelDoubleSpinBox : public QDoubleSpinBox
@@ -24,6 +25,14 @@ protected:
         event->ignore();
     }
 };
+
+static void configureGroupedCurrencyDisplay(QDoubleSpinBox* spin)
+{
+    if (!spin)
+        return;
+    spin->setLocale(QLocale(QLocale::English, QLocale::UnitedStates));
+    spin->setGroupSeparatorShown(true);
+}
 
 static const char* kAccountsSSDark = R"(
 QWidget#accountsRoot { background:#0d1020; }
@@ -132,6 +141,7 @@ Accountswidget::Accountswidget(QWidget* parent) : QWidget(parent)
     m_amountSpin->setDecimals(2);
     m_amountSpin->setSingleStep(100);
     m_amountSpin->setButtonSymbols(QAbstractSpinBox::NoButtons);
+    configureGroupedCurrencyDisplay(m_amountSpin);
     m_addBtn = new QPushButton;
     m_addBtn->setObjectName("addAccountBtn");
     inputRow->addWidget(m_nameEdit, 2);
@@ -343,6 +353,7 @@ void Accountswidget::addRow(const QString& name, double amount, AccountType type
     amountSpin->setDecimals(2);
     amountSpin->setSingleStep(100);
     amountSpin->setButtonSymbols(QAbstractSpinBox::NoButtons);
+    configureGroupedCurrencyDisplay(amountSpin);
     amountSpin->setPrefix(currencyPrefix());
     amountSpin->setValue(amount);
 
