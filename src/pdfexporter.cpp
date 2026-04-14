@@ -20,6 +20,7 @@
 #include <QPen>
 #include <QPointF>
 #include <QPolygonF>
+#include <QVector>
 #include <QFileInfo>
 #include <QtMath>
 #include <algorithm>
@@ -98,8 +99,15 @@ static ChartMeta metaForRequest(const AppData& d, const ChartRequest& req)
         m.values = seriesForMetric(d, req.metricA, &m.labels, months, req.accountFilter);
         break;
     case ChartKind::Candle:
-        m.type = (req.metricA == M_EXPENSES) ? "rankedbar" : "candle";
-        m.values = seriesForMetric(d, req.metricA, &m.labels, months, req.accountFilter);
+        if (!req.seriesB.isEmpty()) {
+            m.type = "comparecandle";
+            m.values = seriesForMetric(d, req.metricA, &m.labels, months, req.accountFilter);
+            m.values2 = seriesForMetric(d, req.metricB, &m.labels2, months, req.accountFilter);
+            if (m.labels2.isEmpty()) m.labels2 = m.labels;
+        } else {
+            m.type = (req.metricA == M_EXPENSES) ? "rankedbar" : "candle";
+            m.values = seriesForMetric(d, req.metricA, &m.labels, months, req.accountFilter);
+        }
         break;
     case ChartKind::RankedBar:
         m.type = "rankedbar";
@@ -216,35 +224,29 @@ static QImage renderPieChartPreview(const ChartMeta& meta, const QSize& size)
     for (double v : meta.values) total += qAbs(v);
     if (total < 0.001) total = 1.0;
 
+    QVector<QColor> colors;
     for (int i = 0; i < meta.labels.size() && i < meta.values.size(); ++i) {
         const double v = qAbs(meta.values[i]);
         if (v < 0.001) continue;
+        const QColor col = QColor::fromHsv((i * 40) % 360, 170, 220);
+        colors << col;
         auto* sl = series->append(meta.labels[i], v);
-        sl->setColor(QColor::fromHsv((i * 40) % 360, 170, 220));
+        sl->setColor(col);
         sl->setBorderColor(kBg);
         sl->setLabelVisible(true);
         sl->setLabel(QString("%1%").arg(v / total * 100.0, 0, 'f', 1));
         sl->setLabelPosition(QPieSlice::LabelOutside);
-        sl->setLabelArmLengthFactor(0.18);
+        sl->setLabelArmLengthFactor(0.22);
         sl->setLabelColor(kText);
     }
+    series->setPieSize(0.74);
 
     auto* chart = new QChart;
     chart->addSeries(series);
-    chart->legend()->setVisible(true);
-    chart->legend()->setAlignment(Qt::AlignBottom);
-    chart->legend()->setFont(QFont("Segoe UI", 9));
-    chart->legend()->setLabelColor(kText);
-    chart->legend()->setMarkerShape(QLegend::MarkerShapeFromSeries);
+    chart->legend()->setVisible(false);
     chart->setBackgroundBrush(QBrush(kBg));
     chart->setPlotAreaBackgroundVisible(false);
-    chart->setMargins(QMargins(2, 2, 2, 2));
-
-    const auto markers = chart->legend()->markers(series);
-    for (int i = 0; i < markers.size() && i < meta.labels.size(); ++i) {
-        if (markers[i])
-            markers[i]->setLabel(meta.labels[i]);
-    }
+    chart->setMargins(QMargins(6, 6, 6, 38));
 
     QChartView view(chart);
     view.setRenderHint(QPainter::Antialiasing, true);
@@ -253,6 +255,24 @@ static QImage renderPieChartPreview(const ChartMeta& meta, const QSize& size)
 
     QPainter painter(&img);
     view.render(&painter, QRect(QPoint(0, 0), size));
+
+    // Manual legend row so names stay visible and do not get replaced by percentages.
+    const int legendY = size.height() - 28;
+    const int swatch = 10;
+    const int gap = 10;
+    int x = 10;
+    painter.setPen(kText);
+    painter.setFont(QFont("Segoe UI", 8));
+    for (int i = 0; i < meta.labels.size() && i < colors.size(); ++i) {
+        const QString label = meta.labels[i];
+        const int itemW = 12 + painter.fontMetrics().horizontalAdvance(label) + 18;
+        if (x + itemW > size.width() - 10)
+            break;
+        painter.fillRect(QRect(x, legendY + 2, swatch, swatch), colors[i]);
+        painter.drawRect(QRect(x, legendY + 2, swatch, swatch));
+        painter.drawText(QRect(x + 14, legendY, itemW - 14, 16), Qt::AlignVCenter | Qt::AlignLeft, label);
+        x += itemW + gap;
+    }
     return img;
 }
 
@@ -312,6 +332,55 @@ static void drawBarPreview(QPainter& p, const QRect& rect, const ChartMeta& meta
             p.fillRect(bar, kGreen);
         }
     }
+    p.setPen(kMuted);
+    p.setFont(QFont("Segoe UI", 8));
+    const int maxLabels = qMin(n, 12);
+    for (int i = 0; i < maxLabels; ++i) {
+        const int x = plot.left() + int(i * step + step * 0.5) - 30;
+        p.drawText(QRect(x, plot.bottom() + 4, 60, 18), Qt::AlignHCenter, meta.labels.value(i));
+    }
+}
+
+static void drawCompareCandles(QPainter& p, const QRect& rect, const ChartMeta& meta)
+{
+    if (meta.values.isEmpty() || meta.values2.isEmpty()) return;
+    double maxV = 0.0;
+    for (double v : meta.values) maxV = qMax(maxV, qAbs(v));
+    for (double v : meta.values2) maxV = qMax(maxV, qAbs(v));
+    if (maxV < 0.001) maxV = 1.0;
+    QRect chart = rect.adjusted(18, 18, -18, -18);
+    const int leftPad = 48;
+    const int bottomPad = 34;
+    QRect plot(chart.left() + leftPad, chart.top() + 10, chart.width() - leftPad - 8, chart.height() - bottomPad - 14);
+    p.setPen(QPen(kBorder, 1));
+    p.drawRect(plot);
+    p.setFont(QFont("Segoe UI", 8));
+    p.setPen(kMuted);
+    p.drawText(QRect(chart.left(), chart.top(), chart.width(), 14), Qt::AlignLeft, T("Timeline", "الزمن"));
+    const int n = qMax(meta.values.size(), meta.values2.size());
+    const double step = double(plot.width()) / qMax(1, n);
+    const double bodyW = qMax(4.0, step * 0.24);
+    const double offset = qMin(8.0, step * 0.18);
+    auto drawOne = [&](const QList<double>& vals, const QColor& col, double xOff) {
+        for (int i = 0; i < vals.size(); ++i) {
+            const double open = 0.0;
+            const double close = vals[i];
+            const double hi = qMax(open, close) * 1.02 + 0.01;
+            const double lo = qMin(open, close) * 0.98;
+            const double yHi = plot.bottom() - plot.height() * (qAbs(hi) / maxV);
+            const double yLo = plot.bottom() - plot.height() * (qAbs(lo) / maxV);
+            const double yOpen = plot.bottom() - plot.height() * (qAbs(open) / maxV);
+            const double yClose = plot.bottom() - plot.height() * (qAbs(close) / maxV);
+            const bool rising = close >= open;
+            p.setPen(QPen(rising ? col : col.darker(120), 2));
+            const double midX = plot.left() + i * step + step / 2.0 + xOff;
+            p.drawLine(QPointF(midX, yHi), QPointF(midX, yLo));
+            QRectF body(midX - bodyW / 2.0, qMin(yOpen, yClose), bodyW, qMax(3.0, qAbs(yClose - yOpen)));
+            p.fillRect(body, rising ? col : col.darker(120));
+        }
+    };
+    drawOne(meta.values, kAmber, -offset);
+    drawOne(meta.values2, kGreen, offset);
     p.setPen(kMuted);
     p.setFont(QFont("Segoe UI", 8));
     const int maxLabels = qMin(n, 12);
@@ -432,6 +501,7 @@ static void drawChartPreview(QPainter& p, const QRect& chartArea, const ChartMet
     else if (meta.type == "comparepie") drawComparePiePreview(p, chartArea, meta);
     else if (meta.type == "rankedbar") drawRankedBars(p, chartArea, meta);
     else if (meta.type == "candle") drawCandles(p, chartArea, meta);
+    else if (meta.type == "comparecandle") drawCompareCandles(p, chartArea, meta);
     else if (meta.type == "compareline") drawLineCompare(p, chartArea, meta);
     else drawBarPreview(p, chartArea, meta, true);
 }

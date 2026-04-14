@@ -19,6 +19,7 @@
 #include <QList>
 #include <QPainter>
 #include <QMouseEvent>
+#include <QCategoryAxis>
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Palette
@@ -118,6 +119,8 @@ void ChartsWidget::buildCharts(const AppData& d)
         addPieChart(T("Sales","المبيعات"), months, monthVals(&MonthData::sales));
     if (d.sel[M_SALES].candle)
         addCandleChart(T("Sales","المبيعات"), months, monthVals(&MonthData::sales));
+    if (d.sel[M_SALES].line)
+        addLineChart(T("Sales","المبيعات"), months, monthVals(&MonthData::sales));
 
     // ── Sales Return ──────────────────────────────────────────────────────
     if (d.sel[M_SALES_RETURN].pie)
@@ -126,6 +129,9 @@ void ChartsWidget::buildCharts(const AppData& d)
     if (d.sel[M_SALES_RETURN].candle)
         addCandleChart(T("Sales Return","\u0645\u0631\u062a\u062c\u0639\u0627\u062a"),
                        months, monthVals(&MonthData::salesReturn));
+    if (d.sel[M_SALES_RETURN].line)
+        addLineChart(T("Sales Return","مرتجعات"),
+                     months, monthVals(&MonthData::salesReturn));
 
     // ── Purchases ─────────────────────────────────────────────────────────
     if (d.sel[M_PURCHASES].pie) {
@@ -136,6 +142,9 @@ void ChartsWidget::buildCharts(const AppData& d)
     if (d.sel[M_PURCHASES].candle)
         addCandleChart(T("Purchases","\u0645\u0634\u062a\u0631\u064a\u0627\u062a"),
                        months, monthVals(&MonthData::supplierPurchases));
+    if (d.sel[M_PURCHASES].line)
+        addLineChart(T("Purchases","مشتريات"),
+                     months, monthVals(&MonthData::supplierPurchases));
 
     // ── Expenses ──────────────────────────────────────────────────────────
     if (d.sel[M_EXPENSES].pie)
@@ -144,6 +153,9 @@ void ChartsWidget::buildCharts(const AppData& d)
     if (d.sel[M_EXPENSES].candle)
         addCandleChart(T("Expenses","\u0645\u0635\u0631\u0648\u0641\u0627\u062a"),
                        months, monthVals(&MonthData::expenseAmount));
+    if (d.sel[M_EXPENSES].line)
+        addLineChart(T("Expenses","مصروفات"),
+                     months, monthVals(&MonthData::expenseAmount));
 
     // ── Inventory ─────────────────────────────────────────────────────────
     if (d.sel[M_INVENTORY].pie) {
@@ -154,6 +166,9 @@ void ChartsWidget::buildCharts(const AppData& d)
     if (d.sel[M_INVENTORY].candle)
         addCandleChart(T("Inventory","\u0645\u062e\u0632\u0648\u0646"),
                        months, monthVals(&MonthData::inventoryFirst));
+    if (d.sel[M_INVENTORY].line)
+        addLineChart(T("Inventory","مخزون"),
+                     months, monthVals(&MonthData::inventoryFirst));
 
     // ── Net Sales ─────────────────────────────────────────────────────────
     if (d.sel[M_NET_SALES].pie)
@@ -162,6 +177,9 @@ void ChartsWidget::buildCharts(const AppData& d)
     if (d.sel[M_NET_SALES].candle)
         addCandleChart(T("Net Sales","\u0635\u0627\u0641\u064a \u0627\u0644\u0645\u0628\u064a\u0639\u0627\u062a"),
                        months, arr12(d.netSales));
+    if (d.sel[M_NET_SALES].line)
+        addLineChart(T("Net Sales","صافي المبيعات"),
+                     months, arr12(d.netSales));
 
     // ── COGS ──────────────────────────────────────────────────────────────
     if (d.sel[M_COGS].pie)
@@ -170,6 +188,9 @@ void ChartsWidget::buildCharts(const AppData& d)
     if (d.sel[M_COGS].candle)
         addCandleChart(T("Cost of Goods Sold","\u062a\u0643\u0644\u0641\u0629 \u0627\u0644\u0628\u0636\u0627\u0639\u0629"),
                        months, arr12(d.cogs));
+    if (d.sel[M_COGS].line)
+        addLineChart(T("Cost of Goods Sold","تكلفة البضاعة"),
+                     months, arr12(d.cogs));
 
     // ── Profit Margin ─────────────────────────────────────────────────────
     if (d.sel[M_PROFIT_MARGIN].pie)
@@ -178,6 +199,9 @@ void ChartsWidget::buildCharts(const AppData& d)
     if (d.sel[M_PROFIT_MARGIN].candle)
         addCandleChart(T("Profit Margin","\u0647\u0627\u0645\u0634 \u0627\u0644\u0631\u0628\u062d"),
                        months, arr12(d.profitMargin));
+    if (d.sel[M_PROFIT_MARGIN].line)
+        addLineChart(T("Profit Margin","هامش الربح"),
+                     months, arr12(d.profitMargin));
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -195,6 +219,15 @@ void ChartsWidget::addCandleChart(const QString& title,
                                    const QList<double>& values)
 {
     auto* cv = makeCandle(title, labels, values);
+    m_views << cv;
+    m_layout->insertWidget(m_layout->count()-1, cv);
+}
+
+void ChartsWidget::addLineChart(const QString& title,
+                                const QStringList& labels,
+                                const QList<double>& values)
+{
+    auto* cv = makeLine(title, labels, values);
     m_views << cv;
     m_layout->insertWidget(m_layout->count()-1, cv);
 }
@@ -221,6 +254,7 @@ QChartView* ChartsWidget::makePie(const QString& title,
         slice->setLabelColor(Qt::white);
     }
 
+    series->setPieSize(0.72);
     auto* chart = new QChart;
     chart->addSeries(series);
     chart->setTitle(title);
@@ -232,6 +266,7 @@ QChartView* ChartsWidget::makePie(const QString& title,
     chart->legend()->setFont(QFont("Segoe UI", 9));
     chart->legend()->setLabelColor(Qt::white);
     chart->legend()->setBackgroundVisible(false);
+    chart->setMargins(QMargins(2, 2, 2, 20));
     chart->setAnimationOptions(QChart::AllAnimations);
     chart->legend()->setMarkerShape(QLegend::MarkerShapeFromSeries);
 
@@ -314,7 +349,53 @@ QChartView* ChartsWidget::makeCandle(const QString& title,
     chart->legend()->setFont(QFont("Segoe UI", 9));
     chart->legend()->setLabelColor(Qt::white);
     chart->legend()->setBackgroundVisible(false);
+    chart->setMargins(QMargins(2, 2, 2, 20));
     chart->setAnimationOptions(QChart::AllAnimations);
+
+    auto* view = makeSafeView(chart);
+    view->setFixedSize(420, 360);
+    view->setObjectName("chartView");
+    return view;
+}
+
+
+QChartView* ChartsWidget::makeLine(const QString& title,
+                                   const QStringList& labels,
+                                   const QList<double>& values)
+{
+    auto* line = new QLineSeries;
+    line->setName(title);
+    line->setColor(QColor("#4f86f7"));
+    for (int i = 0; i < values.size(); ++i)
+        line->append(i, values[i]);
+
+    auto* chart = new QChart;
+    chart->addSeries(line);
+    chart->setTitle(title);
+    chart->setTitleFont(QFont("Segoe UI", 11, QFont::Bold));
+    chart->setBackgroundBrush(QBrush(QColor("#1e2235")));
+    chart->setTitleBrush(QBrush(Qt::white));
+    chart->legend()->setVisible(false);
+
+    auto* axisX = new QCategoryAxis;
+    for (int i = 0; i < labels.size(); ++i)
+        axisX->append(labels[i], i);
+    axisX->setRange(0, qMax(0, labels.size() - 1));
+    axisX->setLabelsColor(Qt::white);
+    axisX->setLabelsAngle(-45);
+    axisX->setGridLineColor(QColor("#3a3f55"));
+    chart->addAxis(axisX, Qt::AlignBottom);
+    line->attachAxis(axisX);
+
+    auto* axisY = new QValueAxis;
+    axisY->setLabelsColor(Qt::white);
+    axisY->setGridLineColor(QColor("#3a3f55"));
+    double maxV = 0.0;
+    for (double v : values) maxV = qMax(maxV, qAbs(v));
+    if (maxV < 0.001) maxV = 1.0;
+    axisY->setRange(0.0, maxV * 1.1);
+    chart->addAxis(axisY, Qt::AlignLeft);
+    line->attachAxis(axisY);
 
     auto* view = makeSafeView(chart);
     view->setFixedSize(420, 360);

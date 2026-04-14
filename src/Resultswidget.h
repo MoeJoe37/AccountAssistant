@@ -65,6 +65,12 @@ private:
     static QChartView* makeCandleChart(const QString& title,
                                        const QStringList& labels,
                                        const QList<double>& values);
+    static QChartView* makeCompareCandleChart(const QString& title,
+                                              const QStringList& labels,
+                                              const QList<double>& seriesA,
+                                              const QList<double>& seriesB,
+                                              const QString& nameA,
+                                              const QString& nameB);
     static QChartView* makeRankedBarChart(const QString& title,
                                           const QStringList& labels,
                                           const QList<double>& values);

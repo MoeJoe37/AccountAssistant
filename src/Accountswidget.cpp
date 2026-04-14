@@ -10,6 +10,7 @@
 #include <QSignalBlocker>
 #include <QMessageBox>
 #include <QWheelEvent>
+#include <QAbstractItemView>
 #include <algorithm>
 #include <QLocale>
 
@@ -18,6 +19,18 @@ class NoWheelDoubleSpinBox : public QDoubleSpinBox
 {
 public:
     using QDoubleSpinBox::QDoubleSpinBox;
+
+protected:
+    void wheelEvent(QWheelEvent* event) override
+    {
+        event->ignore();
+    }
+};
+
+class NoWheelComboBox : public QComboBox
+{
+public:
+    using QComboBox::QComboBox;
 
 protected:
     void wheelEvent(QWheelEvent* event) override
@@ -131,7 +144,7 @@ Accountswidget::Accountswidget(QWidget* parent) : QWidget(parent)
     auto* inputRow = new QHBoxLayout;
     inputRow->setSpacing(10);
     m_nameEdit = new QLineEdit;
-    m_typeCombo = new QComboBox;
+    m_typeCombo = new NoWheelComboBox;
     m_typeCombo->addItem(accountTypeDisplayName(AccountType::Payable));
     m_typeCombo->addItem(accountTypeDisplayName(AccountType::Receivable));
     m_typeCombo->setCurrentIndex(0);
@@ -156,10 +169,10 @@ Accountswidget::Accountswidget(QWidget* parent) : QWidget(parent)
     sortLabel->setStyleSheet("background:transparent; font-weight:700;");
     auto* groupLabel = new QLabel(T("Group by", "تجميع حسب"));
     groupLabel->setObjectName("accountsGroupLabel");
-    m_sortCombo = new QComboBox;
+    m_sortCombo = new NoWheelComboBox;
     m_sortCombo->addItem(T("Ascending", "تصاعدي"));
     m_sortCombo->addItem(T("Descending", "تنازلي"));
-    m_groupCombo = new QComboBox;
+    m_groupCombo = new NoWheelComboBox;
     m_groupCombo->addItem(accountTypeFilterDisplayName(AccountTypeFilter::All));
     m_groupCombo->addItem(accountTypeFilterDisplayName(AccountTypeFilter::Payable));
     m_groupCombo->addItem(accountTypeFilterDisplayName(AccountTypeFilter::Receivable));
@@ -342,7 +355,7 @@ void Accountswidget::addRow(const QString& name, double amount, AccountType type
     nameEdit->setPlaceholderText(T("Expense account", "حساب المصروف"));
     nameEdit->setText(name);
 
-    auto* typeCombo = new QComboBox(rowW);
+    auto* typeCombo = new NoWheelComboBox(rowW);
     typeCombo->addItem(accountTypeDisplayName(AccountType::Payable));
     typeCombo->addItem(accountTypeDisplayName(AccountType::Receivable));
     typeCombo->setCurrentIndex(accountTypeIndex(type));

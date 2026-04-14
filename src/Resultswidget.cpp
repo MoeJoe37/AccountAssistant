@@ -1404,6 +1404,7 @@ QChartView* ResultsWidget::makePieChart(const QString& title,
         });
     }
 
+    series->setPieSize(0.72);
     auto* chart = new QChart;
     chart->addSeries(series);
     chart->legend()->setVisible(true);
@@ -1595,6 +1596,88 @@ QChartView* ResultsWidget::makeSingleLineChart(const QString& title,
     return view;
 }
 
+QChartView* ResultsWidget::makeCompareCandleChart(const QString& title,
+                                                  const QStringList& labels,
+                                                  const QList<double>& seriesA,
+                                                  const QList<double>& seriesB,
+                                                  const QString& nameA,
+                                                  const QString& nameB)
+{
+    auto* candA = new QCandlestickSeries;
+    auto* candB = new QCandlestickSeries;
+    candA->setName(nameA);
+    candB->setName(nameB);
+    candA->setIncreasingColor(QColor("#3ecf8e"));
+    candA->setDecreasingColor(QColor("#e05c6a"));
+    candB->setIncreasingColor(QColor("#f0a500"));
+    candB->setDecreasingColor(QColor("#7cc4ff"));
+    candA->setBodyOutlineVisible(false);
+    candB->setBodyOutlineVisible(false);
+
+    const int n = qMax(seriesA.size(), seriesB.size());
+    for (int i = 0; i < n; ++i) {
+        const double a = i < seriesA.size() ? seriesA[i] : 0.0;
+        const double b = i < seriesB.size() ? seriesB[i] : 0.0;
+        double hiA = qMax(0.0, a) * 1.02;
+        double loA = qMin(0.0, a) * 0.98;
+        if (hiA <= loA + 0.001) hiA = loA + 1;
+        double hiB = qMax(0.0, b) * 1.02;
+        double loB = qMin(0.0, b) * 0.98;
+        if (hiB <= loB + 0.001) hiB = loB + 1;
+        candA->append(new QCandlestickSet(0.0, hiA, loA, a, static_cast<qreal>(i) - 0.18));
+        candB->append(new QCandlestickSet(0.0, hiB, loB, b, static_cast<qreal>(i) + 0.18));
+    }
+
+    auto* chart = new QChart;
+    chart->addSeries(candA);
+    chart->addSeries(candB);
+    applyChartTheme(chart, title);
+    chart->legend()->setVisible(true);
+    chart->legend()->setAlignment(Qt::AlignBottom);
+    chart->legend()->setMarkerShape(QLegend::MarkerShapeFromSeries);
+
+    QColor axisCol = g_lightMode ? QColor("#5a6490") : QColor("#8892b8");
+    QColor gridCol = g_lightMode ? QColor("#e5e7eb") : QColor("#1e2445");
+    auto* axX = new QBarCategoryAxis;
+    axX->append(labels);
+    axX->setLabelsColor(axisCol);
+    axX->setLabelsAngle(-45);
+    axX->setGridLineColor(gridCol);
+    axX->setLabelsFont(QFont("Segoe UI", 8));
+    chart->addAxis(axX, Qt::AlignBottom);
+    candA->attachAxis(axX);
+    candB->attachAxis(axX);
+
+    auto* axY = new QValueAxis;
+    axY->setLabelsColor(axisCol);
+    axY->setGridLineColor(gridCol);
+    axY->setLabelsFont(QFont("Segoe UI", 8));
+    double maxV = 0.0;
+    for (double v : seriesA) maxV = qMax(maxV, qAbs(v));
+    for (double v : seriesB) maxV = qMax(maxV, qAbs(v));
+    if (maxV < 0.001) maxV = 1.0;
+    axY->setRange(0.0, maxV * 1.1);
+    chart->addAxis(axY, Qt::AlignLeft);
+    candA->attachAxis(axY);
+    candB->attachAxis(axY);
+
+    auto* view = makeChartView(chart);
+    view->setStyleSheet(g_lightMode
+        ? "background:#ffffff; border:none; border-radius:0 0 10px 10px;"
+        : "background:#151929; border:none; border-radius:0 0 10px 10px;");
+    view->setProperty("chartLabels", labels);
+    QVariantList vl; for (double x : seriesA) vl << x;
+    view->setProperty("chartValues", vl);
+    view->setProperty("chartType", "comparecandle");
+    view->setProperty("chartTitle", title);
+    view->setProperty("chartLabels2", labels);
+    QVariantList vl2; for (double x : seriesB) vl2 << x;
+    view->setProperty("chartValues2", vl2);
+    view->setProperty("chartSeriesA", nameA);
+    view->setProperty("chartSeriesB", nameB);
+    return view;
+}
+
 QChartView* ResultsWidget::makeCompareBarChart(const QString& title,
                                                const QStringList& labels,
                                                const QList<double>& seriesA,
@@ -1746,6 +1829,7 @@ QChartView* ResultsWidget::makeComparePieChart(const QString& title,
     a->setColor(kPal[0]);
     b->setColor(kPal[1]);
 
+    series->setPieSize(0.72);
     auto* chart = new QChart;
     chart->addSeries(series);
     applyChartTheme(chart, title);
@@ -1770,6 +1854,12 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
     case ChartKind::Pie:
         return makePieChart(title, labels, a);
     case ChartKind::Candle:
+        if (!request.seriesB.isEmpty()) {
+            b = metricSeriesValues(data, request.metricB, &labels, months, request.accountFilter);
+            return makeCompareCandleChart(title, labels, a, b,
+                                          request.seriesA.isEmpty() ? metricDisplayName(request.metricA) : request.seriesA,
+                                          request.seriesB.isEmpty() ? metricDisplayName(request.metricB) : request.seriesB);
+        }
         if (request.metricA == M_EXPENSES)
             return makeRankedBarChart(title, labels, a);
         return makeCandleChart(title, labels, a);
