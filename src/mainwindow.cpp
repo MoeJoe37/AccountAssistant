@@ -332,7 +332,8 @@ static QByteArray makeAccountsWorksheetXml(const AppData& data)
     w.writeStartElement("row");
     w.writeAttribute("r", "1");
     writeTextCell("A1", "Account");
-    writeTextCell("B1", "Amount");
+    writeTextCell("B1", "Type");
+    writeTextCell("C1", "Amount");
     w.writeEndElement();
 
     for (int i = 0; i < data.accounts.size(); ++i) {
@@ -340,7 +341,8 @@ static QByteArray makeAccountsWorksheetXml(const AppData& data)
         w.writeStartElement("row");
         w.writeAttribute("r", QString::number(row));
         writeTextCell(QString("A%1").arg(row), data.accounts[i].name);
-        writeNumCell(QString("B%1").arg(row), data.accounts[i].amount);
+        writeTextCell(QString("B%1").arg(row), accountTypeDisplayName(data.accounts[i].type));
+        writeNumCell(QString("C%1").arg(row), data.accounts[i].amount);
         w.writeEndElement();
     }
 
@@ -593,11 +595,24 @@ static QList<AccountItem> parseAccountsSheet(const QByteArray& sheet)
     int rowNum = 0;
     QMap<int, QString> rowCells;
 
+    auto parseType = [](const QString& text) {
+        const QString k = text.trimmed().toCaseFolded();
+        if (k.contains(QString::fromUtf8("مدين")) || k.contains(QStringLiteral("receivable")))
+            return AccountType::Receivable;
+        return AccountType::Payable;
+    };
+
     auto flushRow = [&]() {
         if (rowNum < 2) return;
         AccountItem a;
         a.name = rowCells.value(0).trimmed();
-        a.amount = rowCells.value(1).trimmed().toDouble();
+        if (rowCells.contains(2)) {
+            a.type = parseType(rowCells.value(1));
+            a.amount = rowCells.value(2).trimmed().toDouble();
+        } else {
+            a.type = AccountType::Payable;
+            a.amount = rowCells.value(1).trimmed().toDouble();
+        }
         if (!a.name.isEmpty() || !qFuzzyIsNull(a.amount))
             accounts.append(a);
         rowCells.clear();
@@ -624,7 +639,7 @@ static QList<AccountItem> parseAccountsSheet(const QByteArray& sheet)
                     }
                 }
             }
-            if (colIdx >= 0 && colIdx <= 1)
+            if (colIdx >= 0 && colIdx <= 2)
                 rowCells[colIdx] = val;
         } else if (xr.isEndElement() && xr.name() == QLatin1String("row")) {
             flushRow();
@@ -826,6 +841,7 @@ void MainWindow::saveTableDataLocally()
     for (int i = 0; i < accounts.size(); ++i) {
         s.beginGroup(QString::number(i));
         s.setValue(QStringLiteral("name"), accounts[i].name);
+        s.setValue(QStringLiteral("type"), int(accounts[i].type));
         s.setValue(QStringLiteral("amount"), accounts[i].amount);
         s.endGroup();
     }
@@ -867,6 +883,7 @@ void MainWindow::loadTableDataLocally()
             s.beginGroup(QString::number(i));
             AccountItem a;
             a.name = s.value(QStringLiteral("name"), QString()).toString();
+            a.type = static_cast<AccountType>(s.value(QStringLiteral("type"), 0).toInt());
             a.amount = s.value(QStringLiteral("amount"), 0.0).toDouble();
             accounts.append(a);
             s.endGroup();
@@ -1080,7 +1097,7 @@ void MainWindow::onEditCharts()
 }
 
 
-void MainWindow::onAccountGraphRequested(ChartKind kind)
+void MainWindow::onAccountGraphRequested(ChartKind kind, AccountTypeFilter accountFilter)
 {
     AppData working = collectAllData();
     working.calculate();
@@ -1099,6 +1116,7 @@ void MainWindow::onAccountGraphRequested(ChartKind kind)
     ChartRequest req;
     req.kind = kind;
     req.metricA = M_EXPENSES;
+    req.accountFilter = accountFilter;
     req.title = metricDisplayName(M_EXPENSES);
     switch (kind) {
     case ChartKind::Pie:

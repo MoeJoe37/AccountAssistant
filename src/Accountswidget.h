@@ -26,12 +26,12 @@ public:
     void retranslate();
 
 signals:
-    void graphRequested(ChartKind kind);
+    void graphRequested(ChartKind kind, AccountTypeFilter accountFilter);
 
 private slots:
     void onAddAccount();
     void onSortChanged(int index);
-    void onSearchChanged(const QString& text);
+    void onGroupChanged(int index);
     void onShowGraphs();
     void onRemoveRow();
     void onRowChanged();
@@ -41,6 +41,7 @@ private:
     struct RowWidgets {
         QWidget* row{};
         QLineEdit* name{};
+        QComboBox* type{};
         QDoubleSpinBox* amount{};
         QPushButton* removeBtn{};
         QString lastValidName;
@@ -49,20 +50,24 @@ private:
     void rebuildRows(const QList<AccountItem>& items);
     QList<AccountItem> currentItems() const;
     void sortAndRebuild();
-    void addRow(const QString& name = QString(), double amount = 0.0);
+    void addRow(const QString& name = QString(), double amount = 0.0, AccountType type = AccountType::Payable);
     void updateGraphButtonMenu();
     void updatePrefixes();
-    void applySearchFilter();
+    void applyGroupFilter();
     bool hasDuplicateName(const QString& name, const QLineEdit* except = nullptr) const;
+    AccountTypeFilter currentGroupFilter() const;
+    static AccountType accountTypeFromIndex(int index);
+    static int accountTypeIndex(AccountType type);
 
     QScrollArea* m_scroll{};
     QWidget*     m_container{};
     QVBoxLayout* m_rowsLayout{};
-    QLineEdit*   m_searchEdit{};
     QLineEdit*   m_nameEdit{};
+    QComboBox*   m_typeCombo{};
     QDoubleSpinBox* m_amountSpin{};
     QPushButton* m_addBtn{};
     QComboBox*   m_sortCombo{};
+    QComboBox*   m_groupCombo{};
     QToolButton* m_graphBtn{};
     QLabel*      m_title{};
     QLabel*      m_subtitle{};

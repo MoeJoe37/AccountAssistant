@@ -13,8 +13,6 @@
 #include <QLineSeries>
 #include <QVBoxLayout>
 #include <QLabel>
-#include <QGridLayout>
-#include <QWidget>
 #include <QFont>
 #include <QColor>
 #include <QList>
@@ -62,38 +60,6 @@ static QChartView* makeSafeView(QChart* chart)
     return view;
 }
 
-
-static QWidget* makePieWrapper(QChartView* view, const QStringList& labels, const QList<QColor>& colors)
-{
-    auto* wrapper = new QWidget;
-    wrapper->setAttribute(Qt::WA_StyledBackground, true);
-    wrapper->setStyleSheet("background:transparent;");
-    auto* vl = new QVBoxLayout(wrapper);
-    vl->setContentsMargins(0, 0, 0, 0);
-    vl->setSpacing(6);
-    vl->addWidget(view);
-
-    auto* footer = new QWidget;
-    footer->setAttribute(Qt::WA_StyledBackground, true);
-    footer->setStyleSheet("background:transparent;");
-    auto* grid = new QGridLayout(footer);
-    grid->setContentsMargins(10, 0, 10, 8);
-    grid->setHorizontalSpacing(10);
-    grid->setVerticalSpacing(4);
-    const QColor textColor = g_lightMode ? QColor("#1e2340") : QColor("#c8d0ed");
-    for (int i = 0; i < labels.size() && i < colors.size(); ++i) {
-        auto* dot = new QLabel;
-        dot->setFixedSize(9, 9);
-        dot->setStyleSheet(QString("background:%1; border-radius:4px;").arg(colors[i].name()));
-        auto* txt = new QLabel(labels.at(i));
-        txt->setStyleSheet(QString("background:transparent; color:%1; font-size:8pt; font-weight:600;").arg(textColor.name()));
-        grid->addWidget(dot, i / 2, (i % 2) * 2, Qt::AlignLeft | Qt::AlignVCenter);
-        grid->addWidget(txt, i / 2, (i % 2) * 2 + 1, Qt::AlignLeft | Qt::AlignVCenter);
-    }
-    vl->addWidget(footer);
-    return wrapper;
-}
-
 ChartsWidget::ChartsWidget(QWidget* parent) : QWidget(parent)
 {
     auto* root = new QVBoxLayout(this);
@@ -119,17 +85,10 @@ ChartsWidget::ChartsWidget(QWidget* parent) : QWidget(parent)
 // ─────────────────────────────────────────────────────────────────────────────
 void ChartsWidget::clear()
 {
-    for (auto* w : m_wrappers) {
-        m_layout->removeWidget(w);
-        w->deleteLater();
-    }
     for (auto* v : m_views) {
-        if (v && v->parentWidget() == m_container) {
-            m_layout->removeWidget(v);
-            v->deleteLater();
-        }
+        m_layout->removeWidget(v);
+        v->deleteLater();
     }
-    m_wrappers.clear();
     m_views.clear();
 }
 
@@ -227,9 +186,7 @@ void ChartsWidget::addPieChart(const QString& title,
 {
     auto* cv = makePie(title, labels, values);
     m_views << cv;
-    auto* wrapper = makePieWrapper(cv, labels, kPalette);
-    m_wrappers << wrapper;
-    m_layout->insertWidget(m_layout->count()-1, wrapper);
+    m_layout->insertWidget(m_layout->count()-1, cv);
 }
 
 void ChartsWidget::addCandleChart(const QString& title,
@@ -258,7 +215,7 @@ QChartView* ChartsWidget::makePie(const QString& title,
         slice->setColor(kPalette[i % kPalette.size()]);
         slice->setLabelVisible(true);
         slice->setLabel(QString("%1%").arg(val / total * 100.0, 0, 'f', 1));
-        slice->setLabelPosition(QPieSlice::LabelOutside);
+        slice->setLabelPosition(QPieSlice::LabelInsideTangential);
         slice->setLabelColor(Qt::white);
     }
 
@@ -268,11 +225,15 @@ QChartView* ChartsWidget::makePie(const QString& title,
     chart->setTitleFont(QFont("Segoe UI", 11, QFont::Bold));
     chart->setBackgroundBrush(QBrush(QColor("#1e2235")));
     chart->setTitleBrush(QBrush(Qt::white));
-    chart->legend()->setVisible(false);
+    chart->legend()->setVisible(true);
+    chart->legend()->setAlignment(Qt::AlignRight);
+    chart->legend()->setFont(QFont("Segoe UI", 9));
+    chart->legend()->setLabelColor(Qt::white);
+    chart->legend()->setBackgroundVisible(false);
     chart->setAnimationOptions(QChart::AllAnimations);
 
     auto* view = makeSafeView(chart);
-    view->setFixedSize(380, 260);
+    view->setFixedSize(380, 320);
     view->setObjectName("chartView");
     return view;
 }

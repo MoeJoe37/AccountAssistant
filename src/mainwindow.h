@@ -29,7 +29,7 @@ private slots:
     void onSettings();
     void onClearData();
     void onEditCharts();
-    void onAccountGraphRequested(ChartKind kind);
+    void onAccountGraphRequested(ChartKind kind, AccountTypeFilter accountFilter);
 
 private:
     void buildUI();

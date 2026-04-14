@@ -3,7 +3,6 @@
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
-#include <QGridLayout>
 #include <QMouseEvent>
 #include <QDrag>
 #include <QMimeData>
@@ -15,8 +14,6 @@
 #include <QMenu>
 #include <QContextMenuEvent>
 #include <QEvent>
-#include <QPieSeries>
-#include <QPieSlice>
 
 static const char* kCardSSDark = R"(
 QFrame#card {
@@ -71,37 +68,6 @@ QLabel#dragHint {
     padding:0 6px 0 0;
 }
 )";
-
-
-static QWidget* buildPieFooter(QChartView* view)
-{
-    auto* footer = new QWidget;
-    footer->setObjectName("pieFooter");
-    footer->setAttribute(Qt::WA_StyledBackground, true);
-    footer->setStyleSheet("background:transparent;");
-    auto* grid = new QGridLayout(footer);
-    grid->setContentsMargins(12, 4, 12, 8);
-    grid->setHorizontalSpacing(10);
-    grid->setVerticalSpacing(4);
-
-    const QStringList labels = view ? view->property("chartLabels").toStringList() : QStringList();
-    auto* series = view && view->chart() ? qobject_cast<QPieSeries*>(view->chart()->series().value(0)) : nullptr;
-    if (!series || labels.isEmpty()) return footer;
-
-    const QColor textColor = g_lightMode ? QColor("#1e2340") : QColor("#c8d0ed");
-    const int count = qMin(labels.size(), int(series->slices().size()));
-    for (int i = 0; i < count; ++i) {
-        auto* dot = new QLabel;
-        dot->setFixedSize(9, 9);
-        dot->setStyleSheet(QString("background:%1; border-radius:4px;").arg(series->slices().at(i)->color().name()));
-        auto* txt = new QLabel(labels.at(i));
-        txt->setWordWrap(false);
-        txt->setStyleSheet(QString("background:transparent; color:%1; font-size:8pt; font-weight:600;").arg(textColor.name()));
-        grid->addWidget(dot, i / 2, (i % 2) * 2, Qt::AlignLeft | Qt::AlignVCenter);
-        grid->addWidget(txt, i / 2, (i % 2) * 2 + 1, Qt::AlignLeft | Qt::AlignVCenter);
-    }
-    return footer;
-}
 
 static void execCardMenu(DraggableChartCard* self, const QPoint& globalPos)
 {
@@ -172,14 +138,6 @@ DraggableChartCard::DraggableChartCard(const QString& title,
     if (view->viewport())
         view->viewport()->installEventFilter(this);
     vl->addWidget(view);
-
-    const QString type = view->property("chartType").toString();
-    if (type == QLatin1String("pie") || type == QLatin1String("comparepie")) {
-        m_footer = buildPieFooter(view);
-        if (m_footer) {
-            vl->addWidget(m_footer);
-        }
-    }
 }
 
 void DraggableChartCard::setHighlight(bool on)

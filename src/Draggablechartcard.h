@@ -49,7 +49,6 @@ private:
     bool        m_onHandle{false};
     QWidget*    m_handle{nullptr};
     QLabel*     m_titleLabel{nullptr};
-    QWidget*    m_footer{nullptr};
     QChartView* m_view{nullptr};
     QString     m_title;
 };

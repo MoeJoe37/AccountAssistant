@@ -24,9 +24,21 @@ struct MonthData {
 // ─────────────────────────────────────────────────────────────────────────────
 //  Expense/account entry independent from months
 // ─────────────────────────────────────────────────────────────────────────────
+enum class AccountType {
+    Payable = 0,
+    Receivable = 1
+};
+
+enum class AccountTypeFilter {
+    All = 0,
+    Payable = 1,
+    Receivable = 2
+};
+
 struct AccountItem {
     QString name;
     double  amount = 0.0;
+    AccountType type = AccountType::Payable;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -83,6 +95,7 @@ struct ChartRequest {
     QString seriesA;
     QString seriesB;
     QList<int> months;   // Empty means all months
+    AccountTypeFilter accountFilter = AccountTypeFilter::All;
 };
 
 enum class ResultFlowItemKind {
@@ -155,6 +168,25 @@ struct AppData {
     }
 };
 
+inline QString accountTypeDisplayName(AccountType type)
+{
+    switch (type) {
+    case AccountType::Payable:   return T("Account Payable", "حساب دائن");
+    case AccountType::Receivable:return T("Account Receivable", "حساب مدين");
+    }
+    return T("Account Payable", "حساب دائن");
+}
+
+inline QString accountTypeFilterDisplayName(AccountTypeFilter type)
+{
+    switch (type) {
+    case AccountTypeFilter::All:        return T("All", "الكل");
+    case AccountTypeFilter::Payable:    return T("Account Payable", "حساب دائن");
+    case AccountTypeFilter::Receivable: return T("Account Receivable", "حساب مدين");
+    }
+    return T("All", "الكل");
+}
+
 inline QString metricDisplayName(MetricId id)
 {
     switch (id) {
@@ -181,7 +213,7 @@ inline bool metricUsesMonthlySeries(MetricId id)
     return id != M_EXPENSES && id != M_COGS_VS_PROFIT;
 }
 
-inline QList<double> metricSeriesValues(const AppData& d, MetricId id, QStringList* labels = nullptr, const QList<int>* monthFilter = nullptr)
+inline QList<double> metricSeriesValues(const AppData& d, MetricId id, QStringList* labels = nullptr, const QList<int>* monthFilter = nullptr, AccountTypeFilter accountFilter = AccountTypeFilter::All)
 {
     if (labels)
         labels->clear();
@@ -242,10 +274,29 @@ inline QList<double> metricSeriesValues(const AppData& d, MetricId id, QStringLi
         }
         break;
     case M_EXPENSES:
-        for (const auto& e : d.expenseSummary) values << e.total;
-        if (labels) {
-            for (const auto& e : d.expenseSummary)
-                *labels << e.account;
+        if (!d.accounts.isEmpty()) {
+            for (const auto& a : d.accounts) {
+                if (accountFilter == AccountTypeFilter::Payable && a.type != AccountType::Payable)
+                    continue;
+                if (accountFilter == AccountTypeFilter::Receivable && a.type != AccountType::Receivable)
+                    continue;
+                values << a.amount;
+            }
+            if (labels) {
+                for (const auto& a : d.accounts) {
+                    if (accountFilter == AccountTypeFilter::Payable && a.type != AccountType::Payable)
+                        continue;
+                    if (accountFilter == AccountTypeFilter::Receivable && a.type != AccountType::Receivable)
+                        continue;
+                    *labels << a.name;
+                }
+            }
+        } else {
+            for (const auto& e : d.expenseSummary) values << e.total;
+            if (labels) {
+                for (const auto& e : d.expenseSummary)
+                    *labels << e.account;
+            }
         }
         break;
     case M_SUPPLIER_PAYMENTS:
