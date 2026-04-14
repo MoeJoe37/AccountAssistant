@@ -9,6 +9,7 @@
 #include "datatablewidget.h"
 #include "ClassicDataTableWidget.h"
 #include "resultswidget.h"
+#include "Accountswidget.h"
 #include "translations.h"
 
 class MainWindow : public QMainWindow
@@ -28,6 +29,7 @@ private slots:
     void onSettings();
     void onClearData();
     void onEditCharts();
+    void onAccountGraphRequested(ChartKind kind);
 
 private:
     void buildUI();
@@ -45,6 +47,8 @@ private:
     // Helper: active table interface wrappers
     AppData       collectTableData() const;
     void          setTableData(const AppData& d);
+    void          setAccountData(const QList<AccountItem>& accounts);
+    AppData       collectAllData() const;
     void          clearTableData();
     void          updateTableCurrency();
     void          applyTableTheme();
@@ -54,6 +58,7 @@ private:
     QStackedWidget*        m_tableStack{};
     DataTableWidget*       m_table{};        // card view (v3)
     ClassicDataTableWidget* m_classicTable{}; // spreadsheet view
+    Accountswidget*        m_accounts{};
     ResultsWidget*         m_results{};
 
     QPushButton* m_calcBtn{};

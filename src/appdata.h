@@ -22,7 +22,15 @@ struct MonthData {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Expense account aggregated across all months (for charts)
+//  Expense/account entry independent from months
+// ─────────────────────────────────────────────────────────────────────────────
+struct AccountItem {
+    QString name;
+    double  amount = 0.0;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Expense account aggregated for charts / PDF
 // ─────────────────────────────────────────────────────────────────────────────
 struct ExpenseSummary {
     QString account;
@@ -95,6 +103,7 @@ struct ResultFlowItem {
 struct AppData {
     std::array<MonthData, 12> months{};
     std::array<ChartSel, M_COUNT> sel{};
+    QList<AccountItem> accounts;
 
     // Chosen charts for the Results tab and PDF export
     QList<ChartRequest> chartRequests;
@@ -127,20 +136,22 @@ struct AppData {
             totalProfit   += profitMargin[i];
         }
 
-        // Build expense summary: group by account name, sum amounts
-        QMap<QString, double> expMap;
-        for (const auto& m : months) {
-            const QString acc = m.expenseAccount.trimmed();
-            if (!acc.isEmpty() && m.expenseAmount > 0.0)
-                expMap[acc] += m.expenseAmount;
-        }
+        // Build expense summary from the accounts tab, preserving the displayed order.
+        // Legacy monthly expense fields are used only as a fallback for older data.
         expenseSummary.clear();
-        for (auto it = expMap.cbegin(); it != expMap.cend(); ++it)
-            expenseSummary.append({it.key(), it.value()});
-        std::sort(expenseSummary.begin(), expenseSummary.end(),
-                  [](const ExpenseSummary& a, const ExpenseSummary& b) {
-                      return a.total > b.total;
-                  });
+        if (!accounts.isEmpty()) {
+            for (const auto& a : accounts) {
+                const QString name = a.name.trimmed();
+                if (!name.isEmpty() && a.amount > 0.0)
+                    expenseSummary.append({name, a.amount});
+            }
+        } else {
+            for (const auto& m : months) {
+                const QString acc = m.expenseAccount.trimmed();
+                if (!acc.isEmpty() && m.expenseAmount > 0.0)
+                    expenseSummary.append({acc, m.expenseAmount});
+            }
+        }
     }
 };
 

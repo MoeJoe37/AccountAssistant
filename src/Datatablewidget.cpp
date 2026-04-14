@@ -274,11 +274,6 @@ void MonthCard::buildContent()
     m_suppPayments  = makeSpin();
     m_invFirst      = makeSpin();
     m_invLast       = makeSpin();
-    m_expAmount     = makeSpin();
-
-    m_expAccount = new QLineEdit;
-    m_expAccount->setPlaceholderText(T("e.g. Rent, Utilities", "مثال: إيجار، مرافق"));
-    m_expAccount->setStyleSheet(g_lightMode ? kEditLt : kEditDk);
 
     // Connect all to updateWarnings
     auto connectSpin = [this](NavigableSpinBox* s) {
@@ -290,8 +285,6 @@ void MonthCard::buildContent()
     connectSpin(m_sales); connectSpin(m_salesReturn);
     connectSpin(m_suppPurchases); connectSpin(m_suppPayments);
     connectSpin(m_invFirst); connectSpin(m_invLast);
-    connectSpin(m_expAmount);
-    connect(m_expAccount, &QLineEdit::textChanged, this, &MonthCard::dataChanged);
 
     // Column 1: Sales & Revenue
     auto* col1 = makeColumn(
@@ -317,19 +310,9 @@ void MonthCard::buildContent()
             makeFieldRow(T("Closing Stock (Last Period)",  "المخزون الختامي"),  m_invLast)
         }
     );
-    // Column 4: Expenses
-    auto* col4 = makeColumn(
-        T("Expenses", "المصروفات"),
-        {
-            makeFieldRow(T("Expense Account", "حساب المصروفات"), m_expAccount),
-            makeFieldRow(T("Expense Amount",  "مبلغ المصروفات"),  m_expAmount)
-        }
-    );
-
     cols->addWidget(col1);
     cols->addWidget(col2);
     cols->addWidget(col3);
-    cols->addWidget(col4);
     vl->addLayout(cols);
 
     // ── Warnings area ─────────────────────────────────────────────────────
@@ -524,8 +507,6 @@ void MonthCard::applyTheme()
     if (m_suppPayments)  m_suppPayments->setStyleSheet(g_lightMode ? kSpinLt : kSpinDk);
     if (m_invFirst)      m_invFirst->setStyleSheet(g_lightMode ? kSpinLt : kSpinDk);
     if (m_invLast)       m_invLast->setStyleSheet(g_lightMode ? kSpinLt : kSpinDk);
-    if (m_expAmount)     m_expAmount->setStyleSheet(g_lightMode ? kSpinLt : kSpinDk);
-    if (m_expAccount)    m_expAccount->setStyleSheet(g_lightMode ? kEditLt : kEditDk);
 
     if (m_warnFrame) m_warnFrame->setStyleSheet(g_lightMode ? kWarnFrameLt : kWarnFrameDk);
 }
@@ -534,28 +515,23 @@ void MonthCard::retranslate()
 {
     const QStringList names = monthNames();
     m_monthLabel->setText(names.value(m_monthIndex));
-    m_expAccount->setPlaceholderText(T("e.g. Rent, Utilities", "مثال: إيجار، مرافق"));
     m_warnIcon->setToolTip(T("Data warnings exist", "يوجد تحذيرات في البيانات"));
 
     // Re-label section titles and field labels
-    // Section titles (by order they were created in columns)
     QList<QLabel*> secTitles = m_content->findChildren<QLabel*>("sectionTitle");
-    if (secTitles.size() >= 4) {
+    if (secTitles.size() >= 3) {
         secTitles[0]->setText(T("Sales & Revenue", "المبيعات والإيرادات"));
         secTitles[1]->setText(T("Suppliers",        "الموردون"));
         secTitles[2]->setText(T("Inventory",        "المخزون"));
-        secTitles[3]->setText(T("Expenses",         "المصروفات"));
     }
     QList<QLabel*> fieldLbls = m_content->findChildren<QLabel*>("fieldLabel");
-    if (fieldLbls.size() >= 8) {
+    if (fieldLbls.size() >= 6) {
         fieldLbls[0]->setText(T("Sales Amount",               "مبلغ المبيعات"));
         fieldLbls[1]->setText(T("Sales Return",                "مردودات المبيعات"));
         fieldLbls[2]->setText(T("Supplier Purchases",          "مشتريات الموردين"));
         fieldLbls[3]->setText(T("Supplier Payments",           "مدفوعات الموردين"));
         fieldLbls[4]->setText(T("Opening Stock (First Period)","المخزون الافتتاحي"));
         fieldLbls[5]->setText(T("Closing Stock (Last Period)", "المخزون الختامي"));
-        fieldLbls[6]->setText(T("Expense Account",             "حساب المصروفات"));
-        fieldLbls[7]->setText(T("Expense Amount",              "مبلغ المصروفات"));
     }
 }
 
@@ -567,7 +543,6 @@ void MonthCard::updateCurrencyPrefix()
     if (m_suppPayments)  m_suppPayments->updatePrefix();
     if (m_invFirst)      m_invFirst->updatePrefix();
     if (m_invLast)       m_invLast->updatePrefix();
-    if (m_expAmount)     m_expAmount->updatePrefix();
 }
 
 void MonthCard::clearAll()
@@ -578,8 +553,6 @@ void MonthCard::clearAll()
     m_suppPayments->setValue(0);
     m_invFirst->setValue(0);
     m_invLast->setValue(0);
-    m_expAmount->setValue(0);
-    m_expAccount->clear();
     m_warnFrame->setVisible(false);
     m_warnIcon->setVisible(false);
 }
@@ -589,8 +562,6 @@ double  MonthCard::sales()             const { return m_sales->value(); }
 double  MonthCard::salesReturn()       const { return m_salesReturn->value(); }
 double  MonthCard::supplierPurchases() const { return m_suppPurchases->value(); }
 double  MonthCard::supplierPayments()  const { return m_suppPayments->value(); }
-QString MonthCard::expenseAccount()    const { return m_expAccount->text(); }
-double  MonthCard::expenseAmount()     const { return m_expAmount->value(); }
 double  MonthCard::inventoryFirst()    const { return m_invFirst->value(); }
 double  MonthCard::inventoryLast()     const { return m_invLast->value(); }
 
@@ -599,8 +570,6 @@ void MonthCard::setSales(double v)             { m_sales->setValue(v); }
 void MonthCard::setSalesReturn(double v)       { m_salesReturn->setValue(v); }
 void MonthCard::setSupplierPurchases(double v) { m_suppPurchases->setValue(v); }
 void MonthCard::setSupplierPayments(double v)  { m_suppPayments->setValue(v); }
-void MonthCard::setExpenseAccount(const QString& v) { m_expAccount->setText(v); }
-void MonthCard::setExpenseAmount(double v)     { m_expAmount->setValue(v); }
 void MonthCard::setInventoryFirst(double v)    { m_invFirst->setValue(v); }
 void MonthCard::setInventoryLast(double v)     { m_invLast->setValue(v); }
 
@@ -672,8 +641,6 @@ AppData DataTableWidget::collectData() const
         m.salesReturn       = m_cards[i]->salesReturn();
         m.supplierPurchases = m_cards[i]->supplierPurchases();
         m.supplierPayments  = m_cards[i]->supplierPayments();
-        m.expenseAccount    = m_cards[i]->expenseAccount();
-        m.expenseAmount     = m_cards[i]->expenseAmount();
         m.inventoryFirst    = m_cards[i]->inventoryFirst();
         m.inventoryLast     = m_cards[i]->inventoryLast();
     }
@@ -688,16 +655,13 @@ void DataTableWidget::setData(const AppData& d)
         m_cards[i]->setSalesReturn(m.salesReturn);
         m_cards[i]->setSupplierPurchases(m.supplierPurchases);
         m_cards[i]->setSupplierPayments(m.supplierPayments);
-        m_cards[i]->setExpenseAccount(m.expenseAccount);
-        m_cards[i]->setExpenseAmount(m.expenseAmount);
         m_cards[i]->setInventoryFirst(m.inventoryFirst);
         m_cards[i]->setInventoryLast(m.inventoryLast);
         // Auto-expand months that have data
         if (i != 0) {
             bool hasData = m.sales || m.salesReturn || m.supplierPurchases ||
-                           m.supplierPayments || m.expenseAmount ||
-                           m.inventoryFirst || m.inventoryLast ||
-                           !m.expenseAccount.isEmpty();
+                           m.supplierPayments ||
+                           m.inventoryFirst || m.inventoryLast;
             if (hasData) m_cards[i]->setExpanded(true);
         }
     }

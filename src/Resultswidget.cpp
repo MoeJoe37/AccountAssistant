@@ -684,6 +684,27 @@ ResultsWidget::ResultsWidget(QWidget* parent) : QWidget(parent)
     updatePageMode();
 }
 
+
+void ResultsWidget::appendChart(const AppData& data, const ChartRequest& request)
+{
+    if (!m_flowSection || !m_flowLayout)
+        return;
+
+    QChartView* view = createChartView(data, request);
+    if (!view)
+        return;
+
+    addCard(request, view);
+
+    ResultFlowItem item;
+    item.kind = ResultFlowItemKind::ChartCard;
+    item.index = m_cards.isEmpty() ? -1 : m_cards.last()->cardIndex();
+    m_flowOrder.append(item);
+
+    rebuildFlow();
+    rebuildHiddenMenu();
+}
+
 void ResultsWidget::clearResults()
 {
     if (m_flowSection) {
@@ -1373,11 +1394,9 @@ QChartView* ResultsWidget::makePieChart(const QString& title,
         sl->setColor(kPal[i % kPal.size()]);
         sl->setBorderColor(borderCol);
         sl->setLabelVisible(true);
-        sl->setLabel(QString("%1\n%2 (%3%)")
-            .arg(labels[i])
-            .arg(v, 0, 'f', 0)
-            .arg(v / total * 100, 0, 'f', 1));
-        sl->setLabelPosition(QPieSlice::LabelOutside);
+        sl->setLabel(QString("%1%").arg(v / total * 100.0, 0, 'f', 1));
+        sl->setLabelPosition(QPieSlice::LabelInsideTangential);
+        sl->setLabelColor(g_lightMode ? QColor("#1e2340") : QColor("#ffffff"));
         QObject::connect(sl, &QPieSlice::hovered, sl, [sl](bool on) {
             sl->setExploded(on);
         });
@@ -1705,10 +1724,12 @@ QChartView* ResultsWidget::makeComparePieChart(const QString& title,
     auto* b = series->append(nameB, qMax(0.0, valueB));
     a->setLabelVisible(true);
     b->setLabelVisible(true);
-    a->setLabel(QString("%1\n%2 (%3%)").arg(nameA).arg(valueA, 0, 'f', 0).arg(qAbs(valueA) / total * 100, 0, 'f', 1));
-    b->setLabel(QString("%1\n%2 (%3%)").arg(nameB).arg(valueB, 0, 'f', 0).arg(qAbs(valueB) / total * 100, 0, 'f', 1));
-    a->setLabelPosition(QPieSlice::LabelOutside);
-    b->setLabelPosition(QPieSlice::LabelOutside);
+    a->setLabel(QString("%1%").arg(qAbs(valueA) / total * 100.0, 0, 'f', 1));
+    b->setLabel(QString("%1%").arg(qAbs(valueB) / total * 100.0, 0, 'f', 1));
+    a->setLabelPosition(QPieSlice::LabelInsideTangential);
+    b->setLabelPosition(QPieSlice::LabelInsideTangential);
+    a->setLabelColor(g_lightMode ? QColor("#1e2340") : QColor("#ffffff"));
+    b->setLabelColor(g_lightMode ? QColor("#1e2340") : QColor("#ffffff"));
     a->setColor(kPal[0]);
     b->setColor(kPal[1]);
 

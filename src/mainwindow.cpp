@@ -2,6 +2,7 @@
 #include "chartselectiondialog.h"
 #include "settingsdialog.h"
 #include "pdfexporter.h"
+#include "Accountswidget.h"
 
 #include <QApplication>
 #include <QVBoxLayout>
@@ -11,6 +12,7 @@
 #include <QScreen>
 #include <QGuiApplication>
 #include <QDateTime>
+#include <QFileInfo>
 #include <QFontDatabase>
 #include <QStringConverter>
 #include <QTextStream>
@@ -296,12 +298,65 @@ static QByteArray makeWorksheetXml(const AppData& data)
     return ba;
 }
 
+static QByteArray makeAccountsWorksheetXml(const AppData& data)
+{
+    QByteArray ba;
+    QBuffer buffer(&ba);
+    buffer.open(QIODevice::WriteOnly);
+    QXmlStreamWriter w(&buffer);
+    w.setAutoFormatting(true);
+    w.writeStartDocument();
+    w.writeStartElement("worksheet");
+    w.writeDefaultNamespace("http://schemas.openxmlformats.org/spreadsheetml/2006/main");
+    w.writeNamespace("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "r");
+    w.writeStartElement("sheetData");
+
+    auto writeTextCell = [&](const QString& ref, const QString& text) {
+        w.writeStartElement("c");
+        w.writeAttribute("r", ref);
+        w.writeAttribute("t", "inlineStr");
+        w.writeStartElement("is");
+        w.writeTextElement("t", text);
+        w.writeEndElement();
+        w.writeEndElement();
+    };
+    auto writeNumCell = [&](const QString& ref, double value) {
+        w.writeStartElement("c");
+        w.writeAttribute("r", ref);
+        w.writeStartElement("v");
+        w.writeCharacters(QString::number(value, 'f', 2));
+        w.writeEndElement();
+        w.writeEndElement();
+    };
+
+    w.writeStartElement("row");
+    w.writeAttribute("r", "1");
+    writeTextCell("A1", "Account");
+    writeTextCell("B1", "Amount");
+    w.writeEndElement();
+
+    for (int i = 0; i < data.accounts.size(); ++i) {
+        const int row = i + 2;
+        w.writeStartElement("row");
+        w.writeAttribute("r", QString::number(row));
+        writeTextCell(QString("A%1").arg(row), data.accounts[i].name);
+        writeNumCell(QString("B%1").arg(row), data.accounts[i].amount);
+        w.writeEndElement();
+    }
+
+    w.writeEndElement();
+    w.writeEndElement();
+    w.writeEndDocument();
+    return ba;
+}
+
 static QByteArray makeWorkbookXml()
 {
     return QByteArray(R"xml(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <sheets>
     <sheet name="Data" sheetId="1" r:id="rId1"/>
+    <sheet name="Accounts" sheetId="2" r:id="rId2"/>
   </sheets>
 </workbook>)xml");
 }
@@ -311,6 +366,7 @@ static QByteArray makeWorkbookRelsXml()
     return QByteArray(R"xml(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>
 </Relationships>)xml");
 }
 
@@ -330,6 +386,7 @@ static QByteArray makeContentTypesXml()
   <Default Extension="xml" ContentType="application/xml"/>
   <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
   <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
 </Types>)xml");
 }
 
@@ -402,6 +459,7 @@ static bool saveAppDataXlsx(const QString& path, const AppData& data)
     entries.push_back({"xl/workbook.xml", makeWorkbookXml()});
     entries.push_back({"xl/_rels/workbook.xml.rels", makeWorkbookRelsXml()});
     entries.push_back({"xl/worksheets/sheet1.xml", makeWorksheetXml(data)});
+    entries.push_back({"xl/worksheets/sheet2.xml", makeAccountsWorksheetXml(data)});
     return writeStoredZip(path, entries);
 }
 
@@ -527,19 +585,67 @@ static int colLetterToIndex(const QString& ref)
     return col - 1;  // 0-based
 }
 
+static QList<AccountItem> parseAccountsSheet(const QByteArray& sheet)
+{
+    QList<AccountItem> accounts;
+    if (sheet.isEmpty()) return accounts;
+    QXmlStreamReader xr(sheet);
+    int rowNum = 0;
+    QMap<int, QString> rowCells;
+
+    auto flushRow = [&]() {
+        if (rowNum < 2) return;
+        AccountItem a;
+        a.name = rowCells.value(0).trimmed();
+        a.amount = rowCells.value(1).trimmed().toDouble();
+        if (!a.name.isEmpty() || !qFuzzyIsNull(a.amount))
+            accounts.append(a);
+        rowCells.clear();
+    };
+
+    while (!xr.atEnd()) {
+        xr.readNext();
+        if (xr.isStartElement() && xr.name() == QLatin1String("row")) {
+            rowCells.clear();
+            rowNum = xr.attributes().value("r").toInt();
+        } else if (xr.isStartElement() && xr.name() == QLatin1String("c")) {
+            const QString ref      = xr.attributes().value("r").toString();
+            const QString cellType = xr.attributes().value("t").toString();
+            const int colIdx = colLetterToIndex(ref);
+            QString val;
+            while (!(xr.isEndElement() && xr.name() == QLatin1String("c")) && !xr.atEnd()) {
+                xr.readNext();
+                if (xr.isStartElement()) {
+                    if (xr.name() == QLatin1String("v")) {
+                        QString raw = xr.readElementText();
+                        val = raw;
+                    } else if (xr.name() == QLatin1String("t") && cellType == QStringLiteral("inlineStr")) {
+                        val = xr.readElementText();
+                    }
+                }
+            }
+            if (colIdx >= 0 && colIdx <= 1)
+                rowCells[colIdx] = val;
+        } else if (xr.isEndElement() && xr.name() == QLatin1String("row")) {
+            flushRow();
+        }
+    }
+    return accounts;
+}
+
 static bool loadAppDataXlsx(const QString& path, AppData* data)
 {
     if (!data) return false;
     QMap<QString, QByteArray> entries;
     if (!readZipEntries(path, &entries)) return false;
 
-    // Try to find the worksheet – check common paths
+    // Try to find the worksheets – check common paths
     QByteArray sheet;
+    QByteArray accountsSheet;
     for (const QString& key : entries.keys()) {
-        if (key.contains("worksheets/sheet") && key.endsWith(".xml")) {
-            sheet = entries.value(key);
-            break;
-        }
+        if (key.endsWith("worksheets/sheet1.xml")) sheet = entries.value(key);
+        else if (key.endsWith("worksheets/sheet2.xml")) accountsSheet = entries.value(key);
+        else if (key.contains("worksheets/sheet") && key.endsWith(".xml") && sheet.isEmpty()) sheet = entries.value(key);
     }
     if (sheet.isEmpty()) return false;
 
@@ -617,6 +723,7 @@ static bool loadAppDataXlsx(const QString& path, AppData* data)
         }
     }
     if (xr.hasError()) return false;
+    data->accounts = parseAccountsSheet(accountsSheet);
     data->calculate();
     return true;
 }
@@ -693,7 +800,7 @@ void MainWindow::saveSettings()
 // ─────────────────────────────────────────────────────────────────────────────
 void MainWindow::saveTableDataLocally()
 {
-    const AppData data = collectTableData();
+    const AppData data = collectAllData();
     QSettings s(QStringLiteral("AccountAssistant"), QStringLiteral("AccountAssistant"));
     s.beginGroup(QStringLiteral("tableData"));
     s.setValue(QStringLiteral("hasData"), true);
@@ -711,6 +818,18 @@ void MainWindow::saveTableDataLocally()
         s.endGroup();
     }
     s.endGroup();
+
+    const QList<AccountItem> accounts = m_accounts ? m_accounts->collectData().accounts : QList<AccountItem>{};
+    s.beginGroup(QStringLiteral("accountsData"));
+    s.setValue(QStringLiteral("hasData"), !accounts.isEmpty());
+    s.setValue(QStringLiteral("count"), accounts.size());
+    for (int i = 0; i < accounts.size(); ++i) {
+        s.beginGroup(QString::number(i));
+        s.setValue(QStringLiteral("name"), accounts[i].name);
+        s.setValue(QStringLiteral("amount"), accounts[i].amount);
+        s.endGroup();
+    }
+    s.endGroup();
     s.sync();
 }
 
@@ -719,24 +838,42 @@ void MainWindow::loadTableDataLocally()
     QSettings s(QStringLiteral("AccountAssistant"), QStringLiteral("AccountAssistant"));
     s.beginGroup(QStringLiteral("tableData"));
     const bool hasData = s.value(QStringLiteral("hasData"), false).toBool();
-    if (!hasData) { s.endGroup(); return; }
 
     AppData data;
-    for (int i = 0; i < 12; ++i) {
-        auto& m = data.months[i];
-        s.beginGroup(QString::number(i));
-        m.sales             = s.value(QStringLiteral("sales"),             0.0).toDouble();
-        m.salesReturn       = s.value(QStringLiteral("salesReturn"),       0.0).toDouble();
-        m.supplierPurchases = s.value(QStringLiteral("supplierPurchases"), 0.0).toDouble();
-        m.supplierPayments  = s.value(QStringLiteral("supplierPayments"),  0.0).toDouble();
-        m.expenseAccount    = s.value(QStringLiteral("expenseAccount"),    QString()).toString();
-        m.expenseAmount     = s.value(QStringLiteral("expenseAmount"),     0.0).toDouble();
-        m.inventoryFirst    = s.value(QStringLiteral("inventoryFirst"),    0.0).toDouble();
-        m.inventoryLast     = s.value(QStringLiteral("inventoryLast"),     0.0).toDouble();
-        s.endGroup();
+    if (hasData) {
+        for (int i = 0; i < 12; ++i) {
+            auto& m = data.months[i];
+            s.beginGroup(QString::number(i));
+            m.sales             = s.value(QStringLiteral("sales"),             0.0).toDouble();
+            m.salesReturn       = s.value(QStringLiteral("salesReturn"),       0.0).toDouble();
+            m.supplierPurchases = s.value(QStringLiteral("supplierPurchases"), 0.0).toDouble();
+            m.supplierPayments  = s.value(QStringLiteral("supplierPayments"),  0.0).toDouble();
+            m.expenseAccount    = s.value(QStringLiteral("expenseAccount"),    QString()).toString();
+            m.expenseAmount     = s.value(QStringLiteral("expenseAmount"),     0.0).toDouble();
+            m.inventoryFirst    = s.value(QStringLiteral("inventoryFirst"),    0.0).toDouble();
+            m.inventoryLast     = s.value(QStringLiteral("inventoryLast"),     0.0).toDouble();
+            s.endGroup();
+        }
+        setTableData(data);
     }
     s.endGroup();
-    setTableData(data);
+
+    s.beginGroup(QStringLiteral("accountsData"));
+    const bool hasAccounts = s.value(QStringLiteral("hasData"), false).toBool();
+    QList<AccountItem> accounts;
+    if (hasAccounts) {
+        const int count = s.value(QStringLiteral("count"), 0).toInt();
+        for (int i = 0; i < count; ++i) {
+            s.beginGroup(QString::number(i));
+            AccountItem a;
+            a.name = s.value(QStringLiteral("name"), QString()).toString();
+            a.amount = s.value(QStringLiteral("amount"), 0.0).toDouble();
+            accounts.append(a);
+            s.endGroup();
+        }
+    }
+    s.endGroup();
+    if (m_accounts) { AppData accData; accData.accounts = accounts; m_accounts->setData(accData); }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -868,7 +1005,14 @@ void MainWindow::buildUI()
         m_tabs->addTab(dataTab, "");
     }
 
-    // Tab 1: Results
+    // Tab 1: Accounts
+    {
+        m_accounts = new Accountswidget;
+        connect(m_accounts, &Accountswidget::graphRequested, this, &MainWindow::onAccountGraphRequested);
+        m_tabs->addTab(m_accounts, "");
+    }
+
+    // Tab 2: Results
     {
         m_results = new ResultsWidget;
         connect(m_results, &ResultsWidget::editChartsRequested, this, &MainWindow::onEditCharts);
@@ -884,7 +1028,7 @@ void MainWindow::onCalculate()
 {
     if (auto* popup = QApplication::activePopupWidget())
         popup->hide();
-    AppData working = collectTableData();
+    AppData working = collectAllData();
     working.calculate();
     working.chartRequests = m_lastChartRequests;
     working.resultFlowOrder = m_lastFlowOrder;
@@ -903,7 +1047,7 @@ void MainWindow::onCalculate()
         m_lastChartRequests = m_results->chartRequests();
         m_lastFlowOrder = m_results->flowOrder();
     }
-    m_tabs->setCurrentIndex(1);
+    m_tabs->setCurrentIndex(2);
 }
 
 
@@ -915,7 +1059,7 @@ void MainWindow::onEditCharts()
     if (auto* popup = QApplication::activePopupWidget())
         popup->hide();
 
-    AppData working = m_data;
+    AppData working = collectAllData();
     working.chartRequests = m_lastChartRequests;
     working.resultFlowOrder = m_lastFlowOrder;
 
@@ -932,7 +1076,50 @@ void MainWindow::onEditCharts()
         m_lastChartRequests = m_results->chartRequests();
         m_lastFlowOrder = m_results->flowOrder();
     }
-    m_tabs->setCurrentIndex(1);
+    m_tabs->setCurrentIndex(2);
+}
+
+
+void MainWindow::onAccountGraphRequested(ChartKind kind)
+{
+    AppData working = collectAllData();
+    working.calculate();
+    working.chartRequests = m_lastChartRequests;
+    working.resultFlowOrder = m_lastFlowOrder;
+    m_data = working;
+    m_hasResults = true;
+
+    if (!m_results)
+        return;
+
+    if (m_results->flowOrder().isEmpty()) {
+        m_results->buildResults(m_data);
+    }
+
+    ChartRequest req;
+    req.kind = kind;
+    req.metricA = M_EXPENSES;
+    req.title = metricDisplayName(M_EXPENSES);
+    switch (kind) {
+    case ChartKind::Pie:
+        req.title += QStringLiteral(" — ") + T("Pie", "دائري");
+        break;
+    case ChartKind::RankedBar:
+        req.title += QStringLiteral(" — ") + T("Bar", "أعمدة");
+        break;
+    case ChartKind::MetricLine:
+    default:
+        req.kind = ChartKind::MetricLine;
+        req.title += QStringLiteral(" — ") + T("Line", "خطي");
+        break;
+    }
+
+    m_results->appendChart(m_data, req);
+    m_data.chartRequests = m_results->chartRequests();
+    m_data.resultFlowOrder = m_results->flowOrder();
+    m_lastChartRequests = m_data.chartRequests;
+    m_lastFlowOrder = m_data.resultFlowOrder;
+    m_tabs->setCurrentIndex(2);
 }
 
 void MainWindow::onSaveData()
@@ -944,7 +1131,7 @@ void MainWindow::onSaveData()
         T("Excel Workbook (*.xlsx);;All Files (*)", "Excel Workbook (*.xlsx);;All Files (*)"));
     if (path.isEmpty()) return;
 
-    const AppData data = collectTableData();
+    const AppData data = collectAllData();
     if (!saveAppDataXlsx(path, data)) {
         QMessageBox::critical(this,
             T("Save data", "حفظ البيانات"),
@@ -975,6 +1162,7 @@ void MainWindow::onImportData()
     }
 
     setTableData(imported);
+    setAccountData(imported.accounts);
     m_data = imported;
     m_hasResults = false;
     QMessageBox::information(this,
@@ -999,14 +1187,22 @@ void MainWindow::onExportPdf()
     if (path.isEmpty()) return;
 
     bool ok = PdfExporter::exportToPdf(path, m_data, m_results->chartRequests(), m_results->flowOrder(), m_results->pageLandscape());
-    if (ok)
-        QMessageBox::information(this,
-            T("Success","\u0646\u062C\u0627\u062D"),
-            T("Report exported successfully!","\u062A\u0645 \u0627\u0644\u062A\u0635\u062F\u064A\u0631 \u0628\u0646\u062C\u0627\u062D!"));
-    else
+    if (ok) {
+        QMessageBox box(this);
+        box.setIcon(QMessageBox::Information);
+        box.setWindowTitle(T("Export complete", "اكتمل التصدير"));
+        box.setText(T("The PDF report was exported successfully.", "تم تصدير تقرير PDF بنجاح."));
+        box.setInformativeText(QFileInfo(path).fileName());
+        box.setTextFormat(Qt::PlainText);
+        box.setStyleSheet(g_lightMode
+            ? "QMessageBox{background:#f4f6fb; color:#1e2340;} QLabel{color:#1e2340;} QPushButton{background:#ffffff; color:#1e2340; border:1px solid #d9e0ef; border-radius:6px; padding:6px 14px; min-width:84px;} QPushButton:hover{background:#eef0fa;}"
+            : "QMessageBox{background:#111526; color:#c8d0ed;} QLabel{color:#c8d0ed;} QPushButton{background:#1a1f38; color:#c8d0ed; border:1px solid #252b52; border-radius:6px; padding:6px 14px; min-width:84px;} QPushButton:hover{background:#1e2445;}");
+        box.exec();
+    } else {
         QMessageBox::critical(this,
             T("Error","\u062E\u0637\u0623"),
             T("Failed to export PDF.","\u0641\u0634\u0644 \u062A\u0635\u062F\u064A\u0631 PDF."));
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1022,25 +1218,46 @@ void MainWindow::setTableData(const AppData& d)
     if (m_table)        m_table->setData(d);
     if (m_classicTable) m_classicTable->setData(d);
 }
+
+void MainWindow::setAccountData(const QList<AccountItem>& accounts)
+{
+    AppData d;
+    d.accounts = accounts;
+    if (m_accounts) m_accounts->setData(d);
+}
+AppData MainWindow::collectAllData() const
+{
+    AppData d = collectTableData();
+    if (m_accounts) {
+        AppData acc = m_accounts->collectData();
+        d.accounts = acc.accounts;
+    }
+    return d;
+}
+
 void MainWindow::clearTableData()
 {
     if (m_table)        m_table->clearData();
     if (m_classicTable) m_classicTable->clearData();
+    if (m_accounts)     m_accounts->clearData();
 }
 void MainWindow::updateTableCurrency()
 {
     if (m_table)        m_table->updateCurrency();
     if (m_classicTable) m_classicTable->updateCurrency();
+    if (m_accounts)     m_accounts->retranslate();
 }
 void MainWindow::applyTableTheme()
 {
     if (m_table)        m_table->applyTheme();
     if (m_classicTable) m_classicTable->applyTheme();
+    if (m_accounts)     m_accounts->applyTheme();
 }
 void MainWindow::retranslateTable()
 {
     if (m_table)        m_table->retranslate();
     if (m_classicTable) m_classicTable->retranslate();
+    if (m_accounts)     m_accounts->retranslate();
 }
 void MainWindow::switchTableView(bool classic)
 {
@@ -1060,6 +1277,7 @@ void MainWindow::onClearData()
     if (btn == QMessageBox::Yes) {
         clearTableData();
         m_hasResults = false;
+        if (m_results) m_results->clearResults();
     }
 }
 
@@ -1085,8 +1303,10 @@ void MainWindow::onSettings()
         applyLanguage(dlg.selectedLanguage());
         applyTheme();
 
-        if (currencyChanged)
+        if (currencyChanged) {
             updateTableCurrency();
+            if (m_accounts) m_accounts->retranslate();
+        }
 
         if (fontChanged) {
             applyGlobalAppFont(g_fontSize);
@@ -1137,6 +1357,7 @@ void MainWindow::applyTheme()
     }
 
     applyTableTheme();
+    if (m_accounts) m_accounts->applyTheme();
     if (m_results) m_results->applyTheme();
     if (m_hasResults)
         m_results->buildResults(m_data);
@@ -1173,8 +1394,11 @@ void MainWindow::retranslate()
 
     m_tabs->setTabText(0,
         T("  ⊞  Data Entry  ",
-          "  \u229E  \u0625\u062F\u062E\u0627\u0644 \u0627\u0644\u0628\u064A\u0627\u0646\u0627\u062A  "));
+          "  ⊞  إدخال البيانات  "));
     m_tabs->setTabText(1,
+        T("  ▣  Accounts  ",
+          "  ▣  الحسابات  "));
+    m_tabs->setTabText(2,
         T("  ◈  Results  ",
-          "  \u25C8  \u0627\u0644\u0646\u062A\u0627\u0626\u062C  "));
+          "  ◈  النتائج  "));
 }

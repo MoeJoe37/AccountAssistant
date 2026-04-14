@@ -6,11 +6,9 @@
 #include <QPageSize>
 #include <QPageLayout>
 #include <QDateTime>
-#include <QLocale>
 #include <QImage>
 #include <QColor>
 #include <QFont>
-#include <QFontDatabase>
 #include <QRect>
 #include <QRectF>
 #include <QFontMetrics>
@@ -20,6 +18,7 @@
 #include <QFileInfo>
 #include <QtMath>
 #include <algorithm>
+#include <cmath>
 
 static const QColor kBg      ("#ffffff");
 static const QColor kSurface ("#f4f6fb");
@@ -33,12 +32,6 @@ static const QColor kRed     ("#e05c6a");
 static const QColor kRowEven ("#f8f9ff");
 static const QColor kRowOdd  ("#ffffff");
 static const QColor kHdrBg   ("#eef0fa");
-static const QList<QColor> kPal = {
-    "#4f86f7", "#f0a500", "#e05c6a", "#3ecf8e",
-    "#9b6cf9", "#f06c6c", "#62c4e3", "#b0e96a",
-    "#ff9f43", "#fd79a8", "#00cec9", "#fdcb6e"
-};
-
 
 struct ChartMeta {
     QString title;
@@ -60,38 +53,9 @@ struct ValueStats {
     int maxIdx = -1;
 };
 
-struct LegendItem {
-    QColor color;
-    QString label;
-};
-
-static bool isArabicUi()
-{
-    return g_lang == AppLanguage::Arabic;
-}
-
-static Qt::Alignment alignStart()
-{
-    return isArabicUi() ? Qt::AlignRight : Qt::AlignLeft;
-}
-
-static Qt::Alignment alignEnd()
-{
-    return isArabicUi() ? Qt::AlignLeft : Qt::AlignRight;
-}
-
-static QFont pdfFont(int pt, QFont::Weight weight = QFont::Normal)
-{
-    QFont f = QFontDatabase::systemFont(QFontDatabase::GeneralFont);
-    f.setPointSize(pt);
-    f.setWeight(weight);
-    return f;
-}
-
 static QString money(double v)
 {
-    const QLocale loc = isArabicUi() ? QLocale(QLocale::Arabic, QLocale::Iraq) : QLocale::c();
-    return currencyPrefix() + loc.toString(v, 'f', 0);
+    return QString("$%1").arg(v, 0, 'f', 0);
 }
 
 static ValueStats statsFor(const QList<double>& values)
@@ -133,12 +97,7 @@ static ChartMeta metaForRequest(const AppData& d, const ChartRequest& req)
         m.values = seriesForMetric(d, req.metricA, &m.labels, months);
         break;
     case ChartKind::RankedBar:
-    case ChartKind::MetricBar:
         m.type = "rankedbar";
-        m.values = seriesForMetric(d, req.metricA, &m.labels, months);
-        break;
-    case ChartKind::MetricLine:
-        m.type = "line";
         m.values = seriesForMetric(d, req.metricA, &m.labels, months);
         break;
     case ChartKind::CompareBar:
@@ -157,11 +116,12 @@ static ChartMeta metaForRequest(const AppData& d, const ChartRequest& req)
         m.type = "comparepie";
         const QList<double> a = seriesForMetric(d, req.metricA, &m.labels, months);
         const QList<double> b = seriesForMetric(d, req.metricB, &m.labels2, months);
-        double totalA = 0.0, totalB = 0.0;
-        for (double v : a) totalA += qAbs(v);
-        for (double v : b) totalB += qAbs(v);
-        m.labels = { m.nameA, m.nameB };
-        m.values = { totalA, totalB };
+        double ta = 0.0, tb = 0.0;
+        for (double v : a) ta += qAbs(v);
+        for (double v : b) tb += qAbs(v);
+        m.labels = QStringList{m.nameA, m.nameB};
+        m.values = QList<double>{ta, tb};
+        m.values2.clear();
         break;
     }
     }
@@ -171,112 +131,16 @@ static ChartMeta metaForRequest(const AppData& d, const ChartRequest& req)
 static void drawMetricCard(QPainter& p, const QRect& rect, const QString& label,
                            const QString& value, const QColor& accent)
 {
-    p.setLayoutDirection(isArabicUi() ? Qt::RightToLeft : Qt::LeftToRight);
     p.fillRect(rect, kBg);
     p.setPen(QPen(kBorder, 1));
     p.drawRoundedRect(rect.adjusted(0, 0, -1, -1), 10, 10);
     p.fillRect(QRect(rect.left(), rect.top(), 4, rect.height()), accent);
-
-    const QRect labelRect = QRect(rect.left() + 14, rect.top() + 10, rect.width() - 20, 18);
-    const QRect valueRect = QRect(rect.left() + 14, rect.top() + 28, rect.width() - 20, rect.height() - 34);
-
     p.setPen(kMuted);
-    p.setFont(pdfFont(8, QFont::Bold));
-    p.drawText(labelRect, Qt::AlignVCenter | alignStart(), label);
-
+    p.setFont(QFont("Segoe UI", 8, QFont::Bold));
+    p.drawText(QRect(rect.left() + 14, rect.top() + 10, rect.width() - 20, 18), Qt::AlignLeft | Qt::AlignVCenter, label);
     p.setPen(accent);
-    p.setFont(pdfFont(16, QFont::Black));
-    p.drawText(valueRect, Qt::AlignVCenter | alignStart(), value);
-}
-
-static QColor pieColorAt(int index)
-{
-    return kPal.isEmpty() ? kAccent : kPal[index % kPal.size()];
-}
-
-static QList<LegendItem> chartLegendItems(const ChartMeta& meta)
-{
-    QList<LegendItem> items;
-
-    if (meta.type == QStringLiteral("comparebar")) {
-        items.push_back({kAmber, meta.nameA});
-        items.push_back({kGreen, meta.nameB});
-        return items;
-    }
-
-    if (meta.type == QStringLiteral("line")) {
-        items.push_back({kAccent, meta.nameA.isEmpty() ? meta.title : meta.nameA});
-        return items;
-    }
-
-    if (meta.type == QStringLiteral("compareline")) {
-        if (!meta.values2.isEmpty()) {
-            items.push_back({kAmber, meta.nameA});
-            items.push_back({kGreen, meta.nameB});
-        } else {
-            items.push_back({kAccent, meta.nameA.isEmpty() ? meta.title : meta.nameA});
-        }
-        return items;
-    }
-
-    if (meta.type == QStringLiteral("candle")) {
-        items.push_back({kGreen, T("Rising", "صاعد")});
-        items.push_back({kRed, T("Falling", "هابط")});
-        return items;
-    }
-
-    if (meta.type == QStringLiteral("rankedbar")) {
-        items.push_back({kAccent, meta.nameA});
-        return items;
-    }
-
-    if (!meta.values2.isEmpty()) {
-        items.push_back({kAmber, meta.nameA});
-        items.push_back({kGreen, meta.nameB});
-        return items;
-    }
-
-    items.push_back({kAccent, meta.nameA.isEmpty() ? meta.title : meta.nameA});
-    return items;
-}
-
-static void drawLegendDots(QPainter& p, const QRect& rect, const QList<LegendItem>& items)
-{
-    if (items.isEmpty() || rect.height() <= 0 || rect.width() <= 0) return;
-
-    p.save();
-    p.setLayoutDirection(isArabicUi() ? Qt::RightToLeft : Qt::LeftToRight);
-    p.setPen(kMuted);
-    p.setFont(pdfFont(8));
-
-    const int dot = 8;
-    const int itemH = 16;
-    const int gap = 14;
-    int x = rect.left();
-    int y = rect.top();
-    int consumed = 0;
-
-    for (const auto& item : items) {
-        const QString label = item.label.isEmpty() ? QStringLiteral("-") : item.label;
-        const int textW = qMin(rect.width() - 20, QFontMetrics(p.font()).horizontalAdvance(label) + 8);
-        const int boxW = dot + 6 + textW;
-        if (consumed > 0 && x + boxW > rect.right() + 1) {
-            x = rect.left();
-            y += itemH;
-        }
-        if (y + itemH > rect.bottom() + 1) break;
-
-        p.setPen(Qt::NoPen);
-        p.setBrush(item.color);
-        p.drawEllipse(QPointF(x + dot / 2.0, y + itemH / 2.0), dot / 2.0, dot / 2.0);
-        p.setPen(kText);
-        p.drawText(QRect(x + dot + 6, y, textW, itemH), Qt::AlignVCenter | alignStart(), label);
-
-        x += boxW + gap;
-        ++consumed;
-    }
-
-    p.restore();
+    p.setFont(QFont("Segoe UI", 16, QFont::Black));
+    p.drawText(QRect(rect.left() + 14, rect.top() + 28, rect.width() - 20, rect.height() - 34), Qt::AlignLeft | Qt::AlignVCenter, value);
 }
 
 static void drawDataTable(QPainter& p, const QRect& rect, const ChartMeta& meta)
@@ -285,42 +149,37 @@ static void drawDataTable(QPainter& p, const QRect& rect, const ChartMeta& meta)
     const int titleH = 24;
     const int hdrH   = 26;
     const int rowH   = 21;
-
     p.fillRect(rect, kBg);
     p.setPen(QPen(kBorder, 1));
     p.drawRoundedRect(rect.adjusted(0, 0, -1, -1), 8, 8);
-
     QRect inner = rect.adjusted(8, 8, -8, -8);
     p.setPen(kAccent);
-    p.setFont(pdfFont(10, QFont::Bold));
-    p.drawText(QRect(inner.left(), inner.top(), inner.width(), titleH), Qt::AlignVCenter | alignStart(),
-               T("Data breakdown", "تفاصيل البيانات"));
-
+    p.setFont(QFont("Segoe UI", 10, QFont::Bold));
+    p.drawText(QRect(inner.left(), inner.top(), inner.width(), titleH), Qt::AlignLeft | Qt::AlignVCenter,
+               T("Data breakdown", "\u062A\u0641\u0627\u0635\u064A\u0644 \u0627\u0644\u0628\u064A\u0627\u0646\u0627\u062A"));
     QRect tableRect = QRect(inner.left(), inner.top() + titleH + 4, inner.width(), inner.height() - titleH - 4);
     if (tableRect.height() <= hdrH) return;
-
     p.fillRect(QRect(tableRect.left(), tableRect.top(), tableRect.width(), hdrH), kHdrBg);
     p.setPen(QPen(kBorder, 1));
     p.drawRect(QRect(tableRect.left(), tableRect.top(), tableRect.width(), hdrH));
-    p.setFont(pdfFont(8, QFont::Bold));
+    p.setFont(QFont("Segoe UI", 8, QFont::Bold));
     p.setPen(kAccent);
-
     if (compare) {
         const int c1 = tableRect.width() * 34 / 100;
         const int c2 = tableRect.width() * 31 / 100;
-        p.drawText(QRect(tableRect.left() + 4, tableRect.top(), c1 - 8, hdrH), Qt::AlignVCenter | alignStart(), T("Month", "الشهر"));
-        p.drawText(QRect(tableRect.left() + c1 + 2, tableRect.top(), c2 - 6, hdrH), Qt::AlignVCenter | alignEnd(), meta.nameA);
-        p.drawText(QRect(tableRect.left() + c1 + c2 + 2, tableRect.top(), tableRect.width() - c1 - c2 - 4, hdrH), Qt::AlignVCenter | alignEnd(), meta.nameB);
+        p.drawText(QRect(tableRect.left() + 4, tableRect.top(), c1 - 8, hdrH), Qt::AlignVCenter | Qt::AlignLeft, T("Month", "\u0627\u0644\u0634\u0647\u0631"));
+        p.drawText(QRect(tableRect.left() + c1 + 2, tableRect.top(), c2 - 6, hdrH), Qt::AlignVCenter | Qt::AlignRight, meta.nameA);
+        p.drawText(QRect(tableRect.left() + c1 + c2 + 2, tableRect.top(), tableRect.width() - c1 - c2 - 4, hdrH), Qt::AlignVCenter | Qt::AlignRight, meta.nameB);
     } else {
         const int c1 = tableRect.width() * 55 / 100;
-        p.drawText(QRect(tableRect.left() + 4, tableRect.top(), c1 - 8, hdrH), Qt::AlignVCenter | alignStart(), T("Label", "العنوان"));
-        p.drawText(QRect(tableRect.left() + c1, tableRect.top(), tableRect.width() - c1 - 4, hdrH), Qt::AlignVCenter | alignEnd(), T("Value", "القيمة"));
+        p.drawText(QRect(tableRect.left() + 4, tableRect.top(), c1 - 8, hdrH), Qt::AlignVCenter | Qt::AlignLeft, T("Label", "\u0627\u0644\u0639\u0646\u0648\u0627\u0646"));
+        p.drawText(QRect(tableRect.left() + c1, tableRect.top(), tableRect.width() - c1 - 4, hdrH), Qt::AlignVCenter | Qt::AlignRight, T("Value", "\u0627\u0644\u0642\u064A\u0645\u0629"));
     }
 
     const int maxRows = qMax(0, (tableRect.height() - hdrH) / rowH);
     const int n = qMin(meta.labels.size(), maxRows);
     int y = tableRect.top() + hdrH;
-    p.setFont(pdfFont(8));
+    p.setFont(QFont("Segoe UI", 8));
     for (int i = 0; i < n; ++i) {
         p.fillRect(QRect(tableRect.left(), y, tableRect.width(), rowH), (i % 2 == 0) ? kRowEven : kRowOdd);
         p.setPen(QPen(kBorder, 1));
@@ -329,17 +188,30 @@ static void drawDataTable(QPainter& p, const QRect& rect, const ChartMeta& meta)
         if (compare) {
             const int c1 = tableRect.width() * 34 / 100;
             const int c2 = tableRect.width() * 31 / 100;
-            p.drawText(QRect(tableRect.left() + 4, y, c1 - 8, rowH), Qt::AlignVCenter | alignStart(), meta.labels.value(i));
-            p.drawText(QRect(tableRect.left() + c1 + 2, y, c2 - 6, rowH), Qt::AlignVCenter | alignEnd(), money(meta.values.value(i)));
-            p.drawText(QRect(tableRect.left() + c1 + c2 + 2, y, tableRect.width() - c1 - c2 - 4, rowH), Qt::AlignVCenter | alignEnd(), money(meta.values2.value(i)));
+            p.drawText(QRect(tableRect.left() + 4, y, c1 - 8, rowH), Qt::AlignVCenter | Qt::AlignLeft, meta.labels.value(i));
+            p.drawText(QRect(tableRect.left() + c1 + 2, y, c2 - 6, rowH), Qt::AlignVCenter | Qt::AlignRight, money(meta.values.value(i)));
+            p.drawText(QRect(tableRect.left() + c1 + c2 + 2, y, tableRect.width() - c1 - c2 - 4, rowH), Qt::AlignVCenter | Qt::AlignRight, money(meta.values2.value(i)));
         } else {
             const int c1 = tableRect.width() * 55 / 100;
-            const QString lbl = QFontMetrics(pdfFont(8)).elidedText(meta.labels.value(i), Qt::ElideRight, c1 - 12);
-            p.drawText(QRect(tableRect.left() + 4, y, c1 - 8, rowH), Qt::AlignVCenter | alignStart(), lbl);
-            p.drawText(QRect(tableRect.left() + c1, y, tableRect.width() - c1 - 4, rowH), Qt::AlignVCenter | alignEnd(), money(meta.values.value(i)));
+            const QString lbl = QFontMetrics(QFont("Segoe UI", 8)).elidedText(meta.labels.value(i), Qt::ElideRight, c1 - 12);
+            p.drawText(QRect(tableRect.left() + 4, y, c1 - 8, rowH), Qt::AlignVCenter | Qt::AlignLeft, lbl);
+            p.drawText(QRect(tableRect.left() + c1, y, tableRect.width() - c1 - 4, rowH), Qt::AlignVCenter | Qt::AlignRight, money(meta.values.value(i)));
         }
         y += rowH;
     }
+}
+
+static void drawPieLabel(QPainter& p, const QRectF& pie, double startDeg, double spanDeg, const QString& label, const QColor& color)
+{
+    constexpr double kPi = 3.14159265358979323846;
+    const double mid = (startDeg + spanDeg / 2.0) * kPi / (180.0 * 16.0);
+    const double radius = qMin(pie.width(), pie.height()) * 0.28;
+    QPointF pos(pie.center().x() + std::cos(mid) * radius,
+                pie.center().y() - std::sin(mid) * radius);
+    p.setPen(color);
+    p.setFont(QFont("Segoe UI", 9, QFont::Bold));
+    const QRectF textRect(pos.x() - 28, pos.y() - 10, 56, 20);
+    p.drawText(textRect, Qt::AlignCenter, label);
 }
 
 static void drawPiePreview(QPainter& p, const QRect& rect, const ChartMeta& meta)
@@ -356,27 +228,37 @@ static void drawPiePreview(QPainter& p, const QRect& rect, const ChartMeta& meta
         const double v = qAbs(meta.values[i]);
         if (v < 0.001) continue;
         const double spanDeg = -360.0 * 16 * (v / total);
-        p.setBrush(pieColorAt(i));
+        const QColor sliceColor = QColor::fromHsv((i * 40) % 360, 170, 220);
+        p.setBrush(sliceColor);
         p.setPen(Qt::NoPen);
         p.drawPie(pie, int(startDeg), int(spanDeg));
+        const QColor textColor = sliceColor.lightness() < 150 ? Qt::white : QColor("#1e2340");
+        drawPieLabel(p, pie, startDeg, spanDeg, QString("%1%").arg(v / total * 100.0, 0, 'f', 1), textColor);
         startDeg += spanDeg;
     }
     p.setBrush(QColor("#ffffff"));
     p.setPen(Qt::NoPen);
     p.drawEllipse(pie.adjusted(d * 0.24, d * 0.24, -d * 0.24, -d * 0.24));
     p.setPen(kAccent);
-    p.setFont(pdfFont(9, QFont::Bold));
-    p.drawText(QRect(legendRect.left(), legendRect.top(), legendRect.width(), 18), Qt::AlignVCenter | alignStart(), T("Legend", "\u0627\u0644\u0645\u0641\u062A\u0627\u062D"));
-    p.setFont(pdfFont(8));
+    p.setFont(QFont("Segoe UI", 9, QFont::Bold));
+    p.drawText(QRect(legendRect.left(), legendRect.top(), legendRect.width(), 18), Qt::AlignLeft, T("Legend", "\u0627\u0644\u0645\u0641\u062A\u0627\u062D"));
+    p.setFont(QFont("Segoe UI", 8));
     int y = legendRect.top() + 24;
     const int maxRows = qMin(meta.labels.size(), 10);
     for (int i = 0; i < maxRows; ++i) {
-        p.fillRect(QRect(legendRect.left(), y + 3, 10, 10), pieColorAt(i));
+        p.fillRect(QRect(legendRect.left(), y + 3, 10, 10), QColor::fromHsv((i * 40) % 360, 170, 220));
         p.setPen(kText);
-        p.drawText(QRect(legendRect.left() + 16, y, legendRect.width() - 16, 18), Qt::AlignVCenter | alignStart(),
+        p.drawText(QRect(legendRect.left() + 16, y, legendRect.width() - 16, 18), Qt::AlignLeft,
                    meta.labels.value(i) + QStringLiteral(" — ") + money(meta.values.value(i)));
         y += 18;
     }
+}
+
+static void drawComparePiePreview(QPainter& p, const QRect& rect, const ChartMeta& meta)
+{
+    ChartMeta m = meta;
+    m.type = "pie";
+    drawPiePreview(p, rect, m);
 }
 
 static void drawBarPreview(QPainter& p, const QRect& rect, const ChartMeta& meta, bool grouped)
@@ -391,29 +273,25 @@ static void drawBarPreview(QPainter& p, const QRect& rect, const ChartMeta& meta
     p.setPen(QPen(kBorder, 1));
     p.drawRect(plot);
     p.setPen(kMuted);
-    p.setFont(pdfFont(8));
-    p.drawText(QRect(chart.left(), chart.top(), chart.width(), 14), Qt::AlignVCenter | alignStart(), T("Timeline", "\u0627\u0644\u0632\u0645\u0646"));
+    p.setFont(QFont("Segoe UI", 8));
+    p.drawText(QRect(chart.left(), chart.top(), chart.width(), 14), Qt::AlignLeft, T("Timeline", "\u0627\u0644\u0632\u0645\u0646"));
     const int n = meta.values.size();
     const double step = double(plot.width()) / qMax(1, n);
-    const double barW = grouped ? qMax(5.0, step * 0.28) : qMax(8.0, step * 0.6);
-
-    const QColor colA = grouped ? kAmber : kAccent;
-    const QColor colB = grouped ? kGreen : kGreen;
-
+    const double barW = grouped ? qMax(4.0, step * 0.22) : qMax(8.0, step * 0.6);
     for (int i = 0; i < n; ++i) {
         const double h = plot.height() * (qAbs(meta.values[i]) / maxV);
         QRectF bar(plot.left() + i * step + (step - barW) / 2.0, plot.bottom() - h, barW, h);
-        p.fillRect(bar, colA);
+        p.fillRect(bar, grouped ? QColor::fromHsv((i * 35) % 360, 170, 220) : kAccent);
     }
     if (grouped && !meta.values2.isEmpty()) {
         for (int i = 0; i < qMin(meta.values2.size(), n); ++i) {
             const double h = plot.height() * (qAbs(meta.values2[i]) / maxV);
             QRectF bar(plot.left() + i * step + (step - barW) / 2.0 + barW + 4, plot.bottom() - h, barW, h);
-            p.fillRect(bar, colB);
+            p.fillRect(bar, kGreen);
         }
     }
     p.setPen(kMuted);
-    p.setFont(pdfFont(8));
+    p.setFont(QFont("Segoe UI", 8));
     const int maxLabels = qMin(n, 12);
     for (int i = 0; i < maxLabels; ++i) {
         const int x = plot.left() + int(i * step + step * 0.5) - 30;
@@ -429,16 +307,16 @@ static void drawRankedBars(QPainter& p, const QRect& rect, const ChartMeta& meta
     const int rowH = qMax(18, chart.height() / qMax(1, meta.values.size()));
     const int barsX = chart.left() + 130;
     const int barsW = chart.width() - 140;
-    p.setFont(pdfFont(8));
+    p.setFont(QFont("Segoe UI", 8));
     for (int i = 0; i < meta.values.size(); ++i) {
         const int y = chart.top() + i * rowH;
         p.fillRect(QRect(chart.left(), y, chart.width(), rowH), (i % 2 == 0) ? kRowEven : kRowOdd);
         p.setPen(kText);
-        p.drawText(QRect(chart.left() + 4, y, 120, rowH), Qt::AlignVCenter | alignStart(), QString::number(i + 1) + QStringLiteral(". ") + meta.labels.value(i));
+        p.drawText(QRect(chart.left() + 4, y, 120, rowH), Qt::AlignVCenter | Qt::AlignLeft, QString::number(i + 1) + QStringLiteral(". ") + meta.labels.value(i));
         QRectF bar(barsX, y + 4, barsW * (qAbs(meta.values[i]) / maxV), rowH - 8);
         p.fillRect(bar, kAccent);
         p.setPen(kMuted);
-        p.drawText(QRect(barsX + 6, y, barsW - 6, rowH), Qt::AlignVCenter | alignStart(), money(meta.values[i]));
+        p.drawText(QRect(barsX + 6, y, barsW - 6, rowH), Qt::AlignVCenter | Qt::AlignLeft, money(meta.values[i]));
     }
 }
 
@@ -454,9 +332,9 @@ static void drawCandles(QPainter& p, const QRect& rect, const ChartMeta& meta)
     QRect plot(chart.left() + leftPad, chart.top() + 10, chart.width() - leftPad - 8, chart.height() - bottomPad - 14);
     p.setPen(QPen(kBorder, 1));
     p.drawRect(plot);
-    p.setFont(pdfFont(8));
+    p.setFont(QFont("Segoe UI", 8));
     p.setPen(kMuted);
-    p.drawText(QRect(chart.left(), chart.top(), chart.width(), 14), Qt::AlignVCenter | alignStart(), T("Timeline", "\u0627\u0644\u0632\u0645\u0646"));
+    p.drawText(QRect(chart.left(), chart.top(), chart.width(), 14), Qt::AlignLeft, T("Timeline", "\u0627\u0644\u0632\u0645\u0646"));
     const int n = meta.values.size();
     const double step = double(plot.width()) / qMax(1, n);
     const double bodyW = qMax(6.0, step * 0.45);
@@ -477,45 +355,10 @@ static void drawCandles(QPainter& p, const QRect& rect, const ChartMeta& meta)
         p.fillRect(body, rising ? kGreen : kRed);
     }
     p.setPen(kMuted);
-    p.setFont(pdfFont(8));
+    p.setFont(QFont("Segoe UI", 8));
     const int maxLabels = qMin(n, 12);
     for (int i = 0; i < maxLabels; ++i) {
         const int x = plot.left() + int(i * step + step * 0.5) - 30;
-        p.drawText(QRect(x, plot.bottom() + 4, 60, 18), Qt::AlignHCenter, meta.labels.value(i));
-    }
-}
-
-static void drawSingleLinePreview(QPainter& p, const QRect& rect, const ChartMeta& meta)
-{
-    if (meta.values.isEmpty()) return;
-    double maxV = 0.0;
-    for (double v : meta.values) maxV = qMax(maxV, qAbs(v));
-    if (maxV < 0.001) maxV = 1.0;
-
-    QRect chart = rect.adjusted(16, 16, -16, -16);
-    QRect plot(chart.left() + 48, chart.top() + 12, chart.width() - 58, chart.height() - 40);
-    p.setPen(QPen(kBorder, 1));
-    p.drawRect(plot);
-
-    QPolygonF poly;
-    const int n = meta.values.size();
-    const double step = double(plot.width()) / qMax(1, n - 1);
-    for (int i = 0; i < n; ++i) {
-        const double x = plot.left() + i * step;
-        const double y = plot.bottom() - plot.height() * (qAbs(meta.values[i]) / maxV);
-        poly << QPointF(x, y);
-    }
-    p.setPen(QPen(kAccent, 2));
-    p.drawPolyline(poly);
-    p.setBrush(kAccent);
-    for (const auto& pt : poly)
-        p.drawEllipse(pt, 3, 3);
-
-    p.setPen(kMuted);
-    p.setFont(pdfFont(8));
-    const int maxLabels = qMin(meta.labels.size(), 12);
-    for (int i = 0; i < maxLabels; ++i) {
-        const int x = plot.left() + int(i * step) - 30;
         p.drawText(QRect(x, plot.bottom() + 4, 60, 18), Qt::AlignHCenter, meta.labels.value(i));
     }
 }
@@ -551,7 +394,7 @@ static void drawLineCompare(QPainter& p, const QRect& rect, const ChartMeta& met
     drawSeries(meta.values, kAmber);
     drawSeries(meta.values2, kGreen);
     p.setPen(kMuted);
-    p.setFont(pdfFont(8));
+    p.setFont(QFont("Segoe UI", 8));
     const int n = qMin(meta.labels.size(), 12);
     const double step = double(plot.width()) / qMax(1, meta.values.size() - 1);
     for (int i = 0; i < n; ++i) {
@@ -563,23 +406,12 @@ static void drawLineCompare(QPainter& p, const QRect& rect, const ChartMeta& met
 static void drawChartPreview(QPainter& p, const QRect& chartArea, const ChartMeta& meta)
 {
     p.fillRect(chartArea, Qt::white);
-
-    const bool hasBuiltInLegend = (meta.type == QStringLiteral("pie") || meta.type == QStringLiteral("comparepie"));
-    const int legendH = hasBuiltInLegend ? 0 : qBound(24, chartArea.height() / 6, 40);
-    const QRect plotRect = hasBuiltInLegend ? chartArea : chartArea.adjusted(0, 0, 0, -legendH);
-    const QRect legendRect = hasBuiltInLegend ? QRect() : QRect(chartArea.left() + 10, chartArea.bottom() - legendH + 4,
-                                                                chartArea.width() - 20, legendH - 8);
-
-    if (meta.type == QStringLiteral("pie") || meta.type == QStringLiteral("comparepie")) drawPiePreview(p, plotRect, meta);
-    else if (meta.type == QStringLiteral("rankedbar")) drawRankedBars(p, plotRect, meta);
-    else if (meta.type == QStringLiteral("candle")) drawCandles(p, plotRect, meta);
-    else if (meta.type == QStringLiteral("line")) drawSingleLinePreview(p, plotRect, meta);
-    else if (meta.type == QStringLiteral("compareline")) drawLineCompare(p, plotRect, meta);
-    else drawBarPreview(p, plotRect, meta, true);
-
-    if (!hasBuiltInLegend) {
-        drawLegendDots(p, legendRect, chartLegendItems(meta));
-    }
+    if (meta.type == "pie") drawPiePreview(p, chartArea, meta);
+    else if (meta.type == "comparepie") drawComparePiePreview(p, chartArea, meta);
+    else if (meta.type == "rankedbar") drawRankedBars(p, chartArea, meta);
+    else if (meta.type == "candle") drawCandles(p, chartArea, meta);
+    else if (meta.type == "compareline") drawLineCompare(p, chartArea, meta);
+    else drawBarPreview(p, chartArea, meta, true);
 }
 
 static QImage renderCoverPage(const AppData& data, const QSize& size)
@@ -589,16 +421,15 @@ static QImage renderCoverPage(const AppData& data, const QSize& size)
     QPainter p(&img);
     p.setRenderHint(QPainter::Antialiasing, true);
     p.setRenderHint(QPainter::TextAntialiasing, true);
-    p.setLayoutDirection(isArabicUi() ? Qt::RightToLeft : Qt::LeftToRight);
 
     p.fillRect(QRect(0, 0, size.width(), 80), kAccent);
-    p.setFont(pdfFont(20, QFont::Black));
+    p.setFont(QFont("Segoe UI", 20, QFont::Black));
     p.setPen(Qt::white);
-    p.drawText(QRect(48, 12, size.width() - 96, 56), Qt::AlignVCenter | alignStart(),
+    p.drawText(QRect(48, 12, size.width() - 96, 56), Qt::AlignVCenter | Qt::AlignLeft,
                T("Account Assistant — Financial Report", "\u0645\u0633\u0627\u0639\u062F \u0627\u0644\u062D\u0633\u0627\u0628\u0627\u062A — \u062A\u0642\u0631\u064A\u0631 \u0645\u0627\u0644\u064A"));
-    p.setFont(pdfFont(9));
+    p.setFont(QFont("Segoe UI", 9));
     p.setPen(QColor(220, 230, 255));
-    p.drawText(QRect(size.width() - 300, 20, 252, 40), Qt::AlignVCenter | alignEnd(),
+    p.drawText(QRect(size.width() - 300, 20, 252, 40), Qt::AlignVCenter | Qt::AlignRight,
                QDateTime::currentDateTime().toString("yyyy-MM-dd  hh:mm"));
 
     struct Card { const char* enLbl; const char* arLbl; double val; QColor col; };
@@ -616,12 +447,12 @@ static QImage renderCoverPage(const AppData& data, const QSize& size)
         p.setPen(QPen(kBorder, 1));
         p.drawRect(QRect(cx, y, cw, 90));
         p.fillRect(QRect(cx, y, 4, 90), cards[i].col);
-        p.setFont(pdfFont(8, QFont::Bold));
+        p.setFont(QFont("Segoe UI", 8, QFont::Bold));
         p.setPen(kMuted);
-        p.drawText(QRect(cx + 14, y + 12, cw - 20, 20), Qt::AlignVCenter | alignStart(), T(cards[i].enLbl, cards[i].arLbl));
-        p.setFont(pdfFont(17, QFont::Black));
+        p.drawText(QRect(cx + 14, y + 12, cw - 20, 20), Qt::AlignLeft | Qt::AlignVCenter, T(cards[i].enLbl, cards[i].arLbl));
+        p.setFont(QFont("Segoe UI", 17, QFont::Black));
         p.setPen(cards[i].col);
-        p.drawText(QRect(cx + 14, y + 34, cw - 20, 46), Qt::AlignVCenter | alignStart(), money(cards[i].val));
+        p.drawText(QRect(cx + 14, y + 34, cw - 20, 46), Qt::AlignLeft | Qt::AlignVCenter, money(cards[i].val));
     }
 
     int sepY = y + 108;
@@ -631,9 +462,9 @@ static QImage renderCoverPage(const AppData& data, const QSize& size)
 
     if (!data.expenseSummary.isEmpty()) {
         sepY += 10;
-        p.setFont(pdfFont(10, QFont::Bold));
+        p.setFont(QFont("Segoe UI", 10, QFont::Bold));
         p.setPen(kAccent);
-        p.drawText(QRect(mg, sepY, size.width() - 2 * mg, 22), alignStart(),
+        p.drawText(QRect(mg, sepY, size.width() - 2 * mg, 22), Qt::AlignLeft,
                    T("Expense accounts (ranked):", "\u062D\u0633\u0627\u0628\u0627\u062A \u0627\u0644\u0645\u0635\u0631\u0648\u0641 (\u0645\u0631\u062A\u0628\u0629):"));
         sepY += 26;
         const int rows = qMin(data.expenseSummary.size(), 6);
@@ -641,7 +472,7 @@ static QImage renderCoverPage(const AppData& data, const QSize& size)
             const auto& e = data.expenseSummary[i];
             QString line = QString::number(i + 1) + QStringLiteral(". ") + e.account + QStringLiteral("  —  ") + money(e.total);
             p.setPen(i % 2 == 0 ? kText : kMuted);
-            p.drawText(QRect(mg + 10, sepY, size.width() - 2 * mg - 20, 20), alignStart(), line);
+            p.drawText(QRect(mg + 10, sepY, size.width() - 2 * mg - 20, 20), Qt::AlignLeft, line);
             sepY += 22;
         }
     }
@@ -655,20 +486,19 @@ static QImage renderMonthlyReportPage(const AppData& data, const QSize& size, co
     QPainter p(&img);
     p.setRenderHint(QPainter::Antialiasing, true);
     p.setRenderHint(QPainter::TextAntialiasing, true);
-    p.setLayoutDirection(isArabicUi() ? Qt::RightToLeft : Qt::LeftToRight);
 
     p.fillRect(QRect(0, 0, size.width(), 74), kSurface);
     p.setPen(QPen(kBorder, 1));
     p.drawLine(0, 74, size.width(), 74);
-    p.setFont(pdfFont(18, QFont::Black));
+    p.setFont(QFont("Segoe UI", 18, QFont::Black));
     p.setPen(kAccent);
-    p.drawText(QRect(30, 10, size.width() - 60, 28), Qt::AlignVCenter | alignStart(),
+    p.drawText(QRect(30, 10, size.width() - 60, 28), Qt::AlignLeft | Qt::AlignVCenter,
                T("Monthly report cards", "بطاقات التقرير الشهري"));
-    p.setFont(pdfFont(9));
+    p.setFont(QFont("Segoe UI", 9));
     p.setPen(kMuted);
-    p.drawText(QRect(30, 36, size.width() - 60, 18), Qt::AlignVCenter | alignStart(),
+    p.drawText(QRect(30, 36, size.width() - 60, 18), Qt::AlignLeft | Qt::AlignVCenter,
                T("Each month is shown as an individual summary card.", "كل شهر يظهر ببطاقة مستقلة"));
-    p.drawText(QRect(size.width() - 270, 18, 240, 18), Qt::AlignVCenter | alignEnd(),
+    p.drawText(QRect(size.width() - 270, 18, 240, 18), Qt::AlignRight | Qt::AlignVCenter,
                QDateTime::currentDateTime().toString("yyyy-MM-dd  hh:mm"));
 
     QRect area(28, 100, size.width() - 56, size.height() - 128);
@@ -687,16 +517,16 @@ static QImage renderMonthlyReportPage(const AppData& data, const QSize& size, co
 
         QRect inner = rect.adjusted(14, 12, -14, -12);
         p.setPen(kText);
-        p.setFont(pdfFont(12, QFont::Black));
-        p.drawText(QRect(inner.left(), inner.top(), inner.width(), 20), Qt::AlignVCenter | alignStart(), month);
+        p.setFont(QFont("Segoe UI", 12, QFont::Black));
+        p.drawText(QRect(inner.left(), inner.top(), inner.width(), 20), Qt::AlignLeft | Qt::AlignVCenter, month);
 
         auto drawLine = [&](int y, const QString& label, const QString& value, const QColor& col) {
-            p.setFont(pdfFont(8, QFont::Bold));
+            p.setFont(QFont("Segoe UI", 8, QFont::Bold));
             p.setPen(kMuted);
-            p.drawText(QRect(inner.left(), y, inner.width() - 72, 16), Qt::AlignVCenter | alignStart(), label);
-            p.setFont(pdfFont(11, QFont::Black));
+            p.drawText(QRect(inner.left(), y, inner.width() - 72, 16), Qt::AlignLeft | Qt::AlignVCenter, label);
+            p.setFont(QFont("Segoe UI", 11, QFont::Black));
             p.setPen(col);
-            p.drawText(QRect(inner.left(), y, inner.width(), 16), Qt::AlignVCenter | alignEnd(), value);
+            p.drawText(QRect(inner.left(), y, inner.width(), 16), Qt::AlignRight | Qt::AlignVCenter, value);
         };
 
         drawLine(inner.top() + 30, T("Net Sales", "صافي المبيعات"), money(netSales), netSales >= 0 ? kGreen : kRed);
@@ -728,7 +558,6 @@ static QImage renderChartPage(const AppData& data, const ChartRequest& req, cons
     QPainter p(&img);
     p.setRenderHint(QPainter::Antialiasing, true);
     p.setRenderHint(QPainter::TextAntialiasing, true);
-    p.setLayoutDirection(isArabicUi() ? Qt::RightToLeft : Qt::LeftToRight);
 
     const int margin = 24;
     const int headerH = 58;
@@ -742,13 +571,13 @@ static QImage renderChartPage(const AppData& data, const ChartRequest& req, cons
     p.setPen(QPen(kBorder, 1));
     p.drawLine(0, margin + headerH, size.width(), margin + headerH);
     p.setPen(kAccent);
-    p.setFont(pdfFont(18, QFont::Black));
-    p.drawText(QRect(margin, 14, size.width() - 2 * margin, 26), Qt::AlignVCenter | alignStart(), meta.title);
+    p.setFont(QFont("Segoe UI", 18, QFont::Black));
+    p.drawText(QRect(margin, 14, size.width() - 2 * margin, 26), Qt::AlignLeft | Qt::AlignVCenter, meta.title);
     p.setPen(kMuted);
-    p.setFont(pdfFont(9));
-    p.drawText(QRect(margin, 36, size.width() - 2 * margin, 18), Qt::AlignVCenter | alignStart(),
+    p.setFont(QFont("Segoe UI", 9));
+    p.drawText(QRect(margin, 36, size.width() - 2 * margin, 18), Qt::AlignLeft | Qt::AlignVCenter,
                T("Exported as a detailed static chart", "\u062A\u0645 \u062A\u0635\u062F\u064A\u0631\u0647 \u0643\u0631\u0633\u0645 \u0633\u0627\u0628\u062A \u0645\u0641\u0635\u0644"));
-    p.drawText(QRect(size.width() - 260, 18, 236, 22), Qt::AlignVCenter | alignEnd(),
+    p.drawText(QRect(size.width() - 260, 18, 236, 22), Qt::AlignRight | Qt::AlignVCenter,
                QDateTime::currentDateTime().toString("yyyy-MM-dd  hh:mm"));
 
     QRect m1(margin, margin + headerH + gap, (size.width() - 2 * margin - 3 * gap) / 4, metricsH);
@@ -787,8 +616,8 @@ static QImage renderChartPage(const AppData& data, const ChartRequest& req, cons
 
     QRect chartInner = chartPanel.adjusted(12, 12, -12, -12);
     p.setPen(kAccent);
-    p.setFont(pdfFont(10, QFont::Bold));
-    p.drawText(QRect(chartInner.left(), chartInner.top(), chartInner.width(), 22), Qt::AlignVCenter | alignStart(),
+    p.setFont(QFont("Segoe UI", 10, QFont::Bold));
+    p.drawText(QRect(chartInner.left(), chartInner.top(), chartInner.width(), 22), Qt::AlignLeft | Qt::AlignVCenter,
                T("Chart preview", "\u0645\u0639\u0627\u064A\u0646\u0629 \u0627\u0644\u0631\u0633\u0645"));
     QRect chartArea = chartInner.adjusted(0, 26, 0, 0);
     drawChartPreview(p, chartArea, meta);
@@ -801,8 +630,6 @@ static void drawMonthFlowBlock(QPainter& p, const QRect& rect, const AppData& da
 {
     const auto months = monthNames();
     const bool summary = (monthIdx == 0);
-
-    p.setLayoutDirection(isArabicUi() ? Qt::RightToLeft : Qt::LeftToRight);
     p.fillRect(rect, kBg);
     p.setPen(QPen(kBorder, 1));
     p.drawRoundedRect(rect.adjusted(0, 0, -1, -1), 12, 12);
@@ -810,45 +637,29 @@ static void drawMonthFlowBlock(QPainter& p, const QRect& rect, const AppData& da
 
     QRect inner = rect.adjusted(14, 12, -14, -12);
     p.setPen(kText);
-    p.setFont(pdfFont(12, QFont::Black));
-    p.drawText(QRect(inner.left(), inner.top(), inner.width(), 20), Qt::AlignVCenter | alignStart(),
+    p.setFont(QFont("Segoe UI", 12, QFont::Black));
+    p.drawText(QRect(inner.left(), inner.top(), inner.width(), 20), Qt::AlignLeft | Qt::AlignVCenter,
                summary ? T("All months", "كل الأشهر") : months.value(monthIdx - 1));
 
-    p.setPen(kMuted);
-    p.setFont(pdfFont(8, QFont::Bold));
-    p.drawText(QRect(inner.left(), inner.top() + 20, inner.width(), 16), Qt::AlignVCenter | alignStart(),
-               T("Monthly report", "تقرير شهري"));
-
-    const QRect cardsArea(inner.left(), inner.top() + 42, inner.width(), inner.height() - 42);
-    const int gap = 10;
-    const int cardW = (cardsArea.width() - 2 * gap) / 3;
-    const int cardH = qMax(78, cardsArea.height());
-
-    auto drawBox = [&](int idx, const QString& label, double value, const QColor& accent) {
-        const int x = cardsArea.left() + idx * (cardW + gap);
-        QRect card(x, cardsArea.top(), cardW, cardH);
-        p.fillRect(card, kSurface);
-        p.setPen(QPen(kBorder, 1));
-        p.drawRoundedRect(card.adjusted(0, 0, -1, -1), 10, 10);
-        p.fillRect(QRect(card.left(), card.top(), 4, card.height()), accent);
-
+    auto drawLine = [&](int y, const QString& label, const QString& value, const QColor& col) {
+        p.setFont(QFont("Segoe UI", 8, QFont::Bold));
         p.setPen(kMuted);
-        p.setFont(pdfFont(8, QFont::Bold));
-        p.drawText(QRect(card.left() + 14, card.top() + 12, card.width() - 18, 18), Qt::AlignVCenter | alignStart(), label);
-
-        p.setPen(accent);
-        p.setFont(pdfFont(15, QFont::Black));
-        p.drawText(QRect(card.left() + 14, card.top() + 34, card.width() - 18, card.height() - 38), Qt::AlignVCenter | alignStart(), money(value));
+        p.drawText(QRect(inner.left(), y, inner.width() - 72, 16), Qt::AlignLeft | Qt::AlignVCenter, label);
+        p.setFont(QFont("Segoe UI", 11, QFont::Black));
+        p.setPen(col);
+        p.drawText(QRect(inner.left(), y, inner.width(), 16), Qt::AlignRight | Qt::AlignVCenter, value);
     };
 
-    const int idx = monthIdx - 1;
-    const double netSales = summary ? data.totalNetSales : data.netSales[idx];
-    const double cogs     = summary ? data.totalCOGS     : data.cogs[idx];
-    const double profit   = summary ? data.totalProfit   : data.profitMargin[idx];
-
-    drawBox(0, T("Net Sales", "صافي المبيعات"), netSales, netSales >= 0 ? kGreen : kRed);
-    drawBox(1, T("COGS", "تكلفة البضاعة"), cogs, kAmber);
-    drawBox(2, T("Profit Margin", "هامش الربح"), profit, profit >= 0 ? kGreen : kRed);
+    if (summary) {
+        drawLine(inner.top() + 30, T("Net Sales", "صافي المبيعات"), money(data.totalNetSales), data.totalNetSales >= 0 ? kGreen : kRed);
+        drawLine(inner.top() + 52, T("COGS", "تكلفة البضاعة"), money(data.totalCOGS), kAmber);
+        drawLine(inner.top() + 74, T("Profit Margin", "هامش الربح"), money(data.totalProfit), data.totalProfit >= 0 ? kGreen : kRed);
+    } else {
+        const int idx = monthIdx - 1;
+        drawLine(inner.top() + 30, T("Net Sales", "صافي المبيعات"), money(data.netSales[idx]), data.netSales[idx] >= 0 ? kGreen : kRed);
+        drawLine(inner.top() + 52, T("COGS", "تكلفة البضاعة"), money(data.cogs[idx]), kAmber);
+        drawLine(inner.top() + 74, T("Profit Margin", "هامش الربح"), money(data.profitMargin[idx]), data.profitMargin[idx] >= 0 ? kGreen : kRed);
+    }
 }
 
 static void drawChartFlowBlock(QPainter& p, const QRect& rect, const AppData& data, const ChartRequest& req)
@@ -859,11 +670,11 @@ static void drawChartFlowBlock(QPainter& p, const QRect& rect, const AppData& da
     p.drawRoundedRect(rect.adjusted(0, 0, -1, -1), 12, 12);
     QRect header = rect.adjusted(14, 12, -14, -14);
     p.setPen(kAccent);
-    p.setFont(pdfFont(13, QFont::Bold));
-    p.drawText(QRect(header.left(), header.top(), header.width(), 22), Qt::AlignVCenter | alignStart(), meta.title);
+    p.setFont(QFont("Segoe UI", 13, QFont::Bold));
+    p.drawText(QRect(header.left(), header.top(), header.width(), 22), Qt::AlignLeft | Qt::AlignVCenter, meta.title);
     p.setPen(kMuted);
-    p.setFont(pdfFont(8));
-    p.drawText(QRect(header.left(), header.top() + 22, header.width(), 16), Qt::AlignVCenter | alignStart(),
+    p.setFont(QFont("Segoe UI", 8));
+    p.drawText(QRect(header.left(), header.top() + 22, header.width(), 16), Qt::AlignLeft | Qt::AlignVCenter,
                T("Chart block", "كتلة الرسم"));
     QRect chartArea = rect.adjusted(14, 42, -14, -14);
     drawChartPreview(p, chartArea, meta);
@@ -871,9 +682,6 @@ static void drawChartFlowBlock(QPainter& p, const QRect& rect, const AppData& da
 
 bool PdfExporter::exportToPdf(const QString& path, const AppData& data, const QList<ChartRequest>& requests, const QList<ResultFlowItem>& flowOrder, bool landscape)
 {
-    AppData reportData = data;
-    reportData.calculate();
-
     QPdfWriter writer(path);
     writer.setPageSize(QPageSize(QPageSize::A4));
     writer.setPageOrientation(landscape ? QPageLayout::Landscape : QPageLayout::Portrait);
@@ -894,7 +702,7 @@ bool PdfExporter::exportToPdf(const QString& path, const AppData& data, const QL
         p.drawImage(QRect(0, 0, pageSize.width(), pageSize.height()), img);
     };
 
-    paintPage(renderCoverPage(reportData, pageSize));
+    paintPage(renderCoverPage(data, pageSize));
     writer.newPage();
 
     QList<ResultFlowItem> flow = flowOrder;
@@ -910,17 +718,16 @@ bool PdfExporter::exportToPdf(const QString& path, const AppData& data, const QL
         QPainter qp(&page);
         qp.setRenderHint(QPainter::Antialiasing, true);
         qp.setRenderHint(QPainter::TextAntialiasing, true);
-        qp.setLayoutDirection(isArabicUi() ? Qt::RightToLeft : Qt::LeftToRight);
         qp.fillRect(QRect(0, 0, pageSize.width(), 74), kSurface);
         qp.setPen(QPen(kBorder, 1));
         qp.drawLine(0, 74, pageSize.width(), 74);
         qp.setPen(kAccent);
-        qp.setFont(pdfFont(18, QFont::Black));
-        qp.drawText(QRect(30, 10, pageSize.width() - 60, 28), Qt::AlignVCenter | alignStart(),
+        qp.setFont(QFont("Segoe UI", 18, QFont::Black));
+        qp.drawText(QRect(30, 10, pageSize.width() - 60, 28), Qt::AlignLeft | Qt::AlignVCenter,
                     T("Results flow", "تدفق النتائج"));
-        qp.setFont(pdfFont(9));
+        qp.setFont(QFont("Segoe UI", 9));
         qp.setPen(kMuted);
-        qp.drawText(QRect(30, 36, pageSize.width() - 60, 18), Qt::AlignVCenter | alignStart(),
+        qp.drawText(QRect(30, 36, pageSize.width() - 60, 18), Qt::AlignLeft | Qt::AlignVCenter,
                     QDateTime::currentDateTime().toString("yyyy-MM-dd  hh:mm"));
     };
 
@@ -948,9 +755,9 @@ bool PdfExporter::exportToPdf(const QString& path, const AppData& data, const QL
         QPainter qp(&page);
         QRect block(margin, y, contentW, blockH);
         if (item.kind == ResultFlowItemKind::MonthCard && item.index >= 0 && item.index <= 12) {
-            drawMonthFlowBlock(qp, block, reportData, item.index);
+            drawMonthFlowBlock(qp, block, data, item.index);
         } else if (item.kind == ResultFlowItemKind::ChartCard && item.index >= 0 && item.index < requests.size()) {
-            drawChartFlowBlock(qp, block, reportData, requests[item.index]);
+            drawChartFlowBlock(qp, block, data, requests[item.index]);
         }
         y += blockH + 14;
     }

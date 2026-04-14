@@ -38,8 +38,6 @@ public:
     double salesReturn()       const;
     double supplierPurchases() const;
     double supplierPayments()  const;
-    QString expenseAccount()   const;
-    double expenseAmount()     const;
     double inventoryFirst()    const;
     double inventoryLast()     const;
 
@@ -47,8 +45,6 @@ public:
     void setSalesReturn(double v);
     void setSupplierPurchases(double v);
     void setSupplierPayments(double v);
-    void setExpenseAccount(const QString& v);
-    void setExpenseAmount(double v);
     void setInventoryFirst(double v);
     void setInventoryLast(double v);
 
@@ -98,8 +94,6 @@ private:
     NavigableSpinBox* m_salesReturn{};
     NavigableSpinBox* m_suppPurchases{};
     NavigableSpinBox* m_suppPayments{};
-    QLineEdit*        m_expAccount{};
-    NavigableSpinBox* m_expAmount{};
     NavigableSpinBox* m_invFirst{};
     NavigableSpinBox* m_invLast{};
 

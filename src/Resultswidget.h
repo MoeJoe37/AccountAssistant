@@ -22,6 +22,7 @@ public:
     explicit ResultsWidget(QWidget* parent = nullptr);
 
     void buildResults(const AppData& data);
+    void appendChart(const AppData& data, const ChartRequest& request);
     void clearResults();
     void applyTheme();
 

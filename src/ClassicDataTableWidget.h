@@ -28,23 +28,6 @@ private:
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  Cell widget for Expenses (account name + amount)
-// ─────────────────────────────────────────────────────────────────────────────
-class ClassicExpenseCell : public QWidget {
-    Q_OBJECT
-public:
-    explicit ClassicExpenseCell(QWidget* p = nullptr);
-    QString accountName() const;
-    double  amount() const;
-    void retranslate(const QString& nameLbl, const QString& amtLbl);
-private:
-    QLabel*         m_nameLbl{};
-    QLabel*         m_amtLbl{};
-    QLineEdit*      m_nameEdit{};
-    QDoubleSpinBox* m_amtSpin{};
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
 //  Classic spreadsheet-style data entry table
 // ─────────────────────────────────────────────────────────────────────────────
 class ClassicDataTableWidget : public QWidget {
@@ -73,7 +56,6 @@ private:
     QLabel*      m_lSales{};
     QLabel*      m_lSalesRet{};
     QLabel*      m_lPurch{};
-    QLabel*      m_lExp{};
     QLabel*      m_lInv{};
 
     // Month header labels (in scrollable area)
@@ -85,6 +67,5 @@ private:
     QDoubleSpinBox*      m_salesCell[12]{};
     QDoubleSpinBox*      m_salesRetCell[12]{};
     ClassicDualSpinCell* m_purchCell[12]{};
-    ClassicExpenseCell*  m_expCell[12]{};
     ClassicDualSpinCell* m_invCell[12]{};
 };

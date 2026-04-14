@@ -138,57 +138,6 @@ void ClassicDualSpinCell::retranslate(const QString& t, const QString& b)
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-//  ClassicExpenseCell
-// ═════════════════════════════════════════════════════════════════════════════
-ClassicExpenseCell::ClassicExpenseCell(QWidget* p) : QWidget(p)
-{
-    setStyleSheet(g_lightMode ? cDataCellSSLt : cDataCellSSDk);
-    auto* vl = new QVBoxLayout(this);
-    vl->setContentsMargins(8,6,8,6);
-    vl->setSpacing(4);
-
-    {
-        auto* row = new QHBoxLayout;
-        row->setSpacing(6);
-        m_nameLbl = new QLabel;
-        m_nameLbl->setStyleSheet(g_lightMode ? cSubLabelSSLt : cSubLabelSSDk);
-        m_nameLbl->setFixedWidth(46);
-        m_nameEdit = new QLineEdit;
-        m_nameEdit->setStyleSheet(g_lightMode ? cEditSSLight : cEditSSDark);
-        m_nameEdit->setMaximumWidth(96);
-        row->addWidget(m_nameLbl);
-        row->addWidget(m_nameEdit);
-        row->addStretch();
-        vl->addLayout(row);
-    }
-    {
-        auto* row = new QHBoxLayout;
-        row->setSpacing(6);
-        m_amtLbl = new QLabel;
-        m_amtLbl->setStyleSheet(g_lightMode ? cSubLabelSSLt : cSubLabelSSDk);
-        m_amtLbl->setFixedWidth(46);
-        m_amtSpin = new QDoubleSpinBox;
-        m_amtSpin->setRange(0, 1e10);
-        m_amtSpin->setDecimals(2);
-        m_amtSpin->setSingleStep(100);
-        m_amtSpin->setStyleSheet(g_lightMode ? cSpinSSLight : cSpinSSDark);
-        m_amtSpin->setMaximumWidth(96);
-        row->addWidget(m_amtLbl);
-        row->addWidget(m_amtSpin);
-        row->addStretch();
-        vl->addLayout(row);
-    }
-}
-
-QString ClassicExpenseCell::accountName() const { return m_nameEdit->text(); }
-double  ClassicExpenseCell::amount()       const { return m_amtSpin->value(); }
-void ClassicExpenseCell::retranslate(const QString& nameLbl, const QString& amtLbl)
-{
-    m_nameLbl->setText(nameLbl);
-    m_amtLbl->setText(amtLbl);
-}
-
-// ═════════════════════════════════════════════════════════════════════════════
 //  ClassicDataTableWidget
 // ═════════════════════════════════════════════════════════════════════════════
 ClassicDataTableWidget::ClassicDataTableWidget(QWidget* parent) : QWidget(parent)
@@ -242,7 +191,6 @@ void ClassicDataTableWidget::buildTable()
     makeLabel(m_lSales,    "", CROW_H_SINGLE);
     makeLabel(m_lSalesRet, "", CROW_H_SINGLE);
     makeLabel(m_lPurch,    "", CROW_H_DOUBLE);
-    makeLabel(m_lExp,      "", CROW_H_DOUBLE);
     makeLabel(m_lInv,      "", CROW_H_DOUBLE);
     leftVL->addStretch();
     root->addWidget(m_leftCol);
@@ -305,20 +253,15 @@ void ClassicDataTableWidget::buildTable()
         m_purchCell[col]->setFixedSize(CCOL_W, CROW_H_DOUBLE);
         grid->addWidget(m_purchCell[col], 3, col);
 
-        // Expenses
-        m_expCell[col] = new ClassicExpenseCell;
-        m_expCell[col]->setFixedSize(CCOL_W, CROW_H_DOUBLE);
-        grid->addWidget(m_expCell[col], 4, col);
-
         // Inventory (dual)
         m_invCell[col] = new ClassicDualSpinCell("","");
         m_invCell[col]->setFixedSize(CCOL_W, CROW_H_DOUBLE);
-        grid->addWidget(m_invCell[col], 5, col);
+        grid->addWidget(m_invCell[col], 4, col);
     }
 
     int totalW = CCOL_W * 12;
     m_tableBody->setFixedWidth(totalW);
-    int totalH = CHDR_H + CROW_H_SINGLE*2 + CROW_H_DOUBLE*3;
+    int totalH = CHDR_H + CROW_H_SINGLE*2 + CROW_H_DOUBLE*2;
     m_tableBody->setFixedHeight(totalH);
 
     m_scroll->setWidget(m_tableBody);
@@ -357,7 +300,6 @@ void ClassicDataTableWidget::applyTheme()
     if (m_lSales)    m_lSales->setStyleSheet(rowLabelSS);
     if (m_lSalesRet) m_lSalesRet->setStyleSheet(rowLabelSS);
     if (m_lPurch)    m_lPurch->setStyleSheet(rowLabelSS);
-    if (m_lExp)      m_lExp->setStyleSheet(rowLabelSS);
     if (m_lInv)      m_lInv->setStyleSheet(rowLabelSS);
 
     for (int i = 0; i < 12; ++i) {
@@ -380,12 +322,6 @@ void ClassicDataTableWidget::applyTheme()
             for (auto* l : m_purchCell[i]->findChildren<QLabel*>()) l->setStyleSheet(subLblSS);
             for (auto* s : m_purchCell[i]->findChildren<QDoubleSpinBox*>()) s->setStyleSheet(spinSS);
         }
-        if (m_expCell[i]) {
-            m_expCell[i]->setStyleSheet(dataSS);
-            for (auto* e : m_expCell[i]->findChildren<QLineEdit*>()) e->setStyleSheet(editSS);
-            for (auto* s : m_expCell[i]->findChildren<QDoubleSpinBox*>()) s->setStyleSheet(spinSS);
-            for (auto* l : m_expCell[i]->findChildren<QLabel*>()) l->setStyleSheet(subLblSS);
-        }
         if (m_invCell[i]) {
             m_invCell[i]->setStyleSheet(dataSS);
             for (auto* l : m_invCell[i]->findChildren<QLabel*>()) l->setStyleSheet(subLblSS);
@@ -401,7 +337,6 @@ void ClassicDataTableWidget::retranslate()
     if (m_lSales)    m_lSales->setText(   T("Sales",        "\u0627\u0644\u0645\u0628\u064a\u0639\u0627\u062a"));
     if (m_lSalesRet) m_lSalesRet->setText(T("Sales Return", "\u0645\u0631\u062a\u062c\u0639\u0627\u062a"));
     if (m_lPurch)    m_lPurch->setText(   T("Purchases",    "\u0627\u0644\u0645\u0634\u062a\u0631\u064a\u0627\u062a"));
-    if (m_lExp)      m_lExp->setText(     T("Expenses",     "\u0627\u0644\u0645\u0635\u0631\u0648\u0641\u0627\u062a"));
     if (m_lInv)      m_lInv->setText(     T("Inventory",    "\u0627\u0644\u0645\u062e\u0632\u0648\u0646"));
 
     for (int i = 0; i < 12; ++i) {
@@ -410,10 +345,6 @@ void ClassicDataTableWidget::retranslate()
             m_purchCell[i]->retranslate(
                 T("Purch.", "\u0634\u0631\u0627\u0621"),
                 T("Paym.",  "\u062f\u0641\u0639"));
-        if (m_expCell[i])
-            m_expCell[i]->retranslate(
-                T("Acct.", "\u062d\u0633\u0627\u0628"),
-                T("Amt.",  "\u0645\u0628\u0644\u063a"));
         if (m_invCell[i])
             m_invCell[i]->retranslate(
                 T("First period", "\u0627\u0644\u0641\u062a\u0631\u0629 \u0627\u0644\u0623\u0648\u0644\u0649"),
@@ -429,12 +360,6 @@ void ClassicDataTableWidget::clearData()
         if (m_purchCell[i]) {
             m_purchCell[i]->setTopValue(0);
             m_purchCell[i]->setBotValue(0);
-        }
-        if (m_expCell[i]) {
-            const auto edits = m_expCell[i]->findChildren<QLineEdit*>();
-            for (auto* e : edits) e->clear();
-            const auto spins = m_expCell[i]->findChildren<QDoubleSpinBox*>();
-            for (auto* s : spins) s->setValue(0);
         }
         if (m_invCell[i]) {
             m_invCell[i]->setTopValue(0);
@@ -459,12 +384,6 @@ void ClassicDataTableWidget::setData(const AppData& d)
             m_purchCell[i]->setTopValue(m.supplierPurchases);
             m_purchCell[i]->setBotValue(m.supplierPayments);
         }
-        if (m_expCell[i]) {
-            const auto edits = m_expCell[i]->findChildren<QLineEdit*>();
-            if (!edits.isEmpty()) edits.first()->setText(m.expenseAccount);
-            const auto spins = m_expCell[i]->findChildren<QDoubleSpinBox*>();
-            if (!spins.isEmpty()) spins.first()->setValue(m.expenseAmount);
-        }
         if (m_invCell[i]) {
             m_invCell[i]->setTopValue(m.inventoryFirst);
             m_invCell[i]->setBotValue(m.inventoryLast);
@@ -482,10 +401,6 @@ AppData ClassicDataTableWidget::collectData() const
         if (m_purchCell[i]) {
             m.supplierPurchases = m_purchCell[i]->topValue();
             m.supplierPayments  = m_purchCell[i]->botValue();
-        }
-        if (m_expCell[i]) {
-            m.expenseAccount = m_expCell[i]->accountName();
-            m.expenseAmount  = m_expCell[i]->amount();
         }
         if (m_invCell[i]) {
             m.inventoryFirst = m_invCell[i]->topValue();

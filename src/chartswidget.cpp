@@ -214,8 +214,9 @@ QChartView* ChartsWidget::makePie(const QString& title,
         auto* slice = series->append(labels[i], val);
         slice->setColor(kPalette[i % kPalette.size()]);
         slice->setLabelVisible(true);
-        slice->setLabel(QString("%1\n%2 (%3%)").arg(labels[i]).arg(val, 0, 'f', 0).arg(val/total*100, 0,'f',1));
-        slice->setLabelPosition(QPieSlice::LabelOutside);
+        slice->setLabel(QString("%1%").arg(val / total * 100.0, 0, 'f', 1));
+        slice->setLabelPosition(QPieSlice::LabelInsideTangential);
+        slice->setLabelColor(Qt::white);
     }
 
     auto* chart = new QChart;
