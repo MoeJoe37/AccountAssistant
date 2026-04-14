@@ -8,6 +8,8 @@
 #include <QAbstractButton>
 #include <QAbstractSpinBox>
 #include <QSignalBlocker>
+#include <QMessageBox>
+#include <QWheelEvent>
 #include <algorithm>
 
 namespace {
@@ -63,6 +65,17 @@ QScrollBar::handle:vertical:hover { background:#4f86f7; }
 )";
 }
 
+class WheellessDoubleSpinBox : public QDoubleSpinBox
+{
+public:
+    using QDoubleSpinBox::QDoubleSpinBox;
+protected:
+    void wheelEvent(QWheelEvent* e) override
+    {
+        if (e) e->ignore();
+    }
+};
+
 Accountswidget::Accountswidget(QWidget* parent) : QWidget(parent)
 {
     setObjectName("accountsRoot");
@@ -84,10 +97,17 @@ Accountswidget::Accountswidget(QWidget* parent) : QWidget(parent)
     hl->addWidget(m_title);
     hl->addWidget(m_subtitle);
 
+    auto* filterRow = new QHBoxLayout;
+    filterRow->setSpacing(10);
+    m_searchEdit = new QLineEdit;
+    m_searchEdit->setClearButtonEnabled(true);
+    filterRow->addWidget(m_searchEdit, 1);
+    hl->addLayout(filterRow);
+
     auto* inputRow = new QHBoxLayout;
     inputRow->setSpacing(10);
     m_nameEdit = new QLineEdit;
-    m_amountSpin = new QDoubleSpinBox;
+    m_amountSpin = new WheellessDoubleSpinBox;
     m_amountSpin->setRange(0, 1e12);
     m_amountSpin->setDecimals(2);
     m_amountSpin->setSingleStep(100);
@@ -102,8 +122,8 @@ Accountswidget::Accountswidget(QWidget* parent) : QWidget(parent)
     auto* bottomRow = new QHBoxLayout;
     bottomRow->setSpacing(10);
     m_sortCombo = new QComboBox;
-    m_sortCombo->addItem(T("Ascending", "تصاعدي"));
-    m_sortCombo->addItem(T("Descending", "تنازلي"));
+    m_sortCombo->addItem(T("A-Z", "أ-ي"));
+    m_sortCombo->addItem(T("Z-A", "ي-أ"));
     m_graphBtn = new QToolButton;
     m_graphBtn->setObjectName("showGraphsBtn");
     bottomRow->addWidget(m_sortCombo, 0, Qt::AlignLeft);
@@ -138,6 +158,7 @@ Accountswidget::Accountswidget(QWidget* parent) : QWidget(parent)
 
     connect(m_addBtn, &QPushButton::clicked, this, &Accountswidget::onAddAccount);
     connect(m_sortCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &Accountswidget::onSortChanged);
+    connect(m_searchEdit, &QLineEdit::textChanged, this, &Accountswidget::onSearchChanged);
     connect(m_graphBtn, &QAbstractButton::clicked, this, &Accountswidget::onShowGraphs);
 
     retranslate();
@@ -182,11 +203,12 @@ void Accountswidget::retranslate()
     m_subtitle->setText(T(
         "Add expense accounts here. These accounts are independent from the monthly table.",
         "أضف حسابات المصروفات هنا. هذه الحسابات مستقلة عن جدول الأشهر."));
+    m_searchEdit->setPlaceholderText(T("Search accounts", "بحث في الحسابات"));
     m_nameEdit->setPlaceholderText(T("Expense account", "حساب المصروف"));
     m_amountSpin->setPrefix(currencyPrefix());
     m_addBtn->setText(T("+  Add", "+  إضافة"));
-    m_sortCombo->setItemText(0, T("Ascending", "تصاعدي"));
-    m_sortCombo->setItemText(1, T("Descending", "تنازلي"));
+    m_sortCombo->setItemText(0, T("A-Z", "أ-ي"));
+    m_sortCombo->setItemText(1, T("Z-A", "ي-أ"));
     m_graphBtn->setText(T("Show graphs", "عرض الرسوم"));
     m_empty->setText(T("No accounts added yet.", "لم تتم إضافة حسابات بعد."));
 
@@ -219,6 +241,12 @@ void Accountswidget::updateGraphButtonMenu()
 }
 
 
+
+void Accountswidget::onSearchChanged(const QString&)
+{
+    applySearchFilter();
+}
+
 bool Accountswidget::hasDuplicateName(const QString& name, const QLineEdit* except) const
 {
     const QString key = name.trimmed().toCaseFolded();
@@ -250,7 +278,7 @@ void Accountswidget::addRow(const QString& name, double amount)
     auto* nameEdit = new QLineEdit(rowW);
     nameEdit->setPlaceholderText(T("Expense account", "حساب المصروف"));
     nameEdit->setText(name);
-    auto* amountSpin = new QDoubleSpinBox(rowW);
+    auto* amountSpin = new WheellessDoubleSpinBox(rowW);
     amountSpin->setRange(0, 1e12);
     amountSpin->setDecimals(2);
     amountSpin->setSingleStep(100);
@@ -326,15 +354,15 @@ QList<AccountItem> Accountswidget::currentItems() const
 void Accountswidget::sortAndRebuild()
 {
     QList<AccountItem> items = currentItems();
-    const bool asc = (m_sortCombo->currentIndex() == 0);
-    std::sort(items.begin(), items.end(), [asc](const AccountItem& a, const AccountItem& b) {
+    const bool az = (m_sortCombo->currentIndex() == 0);
+    std::sort(items.begin(), items.end(), [az](const AccountItem& a, const AccountItem& b) {
         const int cmp = QString::localeAwareCompare(a.name, b.name);
         if (cmp == 0)
-            return asc ? (a.amount < b.amount) : (a.amount > b.amount);
-        return asc ? (cmp < 0) : (cmp > 0);
+            return az ? (a.amount < b.amount) : (a.amount > b.amount);
+        return az ? (cmp < 0) : (cmp > 0);
     });
     rebuildRows(items);
-    onRowChanged();
+    applySearchFilter();
 }
 
 void Accountswidget::onAddAccount()
@@ -344,12 +372,14 @@ void Accountswidget::onAddAccount()
     if (name.isEmpty() && qFuzzyIsNull(amount))
         return;
     if (!name.isEmpty() && hasDuplicateName(name)) {
+        QMessageBox::warning(this, T("Duplicate account", "حساب مكرر"),
+                             T("An account with this name already exists.", "يوجد حساب بهذا الاسم بالفعل."));
         return;
     }
     addRow(name, amount);
     m_nameEdit->clear();
     m_amountSpin->setValue(0.0);
-    onRowChanged();
+    applySearchFilter();
 }
 
 void Accountswidget::onSortChanged(int)
@@ -362,6 +392,33 @@ void Accountswidget::onShowGraphs()
     m_graphBtn->showMenu();
 }
 
+
+
+void Accountswidget::applySearchFilter()
+{
+    const QString q = m_searchEdit ? m_searchEdit->text().trimmed() : QString();
+    const QString key = q.toCaseFolded();
+    int visible = 0;
+
+    for (auto& row : m_rows) {
+        if (!row.row || !row.name) continue;
+        const bool match = key.isEmpty() || row.name->text().trimmed().toCaseFolded().contains(key);
+        row.row->setVisible(match);
+        if (match) ++visible;
+    }
+
+    if (m_empty) {
+        if (m_rows.isEmpty()) {
+            m_empty->setText(T("No accounts added yet.", "لم تتم إضافة حسابات بعد."));
+            m_empty->show();
+        } else if (visible == 0) {
+            m_empty->setText(T("No matching accounts.", "لا توجد حسابات مطابقة."));
+            m_empty->show();
+        } else {
+            m_empty->hide();
+        }
+    }
+}
 
 void Accountswidget::onNameEdited()
 {
@@ -386,7 +443,7 @@ void Accountswidget::onNameEdited()
         row.lastValidName = current;
         break;
     }
-    onRowChanged();
+    applySearchFilter();
 }
 
 void Accountswidget::onRemoveRow()
@@ -401,13 +458,12 @@ void Accountswidget::onRemoveRow()
         }
     }
     if (m_rows.isEmpty() && m_empty) m_empty->show();
-    onRowChanged();
+    applySearchFilter();
 }
 
 void Accountswidget::onRowChanged()
 {
-    if (m_empty)
-        m_empty->setVisible(m_rows.isEmpty());
+    applySearchFilter();
 }
 
 AppData Accountswidget::collectData() const
@@ -422,12 +478,12 @@ void Accountswidget::setData(const AppData& data)
 {
     rebuildRows(data.accounts);
     if (m_rows.isEmpty() && m_empty) m_empty->show();
-    onRowChanged();
+    applySearchFilter();
 }
 
 void Accountswidget::clearData()
 {
     rebuildRows({});
     if (m_empty) m_empty->show();
-    onRowChanged();
+    applySearchFilter();
 }

@@ -221,6 +221,36 @@ static QChartView* makeChartView(QChart* chart, bool zoomable = true)
 }
 
 
+static QWidget* makePieLegendFooter(QChartView* view)
+{
+    auto* footer = new QWidget;
+    footer->setObjectName("pieLegendFooter");
+    footer->setAttribute(Qt::WA_StyledBackground, true);
+    footer->setStyleSheet("background:transparent;");
+    auto* grid = new QGridLayout(footer);
+    grid->setContentsMargins(10, 0, 10, 8);
+    grid->setHorizontalSpacing(14);
+    grid->setVerticalSpacing(4);
+    grid->setColumnStretch(1, 1);
+
+    const QStringList labels = view ? view->property("chartLabels").toStringList() : QStringList();
+    QPieSeries* series = view && view->chart() ? qobject_cast<QPieSeries*>(view->chart()->series().value(0)) : nullptr;
+    const int count = qMin(labels.size(), series ? int(series->slices().size()) : 0);
+    const QColor textColor = g_lightMode ? QColor("#1e2340") : QColor("#c8d0ed");
+    for (int i = 0; i < count; ++i) {
+        auto* dot = new QLabel;
+        dot->setFixedSize(10, 10);
+        dot->setStyleSheet(QString("background:%1; border-radius:5px;").arg(series->slices().at(i)->color().name()));
+        auto* txt = new QLabel(labels.at(i));
+        txt->setStyleSheet(QString("background:transparent; color:%1; font-size:8pt; font-weight:600;").arg(textColor.name()));
+        const int row = i / 2;
+        const int col = (i % 2) * 2;
+        grid->addWidget(dot, row, col, Qt::AlignLeft | Qt::AlignVCenter);
+        grid->addWidget(txt, row, col + 1, Qt::AlignLeft | Qt::AlignVCenter);
+    }
+    return footer;
+}
+
 static const char* kMonthCardSSDark = R"(
 QFrame#monthCard {
     background:#1a1f38;
@@ -1138,6 +1168,11 @@ void ResultsWidget::addCard(const ChartRequest& request, QChartView* view)
 {
     auto* card = new DraggableChartCard(request.title.isEmpty() ? metricDisplayName(request.metricA) : request.title, view, m_container);
     card->setCardIndex(m_cards.size());
+    if (request.kind == ChartKind::Pie || request.kind == ChartKind::ComparePie) {
+        card->setFixedSize(370, 225);
+    } else {
+        card->setFixedSize(370, 168);
+    }
     connect(card, &DraggableChartCard::swapRequested, this, &ResultsWidget::onSwapFlowItems);
     connect(card, &DraggableChartCard::insertSeparatorRequested, this, &ResultsWidget::onAddSeparatorAfter);
     connect(card, &DraggableChartCard::hideRequested, this, &ResultsWidget::onHideCard);
@@ -1395,7 +1430,7 @@ QChartView* ResultsWidget::makePieChart(const QString& title,
         sl->setBorderColor(borderCol);
         sl->setLabelVisible(true);
         sl->setLabel(QString("%1%").arg(v / total * 100.0, 0, 'f', 1));
-        sl->setLabelPosition(QPieSlice::LabelInsideTangential);
+        sl->setLabelPosition(QPieSlice::LabelOutside);
         sl->setLabelColor(g_lightMode ? QColor("#1e2340") : QColor("#ffffff"));
         QObject::connect(sl, &QPieSlice::hovered, sl, [sl](bool on) {
             sl->setExploded(on);
@@ -1404,10 +1439,17 @@ QChartView* ResultsWidget::makePieChart(const QString& title,
 
     auto* chart = new QChart;
     chart->addSeries(series);
-    chart->legend()->setVisible(true);
+    chart->legend()->setVisible(false);
     applyThemeToChart(chart);
     chart->setTitle(title);
-    return makeChartView(chart, false);
+    chart->setMargins(QMargins(24, 18, 24, 18));
+    auto* view = makeChartView(chart, false);
+    view->setProperty("chartLabels", labels);
+    QVariantList vl; for (double x : values) vl << x;
+    view->setProperty("chartValues", vl);
+    view->setProperty("chartType", "pie");
+    view->setProperty("chartTitle", title);
+    return view;
 }
 
 QChartView* ResultsWidget::makeCandleChart(const QString& title,
@@ -1472,7 +1514,6 @@ QChartView* ResultsWidget::makeCandleChart(const QString& title,
     legDec->attachAxis(axY);
 
     chart->legend()->setVisible(true);
-    chart->legend()->setAlignment(Qt::AlignBottom);
 
     auto* view = makeChartView(chart);
     view->setStyleSheet(g_lightMode
@@ -1504,7 +1545,6 @@ QChartView* ResultsWidget::makeRankedBarChart(const QString& title,
     applyThemeToChart(chart);
     chart->setTitle(title);
     chart->legend()->setVisible(true);
-    chart->legend()->setAlignment(Qt::AlignBottom);
 
     QColor axisCol = g_lightMode ? QColor("#5a6490") : QColor("#8892b8");
     QColor gridCol = g_lightMode ? QColor("#e5e7eb") : QColor("#1e2445");
@@ -1549,7 +1589,7 @@ QChartView* ResultsWidget::makeSingleLineChart(const QString& title,
     chart->addSeries(line);
     applyThemeToChart(chart);
     chart->setTitle(title);
-    chart->legend()->setVisible(false);
+    chart->legend()->setVisible(true);
 
     auto* axisX = new QCategoryAxis;
     for (int i = 0; i < labels.size(); ++i)
@@ -1726,8 +1766,8 @@ QChartView* ResultsWidget::makeComparePieChart(const QString& title,
     b->setLabelVisible(true);
     a->setLabel(QString("%1%").arg(qAbs(valueA) / total * 100.0, 0, 'f', 1));
     b->setLabel(QString("%1%").arg(qAbs(valueB) / total * 100.0, 0, 'f', 1));
-    a->setLabelPosition(QPieSlice::LabelInsideTangential);
-    b->setLabelPosition(QPieSlice::LabelInsideTangential);
+    a->setLabelPosition(QPieSlice::LabelOutside);
+    b->setLabelPosition(QPieSlice::LabelOutside);
     a->setLabelColor(g_lightMode ? QColor("#1e2340") : QColor("#ffffff"));
     b->setLabelColor(g_lightMode ? QColor("#1e2340") : QColor("#ffffff"));
     a->setColor(kPal[0]);
@@ -1736,9 +1776,14 @@ QChartView* ResultsWidget::makeComparePieChart(const QString& title,
     auto* chart = new QChart;
     chart->addSeries(series);
     applyChartTheme(chart, title);
-    chart->legend()->setVisible(true);
-    chart->legend()->setAlignment(Qt::AlignBottom);
-    return makeChartView(chart, false);
+    chart->legend()->setVisible(false);
+    auto* view = makeChartView(chart, false);
+    view->setProperty("chartLabels", QStringList{ nameA, nameB });
+    QVariantList vl; vl << valueA << valueB;
+    view->setProperty("chartValues", vl);
+    view->setProperty("chartType", "comparepie");
+    view->setProperty("chartTitle", title);
+    return view;
 }
 
 QChartView* ResultsWidget::createChartView(const AppData& data, const ChartRequest& request)

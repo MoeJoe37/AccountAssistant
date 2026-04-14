@@ -22,6 +22,7 @@ private:
     QWidget*     m_container{nullptr};
     QHBoxLayout* m_layout{nullptr};
     QList<QChartView*> m_views;
+    QList<QWidget*>    m_wrappers;
 
     void addPieChart(const QString& title,
                      const QStringList& labels,

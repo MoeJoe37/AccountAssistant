@@ -205,13 +205,19 @@ static void drawPieLabel(QPainter& p, const QRectF& pie, double startDeg, double
 {
     constexpr double kPi = 3.14159265358979323846;
     const double mid = (startDeg + spanDeg / 2.0) * kPi / (180.0 * 16.0);
-    const double radius = qMin(pie.width(), pie.height()) * 0.28;
-    QPointF pos(pie.center().x() + std::cos(mid) * radius,
-                pie.center().y() - std::sin(mid) * radius);
-    p.setPen(color);
-    p.setFont(QFont("Segoe UI", 9, QFont::Bold));
-    const QRectF textRect(pos.x() - 28, pos.y() - 10, 56, 20);
-    p.drawText(textRect, Qt::AlignCenter, label);
+    const double r1 = qMin(pie.width(), pie.height()) * 0.46;
+    const double r2 = qMin(pie.width(), pie.height()) * 0.60;
+    QPointF p1(pie.center().x() + std::cos(mid) * r1,
+               pie.center().y() - std::sin(mid) * r1);
+    QPointF p2(pie.center().x() + std::cos(mid) * r2,
+               pie.center().y() - std::sin(mid) * r2);
+    p.setPen(QPen(color, 1.2));
+    p.drawLine(p1, p2);
+
+    const bool leftSide = std::cos(mid) < 0;
+    const QRectF textRect(leftSide ? p2.x() - 72 : p2.x() - 8, p2.y() - 11, 72, 22);
+    p.setFont(QFont("Segoe UI", 8, QFont::Bold));
+    p.drawText(textRect, leftSide ? Qt::AlignRight : Qt::AlignLeft, label);
 }
 
 static void drawPiePreview(QPainter& p, const QRect& rect, const ChartMeta& meta)
@@ -219,8 +225,8 @@ static void drawPiePreview(QPainter& p, const QRect& rect, const ChartMeta& meta
     double total = 0.0; for (double v : meta.values) total += qAbs(v);
     if (total < 0.001) total = 1.0;
     QRect chartRect = rect.adjusted(10, 10, -10, -10);
-    QRect pieArea(chartRect.left(), chartRect.top(), chartRect.width() * 58 / 100, chartRect.height());
-    QRect legendRect(pieArea.right() + 10, chartRect.top(), chartRect.right() - pieArea.right() - 10, chartRect.height());
+    QRect pieArea(chartRect.left(), chartRect.top(), chartRect.width() * 60 / 100, chartRect.height() - 24);
+    QRect legendRect(chartRect.left(), chartRect.bottom() - 70, chartRect.width(), 60);
     const int d = qMin(pieArea.width(), pieArea.height()) - 10;
     QRectF pie(pieArea.center().x() - d / 2.0, pieArea.center().y() - d / 2.0, d, d);
     double startDeg = 90.0 * 16;
@@ -243,13 +249,12 @@ static void drawPiePreview(QPainter& p, const QRect& rect, const ChartMeta& meta
     p.setFont(QFont("Segoe UI", 9, QFont::Bold));
     p.drawText(QRect(legendRect.left(), legendRect.top(), legendRect.width(), 18), Qt::AlignLeft, T("Legend", "\u0627\u0644\u0645\u0641\u062A\u0627\u062D"));
     p.setFont(QFont("Segoe UI", 8));
-    int y = legendRect.top() + 24;
+    int y = legendRect.top() + 22;
     const int maxRows = qMin(meta.labels.size(), 10);
     for (int i = 0; i < maxRows; ++i) {
         p.fillRect(QRect(legendRect.left(), y + 3, 10, 10), QColor::fromHsv((i * 40) % 360, 170, 220));
         p.setPen(kText);
-        p.drawText(QRect(legendRect.left() + 16, y, legendRect.width() - 16, 18), Qt::AlignLeft,
-                   meta.labels.value(i) + QStringLiteral(" — ") + money(meta.values.value(i)));
+        p.drawText(QRect(legendRect.left() + 16, y, legendRect.width() - 16, 18), Qt::AlignLeft, meta.labels.value(i));
         y += 18;
     }
 }

@@ -31,6 +31,7 @@ signals:
 private slots:
     void onAddAccount();
     void onSortChanged(int index);
+    void onSearchChanged(const QString& text);
     void onShowGraphs();
     void onRemoveRow();
     void onRowChanged();
@@ -51,11 +52,13 @@ private:
     void addRow(const QString& name = QString(), double amount = 0.0);
     void updateGraphButtonMenu();
     void updatePrefixes();
+    void applySearchFilter();
     bool hasDuplicateName(const QString& name, const QLineEdit* except = nullptr) const;
 
     QScrollArea* m_scroll{};
     QWidget*     m_container{};
     QVBoxLayout* m_rowsLayout{};
+    QLineEdit*   m_searchEdit{};
     QLineEdit*   m_nameEdit{};
     QDoubleSpinBox* m_amountSpin{};
     QPushButton* m_addBtn{};
