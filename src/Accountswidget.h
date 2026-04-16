@@ -71,6 +71,8 @@ private:
     QToolButton* m_graphBtn{};
     QLabel*      m_title{};
     QLabel*      m_subtitle{};
+    QLabel*      m_sortLabel{};
+    QLabel*      m_groupLabel{};
     QLabel*      m_empty{};
     QVector<RowWidgets> m_rows;
 };

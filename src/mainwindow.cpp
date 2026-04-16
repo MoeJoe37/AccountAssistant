@@ -1475,4 +1475,5 @@ void MainWindow::retranslate()
     m_tabs->setTabText(2,
         T("  ◈  Results  ",
           "  ◈  النتائج  "));
+    if (m_results) m_results->retranslate();
 }

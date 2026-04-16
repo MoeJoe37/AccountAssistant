@@ -99,6 +99,7 @@ private:
 
     // Warnings
     QFrame*      m_warnFrame{};
+    QLabel*      m_warnHdr{};
     QLabel*      m_warnList{};
 
     QPropertyAnimation* m_anim{};
@@ -121,5 +122,7 @@ public:
 
 private:
     QScrollArea* m_scroll{};
+    QLabel*      m_title{};
+    QLabel*      m_subtitle{};
     MonthCard*   m_cards[12]{};
 };

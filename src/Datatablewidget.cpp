@@ -325,9 +325,9 @@ void MonthCard::buildContent()
     wl->setContentsMargins(12, 10, 12, 10);
     wl->setSpacing(4);
 
-    auto* warnHdr = new QLabel("⚠  " + T("Warnings", "تحذيرات"));
-    warnHdr->setStyleSheet("color:#f59e0b; font-weight:700; background:transparent;");
-    wl->addWidget(warnHdr);
+    m_warnHdr = new QLabel("⚠  " + T("Warnings", "تحذيرات"));
+    m_warnHdr->setStyleSheet("color:#f59e0b; font-weight:700; background:transparent;");
+    wl->addWidget(m_warnHdr);
 
     m_warnList = new QLabel;
     m_warnList->setStyleSheet("color:#d97706; background:transparent;");
@@ -518,6 +518,8 @@ void MonthCard::retranslate()
     m_warnIcon->setToolTip(T("Data warnings exist", "يوجد تحذيرات في البيانات"));
 
     // Re-label section titles and field labels
+    if (m_warnHdr) m_warnHdr->setText("⚠  " + T("Warnings", "تحذيرات"));
+
     QList<QLabel*> secTitles = m_content->findChildren<QLabel*>("sectionTitle");
     if (secTitles.size() >= 3) {
         secTitles[0]->setText(T("Sales & Revenue", "المبيعات والإيرادات"));
@@ -609,16 +611,16 @@ DataTableWidget::DataTableWidget(QWidget* parent) : QWidget(parent)
     tl->setContentsMargins(0, 0, 0, 8);
     tl->setSpacing(2);
 
-    auto* h2 = new QLabel(T("Data Entry", "إدخال البيانات"));
-    h2->setStyleSheet(g_lightMode
+    m_title = new QLabel(T("Data Entry", "إدخال البيانات"));
+    m_title->setStyleSheet(g_lightMode
         ? "color:#1e2340; font-weight:800; background:transparent;"
         : "color:#c8d0ed; font-weight:800; background:transparent;");
-    auto* sub = new QLabel(T("Enter monthly figures below. Click a month to expand it.",
+    m_subtitle = new QLabel(T("Enter monthly figures below. Click a month to expand it.",
                               "أدخل الأرقام الشهرية أدناه. انقر على الشهر لتوسيعه."));
-    sub->setStyleSheet("color:#5a6490; background:transparent;");
+    m_subtitle->setStyleSheet("color:#5a6490; background:transparent;");
 
-    tl->addWidget(h2);
-    tl->addWidget(sub);
+    tl->addWidget(m_title);
+    tl->addWidget(m_subtitle);
     vl->addWidget(titleBar);
 
     // 12 month cards
@@ -681,6 +683,10 @@ void DataTableWidget::updateCurrency()
 
 void DataTableWidget::retranslate()
 {
+    if (m_title) m_title->setText(T("Data Entry", "إدخال البيانات"));
+    if (m_subtitle) m_subtitle->setText(T("Enter monthly figures below. Click a month to expand it.",
+                                          "أدخل الأرقام الشهرية أدناه. انقر على الشهر لتوسيعه."));
+
     for (int i = 0; i < 12; ++i)
         m_cards[i]->retranslate();
 }

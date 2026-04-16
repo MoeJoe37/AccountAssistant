@@ -165,10 +165,10 @@ Accountswidget::Accountswidget(QWidget* parent) : QWidget(parent)
 
     auto* bottomRow = new QHBoxLayout;
     bottomRow->setSpacing(10);
-    auto* sortLabel = new QLabel(T("Sort", "فرز"));
-    sortLabel->setStyleSheet("background:transparent; font-weight:700;");
-    auto* groupLabel = new QLabel(T("Group by", "تجميع حسب"));
-    groupLabel->setObjectName("accountsGroupLabel");
+    m_sortLabel = new QLabel(T("Sort", "فرز"));
+    m_sortLabel->setStyleSheet("background:transparent; font-weight:700;");
+    m_groupLabel = new QLabel(T("Group by", "تجميع حسب"));
+    m_groupLabel->setObjectName("accountsGroupLabel");
     m_sortCombo = new NoWheelComboBox;
     m_sortCombo->addItem(T("Ascending", "تصاعدي"));
     m_sortCombo->addItem(T("Descending", "تنازلي"));
@@ -178,10 +178,10 @@ Accountswidget::Accountswidget(QWidget* parent) : QWidget(parent)
     m_groupCombo->addItem(accountTypeFilterDisplayName(AccountTypeFilter::Receivable));
     m_graphBtn = new QToolButton;
     m_graphBtn->setObjectName("showGraphsBtn");
-    bottomRow->addWidget(sortLabel);
+    bottomRow->addWidget(m_sortLabel);
     bottomRow->addWidget(m_sortCombo, 0, Qt::AlignLeft);
     bottomRow->addSpacing(12);
-    bottomRow->addWidget(groupLabel);
+    bottomRow->addWidget(m_groupLabel);
     bottomRow->addWidget(m_groupCombo, 0, Qt::AlignLeft);
     bottomRow->addStretch();
     bottomRow->addWidget(m_graphBtn, 0, Qt::AlignRight);
@@ -275,6 +275,8 @@ void Accountswidget::applyTheme()
 void Accountswidget::retranslate()
 {
     m_title->setText(T("Accounts", "الحسابات"));
+    if (m_sortLabel) m_sortLabel->setText(T("Sort", "فرز"));
+    if (m_groupLabel) m_groupLabel->setText(T("Group by", "تجميع حسب"));
     m_subtitle->setText(T(
         "Add expense accounts here. These accounts are independent from the monthly table.",
         "أضف حسابات المصروفات هنا. هذه الحسابات مستقلة عن جدول الأشهر."));

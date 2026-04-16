@@ -373,29 +373,29 @@ public:
         grid->setHorizontalSpacing(10);
         grid->setVerticalSpacing(10);
 
-        auto makeMetric = [&](int row, int col, const QString& label, const QString& value, const QColor& valueColor) {
+        auto makeMetric = [&](QLabel*& labelOut, int row, int col, const QString& label, const QString& value, const QColor& valueColor) {
             auto* box = new QFrame;
             box->setObjectName("metricBox");
             box->setAttribute(Qt::WA_TransparentForMouseEvents, true);
             auto* bl = new QVBoxLayout(box);
             bl->setContentsMargins(10, 8, 10, 8);
             bl->setSpacing(4);
-            auto* lbl = new QLabel(label);
-            lbl->setObjectName("metricLabel");
-            lbl->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+            labelOut = new QLabel(label);
+            labelOut->setObjectName("metricLabel");
+            labelOut->setAttribute(Qt::WA_TransparentForMouseEvents, true);
             auto* val = new QLabel(value);
             val->setObjectName("metricValue");
             val->setAttribute(Qt::WA_TransparentForMouseEvents, true);
             val->setStyleSheet(QString("color:%1;background:transparent;font-weight:900;").arg(valueColor.name()));
-            bl->addWidget(lbl);
+            bl->addWidget(labelOut);
             bl->addWidget(val);
             grid->addWidget(box, row, col);
         };
 
-        makeMetric(0, 0, T("Net Sales", "صافي المبيعات"), money(netSales),
+        makeMetric(m_netLabel, 0, 0, T("Net Sales", "صافي المبيعات"), money(netSales),
                    netSales >= 0 ? QColor("#3ecf8e") : QColor("#e05c6a"));
-        makeMetric(0, 1, T("COGS", "تكلفة البضاعة"), money(cogs), QColor("#f0a500"));
-        makeMetric(1, 0, T("Profit Margin", "هامش الربح"), money(profit),
+        makeMetric(m_cogsLabel, 0, 1, T("COGS", "تكلفة البضاعة"), money(cogs), QColor("#f0a500"));
+        makeMetric(m_profitLabel, 1, 0, T("Profit Margin", "هامش الربح"), money(profit),
                    profit >= 0 ? QColor("#3ecf8e") : QColor("#e05c6a"));
 
         // Spacer box to balance grid
@@ -415,8 +415,22 @@ public:
 
     void setCardIndex(int i) { m_index = i; }
     void setFlowIndex(int i) { m_flowIndex = i; }
+    void setMonthIndex(int i) { m_monthIndex = i; }
     int cardIndex() const { return m_index; }
     QString month() const { return m_month; }
+    void retranslate()
+    {
+        if (m_title) {
+            if (m_monthIndex < 0) {
+                m_title->setText(T("ALL MONTHS", "كل الأشهر"));
+            } else {
+                m_title->setText(monthNames().value(m_monthIndex).toUpper());
+            }
+        }
+        if (m_netLabel)    m_netLabel->setText(T("Net Sales", "صافي المبيعات"));
+        if (m_cogsLabel)   m_cogsLabel->setText(T("COGS", "تكلفة البضاعة"));
+        if (m_profitLabel) m_profitLabel->setText(T("Profit Margin", "هامش الربح"));
+    }
 
 signals:
     void swapRequested(int fromIdx, int toIdx);
@@ -494,6 +508,10 @@ private:
     QWidget* m_handle{nullptr};
     QLabel* m_title{nullptr};
     QString m_month;
+    int m_monthIndex{-1};
+    QLabel* m_netLabel{nullptr};
+    QLabel* m_cogsLabel{nullptr};
+    QLabel* m_profitLabel{nullptr};
 };
 
 class PageSeparatorCard : public QFrame
@@ -625,25 +643,26 @@ ResultsWidget::ResultsWidget(QWidget* parent) : QWidget(parent)
     bl->setContentsMargins(24, 12, 24, 12);
     bl->setSpacing(16);
 
-    auto makeCard = [&](QLabel*& val, const QString& txt, const QColor& col) {
+    auto makeCard = [&](QLabel*& titleOut, QLabel*& valOut, const QString& txt, const QColor& col) {
         auto* card = new QWidget;
         card->setObjectName("sumCard");
         auto* cl = new QVBoxLayout(card);
         cl->setContentsMargins(14, 10, 14, 10);
         cl->setSpacing(4);
-        auto* title = new QLabel(txt);
-        title->setObjectName("sumTitle");
-        val = new QLabel("—");
-        val->setObjectName("sumValue");
-        val->setStyleSheet(QString("color:%1;background:transparent;").arg(col.name()));
-        cl->addWidget(title);
-        cl->addWidget(val);
+        titleOut = new QLabel(txt);
+        titleOut->setObjectName("sumTitle");
+        valOut = new QLabel("—");
+        valOut->setObjectName("sumValue");
+        valOut->setStyleSheet(QString("color:%1;background:transparent;").arg(col.name()));
+        cl->addWidget(titleOut);
+        cl->addWidget(valOut);
         bl->addWidget(card, 1);
     };
 
-    makeCard(m_sumNetSales, T("NET SALES", "\u0635\u0627\u0641\u064A \u0627\u0644\u0645\u0628\u064A\u0639\u0627\u062A"), QColor("#3ecf8e"));
-    makeCard(m_sumCOGS, T("COGS", "\u062A\u0643\u0644\u0641\u0629 \u0627\u0644\u0628\u0636\u0627\u0639\u0629"), QColor("#f0a500"));
-    makeCard(m_sumProfit, T("PROFIT MARGIN", "\u0647\u0627\u0645\u0634 \u0627\u0644\u0631\u0628\u062D"), QColor("#4f86f7"));
+    makeCard(m_sumNetSalesTitle, m_sumNetSales, T("NET SALES", "صافي المبيعات"), QColor("#3ecf8e"));
+    makeCard(m_sumCOGSTitle, m_sumCOGS, T("COGS", "تكلفة البضاعة"), QColor("#f0a500"));
+    makeCard(m_sumProfitTitle, m_sumProfit, T("PROFIT MARGIN", "هامش الربح"), QColor("#4f86f7"));
+
 
     m_hiddenBtn = new QToolButton;
     m_hiddenBtn->setObjectName("hiddenChartsBtn");
@@ -785,6 +804,55 @@ void ResultsWidget::applyTheme()
     }
 }
 
+void ResultsWidget::retranslate()
+{
+    if (m_sumNetSalesTitle) m_sumNetSalesTitle->setText(T("NET SALES", "صافي المبيعات"));
+    if (m_sumCOGSTitle)     m_sumCOGSTitle->setText(T("COGS", "تكلفة البضاعة"));
+    if (m_sumProfitTitle)   m_sumProfitTitle->setText(T("PROFIT MARGIN", "هامش الربح"));
+
+    if (m_hiddenBtn) m_hiddenBtn->setText(T("Hidden charts", "الرسوم المخفية"));
+
+    if (m_orientMenu) {
+        m_orientMenu->disconnect();
+        m_orientMenu->clear();
+        QAction* landscapeAct = m_orientMenu->addAction(T("Landscape", "أفقي"));
+        landscapeAct->setData(true);
+        QAction* portraitAct = m_orientMenu->addAction(T("Portrait", "عمودي"));
+        portraitAct->setData(false);
+        connect(m_orientMenu, &QMenu::triggered, this, [this](QAction* act) {
+            if (!act) return;
+            m_pageLandscape = act->data().toBool();
+            updatePageMode();
+        });
+    }
+
+    if (m_reportTitle) m_reportTitle->setText(T("Monthly Report", "التقرير الشهري"));
+    if (m_reportSub) m_reportSub->setText(T(
+        "Each month appears as a draggable summary card with net sales, COGS, and profit margin.",
+        "كل شهر يظهر كبطاقة ملخص قابلة للسحب مع صافي المبيعات وتكلفة البضاعة وهامش الربح"));
+    if (m_pageBreakLabel) m_pageBreakLabel->setText(T("Page break", "فاصل صفحة"));
+    if (m_chartsTitle) m_chartsTitle->setText(T("Charts", "الرسوم"));
+    if (m_chartsSub) m_chartsSub->setText(T(
+        "Drag to reorder. Right-click a chart to hide it.",
+        "اسحب للترتيب. انقر بالزر الأيمن لإخفاء الرسم."));
+    if (m_flowTitle) m_flowTitle->setText(T("Results page", "صفحة النتائج"));
+    if (m_flowSub) m_flowSub->setText(T(
+        "Choose one or more month cards, then place them before or after the charts.",
+        "اختر بطاقة شهر واحدة أو أكثر ثم ضعها قبل المخططات أو بعدها."));
+    if (m_monthEmpty) m_monthEmpty->setText(T("No months available.", "لا توجد أشهر متاحة"));
+    if (m_emptyState) m_emptyState->setText(T("No charts selected.", "لا توجد رسوم مختارة"));
+    if (m_flowEmpty) m_flowEmpty->setText(T("No results available.", "لا توجد نتائج متاحة"));
+
+    for (auto* card : findChildren<MonthReportCard*>()) {
+        if (card) card->retranslate();
+    }
+
+    rebuildHiddenMenu();
+    rebuildMonthSelectorMenu();
+    updatePageMode();
+}
+
+
 void ResultsWidget::buildResults(const AppData& data)
 {
     setStyleSheet(g_lightMode ? kResultsSSLight : kResultsSSDark);
@@ -804,12 +872,12 @@ void ResultsWidget::buildResults(const AppData& data)
     vl->setContentsMargins(0, 0, 0, 0);
     vl->setSpacing(14);
 
-    auto* title = new QLabel(T("Results page", "صفحة النتائج"));
-    title->setObjectName("sectionTitle");
-    auto* sub = new QLabel(T("Choose one or more month cards, then place them before or after the charts.", "اختر بطاقة شهر واحدة أو أكثر ثم ضعها قبل المخططات أو بعدها."));
-    sub->setObjectName("sectionSub");
-    vl->addWidget(title);
-    vl->addWidget(sub);
+    m_flowTitle = new QLabel(T("Results page", "صفحة النتائج"));
+    m_flowTitle->setObjectName("sectionTitle");
+    m_flowSub = new QLabel(T("Choose one or more month cards, then place them before or after the charts.", "اختر بطاقة شهر واحدة أو أكثر ثم ضعها قبل المخططات أو بعدها."));
+    m_flowSub->setObjectName("sectionSub");
+    vl->addWidget(m_flowTitle);
+    vl->addWidget(m_flowSub);
 
     m_flowLayout = new QVBoxLayout;
     m_flowLayout->setContentsMargins(0, 0, 0, 0);
@@ -841,6 +909,7 @@ void ResultsWidget::buildResults(const AppData& data)
         m_container));
     m_monthCards.last()->setCardIndex(0);
     m_monthCards.last()->setFlowIndex(0);
+    m_monthCards.last()->setMonthIndex(-1);
     m_monthOrder.append(0);
 
     const auto months = monthNames();
@@ -854,6 +923,7 @@ void ResultsWidget::buildResults(const AppData& data)
             m_container);
         card->setCardIndex(i + 1);
         card->setFlowIndex(i + 1);
+        card->setMonthIndex(i);
         m_monthCards.append(card);
         m_monthOrder.append(i + 1);
     }
@@ -888,14 +958,14 @@ QWidget* ResultsWidget::buildReportSection(const AppData& data)
     vl->setContentsMargins(0, 0, 0, 0);
     vl->setSpacing(16);
 
-    auto* title = new QLabel(T("Monthly Report", "التقرير الشهري"));
-    title->setObjectName("sectionTitle");
-    auto* sub = new QLabel(T(
+    m_reportTitle = new QLabel(T("Monthly Report", "التقرير الشهري"));
+    m_reportTitle->setObjectName("sectionTitle");
+    m_reportSub = new QLabel(T(
         "Each month appears as a draggable summary card with net sales, COGS, and profit margin.",
         "كل شهر يظهر كبطاقة ملخص قابلة للسحب مع صافي المبيعات وتكلفة البضاعة وهامش الربح"));
-    sub->setObjectName("sectionSub");
-    vl->addWidget(title);
-    vl->addWidget(sub);
+    m_reportSub->setObjectName("sectionSub");
+    vl->addWidget(m_reportTitle);
+    vl->addWidget(m_reportSub);
 
     m_monthGrid = new QGridLayout;
     m_monthGrid->setContentsMargins(0, 0, 0, 0);
@@ -922,6 +992,7 @@ QWidget* ResultsWidget::buildReportSection(const AppData& data)
             kMonthAccents[i % 12],
             m_container);
         card->setCardIndex(i);
+        card->setMonthIndex(i);
         connect(card, &MonthReportCard::swapRequested, this, &ResultsWidget::onSwapMonthCards);
         m_monthCards.append(card);
     }
@@ -944,12 +1015,12 @@ QWidget* ResultsWidget::buildPageBreakSection()
     line->setFrameShadow(QFrame::Plain);
     line->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
-    auto* label = new QLabel(T("Page break", "فاصل صفحة"));
-    label->setObjectName("pageBreakLabel");
-    label->setAlignment(Qt::AlignCenter);
+    m_pageBreakLabel = new QLabel(T("Page break", "فاصل صفحة"));
+    m_pageBreakLabel->setObjectName("pageBreakLabel");
+    m_pageBreakLabel->setAlignment(Qt::AlignCenter);
 
     vl->addWidget(line);
-    vl->addWidget(label);
+    vl->addWidget(m_pageBreakLabel);
     return section;
 }
 
@@ -961,12 +1032,12 @@ QWidget* ResultsWidget::buildChartsSection()
     vl->setContentsMargins(0, 0, 0, 0);
     vl->setSpacing(12);
 
-    auto* title = new QLabel(T("Charts", "\u0627\u0644\u0631\u0633\u0648\u0645"));
-    title->setObjectName("sectionTitle");
-    auto* sub = new QLabel(T("Drag to reorder. Right-click a chart to hide it.", "\u0627\u0633\u062D\u0628 \u0644\u0644\u062A\u0631\u062A\u064A\u0628. \u0627\u0646\u0642\u0631 \u0628\u0627\u0644\u0632\u0631 \u0627\u0644\u0623\u064A\u0645\u0646 \u0644\u0625\u062E\u0641\u0627\u0621 \u0627\u0644\u0631\u0633\u0645."));
-    sub->setObjectName("sectionSub");
-    vl->addWidget(title);
-    vl->addWidget(sub);
+    m_chartsTitle = new QLabel(T("Charts", "الرسوم"));
+    m_chartsTitle->setObjectName("sectionTitle");
+    m_chartsSub = new QLabel(T("Drag to reorder. Right-click a chart to hide it.", "اسحب للترتيب. انقر بالزر الأيمن لإخفاء الرسم."));
+    m_chartsSub->setObjectName("sectionSub");
+    vl->addWidget(m_chartsTitle);
+    vl->addWidget(m_chartsSub);
 
     auto* container = new QWidget;
     m_grid = new QGridLayout(container);
@@ -1138,6 +1209,7 @@ void ResultsWidget::rebuildMonthGrid()
         auto* card = m_monthCards[i];
         if (!card) continue;
         card->setCardIndex(i);
+        card->setMonthIndex(i);
         card->setFixedSize(370, 168);
         card->show();
         m_monthGrid->addWidget(card, i / cols, i % cols);

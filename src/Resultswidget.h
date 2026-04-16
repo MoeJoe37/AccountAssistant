@@ -25,6 +25,7 @@ public:
     void appendChart(const AppData& data, const ChartRequest& request);
     void clearResults();
     void applyTheme();
+    void retranslate();
 
     QList<QChartView*> allChartViews() const;
     QList<ChartRequest> chartRequests() const;
@@ -98,8 +99,11 @@ private:
     static void applyChartTheme(QChart* chart, const QString& title);
 
     QWidget* m_summaryBar{};
+    QLabel* m_sumNetSalesTitle{};
     QLabel* m_sumNetSales{};
+    QLabel* m_sumCOGSTitle{};
     QLabel* m_sumCOGS{};
+    QLabel* m_sumProfitTitle{};
     QLabel* m_sumProfit{};
     QToolButton* m_hiddenBtn{};
     QMenu* m_hiddenMenu{};
@@ -107,6 +111,13 @@ private:
     QMenu* m_monthMenu{};
     QToolButton* m_orientBtn{};
     QMenu* m_orientMenu{};
+    QLabel* m_reportTitle{};
+    QLabel* m_reportSub{};
+    QLabel* m_pageBreakLabel{};
+    QLabel* m_chartsTitle{};
+    QLabel* m_chartsSub{};
+    QLabel* m_flowTitle{};
+    QLabel* m_flowSub{};
 
     QScrollArea* m_scroll{};
     QWidget* m_container{};
