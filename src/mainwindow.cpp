@@ -1052,7 +1052,7 @@ void MainWindow::buildUI()
         shl->setSpacing(0);
         shl->addStretch();
 
-        m_clearBtn = new QPushButton(T("🗑  Clear Data", "🗑  مسح البيانات"));
+        m_clearBtn = new QPushButton(tr_clear_data_4fcd0d());
         m_clearBtn->setCursor(Qt::PointingHandCursor);
         m_clearBtn->setFixedHeight(30);
         m_clearBtn->setStyleSheet(
@@ -1174,15 +1174,15 @@ void MainWindow::onAccountGraphRequested(ChartKind kind, AccountTypeFilter accou
     req.title = metricDisplayName(M_EXPENSES);
     switch (kind) {
     case ChartKind::Pie:
-        req.title += QStringLiteral(" — ") + T("Pie", "دائري");
+        req.title += QStringLiteral(" — ") + tr_pie_97ce50();
         break;
     case ChartKind::RankedBar:
-        req.title += QStringLiteral(" — ") + T("Bar", "أعمدة");
+        req.title += QStringLiteral(" — ") + tr_bar_6dda02();
         break;
     case ChartKind::MetricLine:
     default:
         req.kind = ChartKind::MetricLine;
-        req.title += QStringLiteral(" — ") + T("Line", "خطي");
+        req.title += QStringLiteral(" — ") + tr_line_a566e8();
         break;
     }
 
@@ -1198,38 +1198,38 @@ void MainWindow::onSaveData()
 {
     const QString path = QFileDialog::getSaveFileName(
         this,
-        T("Save data", "حفظ البيانات"),
+        tr_save_data_ee42b8(),
         QString("AccountData_%1.xlsx").arg(QDateTime::currentDateTime().toString("yyyyMMdd_HHmm")),
-        T("Excel Workbook (*.xlsx);;All Files (*)", "Excel Workbook (*.xlsx);;All Files (*)"));
+        tr_excel_workbook_xlsx_all_files_aa27cc());
     if (path.isEmpty()) return;
 
     const AppData data = collectAllData();
     if (!saveAppDataXlsx(path, data)) {
         QMessageBox::critical(this,
-            T("Save data", "حفظ البيانات"),
-            T("Unable to write the XLSX file.", "تعذر كتابة ملف XLSX."));
+            tr_save_data_ee42b8(),
+            tr_unable_to_write_the_xlsx_file_da2b9b());
         return;
     }
 
     QMessageBox::information(this,
-        T("Save data", "حفظ البيانات"),
-        T("Data saved successfully.", "تم حفظ البيانات بنجاح."));
+        tr_save_data_ee42b8(),
+        tr_data_saved_successfully_f941c7());
 }
 
 void MainWindow::onImportData()
 {
     const QString path = QFileDialog::getOpenFileName(
         this,
-        T("Import data", "استيراد البيانات"),
+        tr_import_data_8de4db(),
         QString(),
-        T("Excel Workbook (*.xlsx);;All Files (*)", "Excel Workbook (*.xlsx);;All Files (*)"));
+        tr_excel_workbook_xlsx_all_files_aa27cc());
     if (path.isEmpty()) return;
 
     AppData imported;
     if (!loadAppDataXlsx(path, &imported)) {
         QMessageBox::critical(this,
-            T("Import data", "استيراد البيانات"),
-            T("Unable to read the XLSX file.", "تعذر قراءة ملف XLSX."));
+            tr_import_data_8de4db(),
+            tr_unable_to_read_the_xlsx_file_cd99e7());
         return;
     }
 
@@ -1238,21 +1238,20 @@ void MainWindow::onImportData()
     m_data = imported;
     m_hasResults = false;
     QMessageBox::information(this,
-        T("Import data", "استيراد البيانات"),
-        T("Data imported successfully.", "تم استيراد البيانات بنجاح."));
+        tr_import_data_8de4db(),
+        tr_data_imported_successfully_c05a52());
 }
 
 void MainWindow::onExportPdf()
 {
     if (!m_hasResults) {
         QMessageBox::information(this,
-            T("Export PDF", "تصدير PDF"),
-            T("Please calculate first, then export.",
-              "يرجى الحساب أولاً ثم التصدير."));
+            tr_export_pdf_2cc36e(),
+            tr_please_calculate_first_then_ex_3d96fc());
         return;
     }
     QString path = QFileDialog::getSaveFileName(this,
-        T("Export to PDF","تصدير إلى PDF"),
+        tr_export_to_pdf_bc0791(),
         QString("AccountReport_%1.pdf")
             .arg(QDateTime::currentDateTime().toString("yyyyMMdd_HHmm")),
         "PDF (*.pdf)");
@@ -1262,8 +1261,8 @@ void MainWindow::onExportPdf()
     if (ok) {
         QMessageBox box(this);
         box.setIcon(QMessageBox::Information);
-        box.setWindowTitle(T("Export complete", "اكتمل التصدير"));
-        box.setText(T("The PDF report was exported successfully.", "تم تصدير تقرير PDF بنجاح."));
+        box.setWindowTitle(tr_export_complete_fc6d0a());
+        box.setText(tr_the_pdf_report_was_exported_su_37f5d4());
         box.setInformativeText(QFileInfo(path).fileName());
         box.setTextFormat(Qt::PlainText);
         box.setStyleSheet(g_lightMode
@@ -1272,8 +1271,8 @@ void MainWindow::onExportPdf()
         box.exec();
     } else {
         QMessageBox::critical(this,
-            T("Error","\u062E\u0637\u0623"),
-            T("Failed to export PDF.","\u0641\u0634\u0644 \u062A\u0635\u062F\u064A\u0631 PDF."));
+            tr_error_5a0bc4(),
+            tr_failed_to_export_pdf_e10045());
     }
 }
 
@@ -1341,9 +1340,8 @@ void MainWindow::onClearData()
 {
     QMessageBox box(this);
     box.setIcon(QMessageBox::Warning);
-    box.setWindowTitle(T("Clear All Data", "مسح جميع البيانات"));
-    box.setText(T("⚠️  This will erase all entered data for all 12 months.\n\nAre you sure you want to continue?",
-                  "⚠️  سيتم حذف جميع البيانات المدخلة للأشهر الاثني عشر.\n\nهل أنت متأكد؟"));
+    box.setWindowTitle(tr_clear_all_data_491f5d());
+    box.setText(tr_this_will_erase_all_entered_da_382bea());
     box.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
     box.setDefaultButton(QMessageBox::No);
     box.setStyleSheet(g_lightMode ? kMessageBoxSSLight : kMessageBoxSSDark);
@@ -1449,31 +1447,26 @@ void MainWindow::applyLanguage(AppLanguage lang)
 
 void MainWindow::retranslate()
 {
-    setWindowTitle(T("Account Assistant",
-                     "\u0645\u0633\u0627\u0639\u062F \u0627\u0644\u062D\u0633\u0627\u0628\u0627\u062A"));
+    setWindowTitle(tr_account_assistant_edcbbf());
     m_titleLabel->setText(
-        "◆  " + T("Account Assistant",
-                   "\u0645\u0633\u0627\u0639\u062F \u0627\u0644\u062D\u0633\u0627\u0628\u0627\u062A"));
+        "◆  " + tr_account_assistant_edcbbf());
 
     m_calcBtn->setText(
-        T("▶  Calculate", "\u25B6  \u0627\u062D\u0633\u0628"));
+        tr_calculate_36f437());
     m_saveBtn->setText(
-        T("💾  Save Data", "💾  حفظ البيانات"));
+        tr_save_data_e6059e());
     m_importBtn->setText(
-        T("📂  Import Data", "📂  استيراد البيانات"));
+        tr_import_data_fbe7a5());
     m_exportBtn->setText(
-        T("⬇  Export PDF", "\u2B07  \u062A\u0635\u062F\u064A\u0631 PDF"));
+        tr_export_pdf_b87c01());
     m_settingsBtn->setText(
-        T("⚙  Settings", "\u2699  \u0625\u0639\u062F\u0627\u062F\u0627\u062A"));
+        tr_settings_b7a402());
 
     m_tabs->setTabText(0,
-        T("  ⊞  Data Entry  ",
-          "  ⊞  إدخال البيانات  "));
+        tr_data_entry_a353ce());
     m_tabs->setTabText(1,
-        T("  ▣  Accounts  ",
-          "  ▣  الحسابات  "));
+        tr_accounts_9c0541());
     m_tabs->setTabText(2,
-        T("  ◈  Results  ",
-          "  ◈  النتائج  "));
+        tr_results_87ae7f());
     if (m_results) m_results->retranslate();
 }

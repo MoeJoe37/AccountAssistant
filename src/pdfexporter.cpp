@@ -169,7 +169,7 @@ static void drawDataTable(QPainter& p, const QRect& rect, const ChartMeta& meta)
     p.setPen(kAccent);
     p.setFont(QFont("Segoe UI", 10, QFont::Bold));
     p.drawText(QRect(inner.left(), inner.top(), inner.width(), titleH), Qt::AlignLeft | Qt::AlignVCenter,
-               T("Data breakdown", "\u062A\u0641\u0627\u0635\u064A\u0644 \u0627\u0644\u0628\u064A\u0627\u0646\u0627\u062A"));
+               tr_data_breakdown_b66bb7());
     QRect tableRect = QRect(inner.left(), inner.top() + titleH + 4, inner.width(), inner.height() - titleH - 4);
     if (tableRect.height() <= hdrH) return;
     p.fillRect(QRect(tableRect.left(), tableRect.top(), tableRect.width(), hdrH), kHdrBg);
@@ -180,13 +180,13 @@ static void drawDataTable(QPainter& p, const QRect& rect, const ChartMeta& meta)
     if (compare) {
         const int c1 = tableRect.width() * 34 / 100;
         const int c2 = tableRect.width() * 31 / 100;
-        p.drawText(QRect(tableRect.left() + 4, tableRect.top(), c1 - 8, hdrH), Qt::AlignVCenter | Qt::AlignLeft, T("Month", "\u0627\u0644\u0634\u0647\u0631"));
+        p.drawText(QRect(tableRect.left() + 4, tableRect.top(), c1 - 8, hdrH), Qt::AlignVCenter | Qt::AlignLeft, tr_month_9a21b7());
         p.drawText(QRect(tableRect.left() + c1 + 2, tableRect.top(), c2 - 6, hdrH), Qt::AlignVCenter | Qt::AlignRight, meta.nameA);
         p.drawText(QRect(tableRect.left() + c1 + c2 + 2, tableRect.top(), tableRect.width() - c1 - c2 - 4, hdrH), Qt::AlignVCenter | Qt::AlignRight, meta.nameB);
     } else {
         const int c1 = tableRect.width() * 55 / 100;
-        p.drawText(QRect(tableRect.left() + 4, tableRect.top(), c1 - 8, hdrH), Qt::AlignVCenter | Qt::AlignLeft, T("Label", "\u0627\u0644\u0639\u0646\u0648\u0627\u0646"));
-        p.drawText(QRect(tableRect.left() + c1, tableRect.top(), tableRect.width() - c1 - 4, hdrH), Qt::AlignVCenter | Qt::AlignRight, T("Value", "\u0627\u0644\u0642\u064A\u0645\u0629"));
+        p.drawText(QRect(tableRect.left() + 4, tableRect.top(), c1 - 8, hdrH), Qt::AlignVCenter | Qt::AlignLeft, tr_label_cd5fe4());
+        p.drawText(QRect(tableRect.left() + c1, tableRect.top(), tableRect.width() - c1 - 4, hdrH), Qt::AlignVCenter | Qt::AlignRight, tr_value_dbccfd());
     }
 
     const int maxRows = qMax(0, (tableRect.height() - hdrH) / rowH);
@@ -337,7 +337,7 @@ static void drawBarPreview(QPainter& p, const QRect& rect, const ChartMeta& meta
     p.drawRect(plot);
     p.setPen(kMuted);
     p.setFont(QFont("Segoe UI", 8));
-    p.drawText(QRect(chart.left(), chart.top(), chart.width(), 14), Qt::AlignLeft, T("Timeline", "\u0627\u0644\u0632\u0645\u0646"));
+    p.drawText(QRect(chart.left(), chart.top(), chart.width(), 14), Qt::AlignLeft, tr_timeline_7ab9a0());
     const int n = meta.values.size();
     const double step = double(plot.width()) / qMax(1, n);
     const double barW = grouped ? qMax(4.0, step * 0.22) : qMax(8.0, step * 0.6);
@@ -363,8 +363,8 @@ static void drawBarPreview(QPainter& p, const QRect& rect, const ChartMeta& meta
 
     const QRect legendRect(chart.left() + 10, chart.bottom() - 18, chart.width() - 20, 16);
     drawLegendRow(p, legendRect, QList<QPair<QString, QColor>>{
-        { T("Increasing", "الارتفاع"), kGreen },
-        { T("Decreasing", "الانخفاض"), kRed },
+        { tr_increasing_da37b2(), kGreen },
+        { tr_decreasing_606062(), kRed },
     });
 }
 
@@ -383,7 +383,7 @@ static void drawCompareCandles(QPainter& p, const QRect& rect, const ChartMeta& 
     p.drawRect(plot);
     p.setFont(QFont("Segoe UI", 8));
     p.setPen(kMuted);
-    p.drawText(QRect(chart.left(), chart.top(), chart.width(), 14), Qt::AlignLeft, T("Timeline", "الزمن"));
+    p.drawText(QRect(chart.left(), chart.top(), chart.width(), 14), Qt::AlignLeft, tr_timeline_22644f());
     const int n = qMax(meta.values.size(), meta.values2.size());
     const double step = double(plot.width()) / qMax(1, n);
     const double bodyW = qMax(4.0, step * 0.24);
@@ -418,8 +418,8 @@ static void drawCompareCandles(QPainter& p, const QRect& rect, const ChartMeta& 
 
     const QRect legendRect(chart.left() + 10, chart.bottom() - 18, chart.width() - 20, 16);
     drawLegendRow(p, legendRect, QList<QPair<QString, QColor>>{
-        { meta.nameA.isEmpty() ? T("Series A", "السلسلة الأولى") : meta.nameA, kAmber },
-        { meta.nameB.isEmpty() ? T("Series B", "السلسلة الثانية") : meta.nameB, kGreen },
+        { meta.nameA.isEmpty() ? tr_series_a_2b8d21() : meta.nameA, kAmber },
+        { meta.nameB.isEmpty() ? tr_series_b_b63de0() : meta.nameB, kGreen },
     });
 }
 
@@ -458,7 +458,7 @@ static void drawCandles(QPainter& p, const QRect& rect, const ChartMeta& meta)
     p.drawRect(plot);
     p.setFont(QFont("Segoe UI", 8));
     p.setPen(kMuted);
-    p.drawText(QRect(chart.left(), chart.top(), chart.width(), 14), Qt::AlignLeft, T("Timeline", "\u0627\u0644\u0632\u0645\u0646"));
+    p.drawText(QRect(chart.left(), chart.top(), chart.width(), 14), Qt::AlignLeft, tr_timeline_7ab9a0());
     const int n = meta.values.size();
     const double step = double(plot.width()) / qMax(1, n);
     const double bodyW = qMax(6.0, step * 0.45);
@@ -488,8 +488,8 @@ static void drawCandles(QPainter& p, const QRect& rect, const ChartMeta& meta)
 
     const QRect legendRect(chart.left() + 10, chart.bottom() - 18, chart.width() - 20, 16);
     drawLegendRow(p, legendRect, QList<QPair<QString, QColor>>{
-        { T("Increasing", "الارتفاع"), kGreen },
-        { T("Decreasing", "الانخفاض"), kRed },
+        { tr_increasing_da37b2(), kGreen },
+        { tr_decreasing_606062(), kRed },
     });
 }
 
@@ -557,7 +557,7 @@ static QImage renderCoverPage(const AppData& data, const QSize& size)
     p.setFont(QFont("Segoe UI", 20, QFont::Black));
     p.setPen(Qt::white);
     p.drawText(QRect(48, 12, size.width() - 96, 56), Qt::AlignVCenter | Qt::AlignLeft,
-               T("Account Assistant — Financial Report", "\u0645\u0633\u0627\u0639\u062F \u0627\u0644\u062D\u0633\u0627\u0628\u0627\u062A — \u062A\u0642\u0631\u064A\u0631 \u0645\u0627\u0644\u064A"));
+               tr_account_assistant_financial_re_7851db());
     p.setFont(QFont("Segoe UI", 9));
     p.setPen(QColor(220, 230, 255));
     p.drawText(QRect(size.width() - 300, 20, 252, 40), Qt::AlignVCenter | Qt::AlignRight,
@@ -596,7 +596,7 @@ static QImage renderCoverPage(const AppData& data, const QSize& size)
         p.setFont(QFont("Segoe UI", 10, QFont::Bold));
         p.setPen(kAccent);
         p.drawText(QRect(mg, sepY, size.width() - 2 * mg, 22), Qt::AlignLeft,
-                   T("Expense accounts (ranked):", "\u062D\u0633\u0627\u0628\u0627\u062A \u0627\u0644\u0645\u0635\u0631\u0648\u0641 (\u0645\u0631\u062A\u0628\u0629):"));
+                   tr_expense_accounts_ranked_34d3f9());
         sepY += 26;
         const int rows = qMin(data.expenseSummary.size(), 6);
         for (int i = 0; i < rows; ++i) {
@@ -624,11 +624,11 @@ static QImage renderMonthlyReportPage(const AppData& data, const QSize& size, co
     p.setFont(QFont("Segoe UI", 18, QFont::Black));
     p.setPen(kAccent);
     p.drawText(QRect(30, 10, size.width() - 60, 28), Qt::AlignLeft | Qt::AlignVCenter,
-               T("Monthly report cards", "بطاقات التقرير الشهري"));
+               tr_monthly_report_cards_0c6d88());
     p.setFont(QFont("Segoe UI", 9));
     p.setPen(kMuted);
     p.drawText(QRect(30, 36, size.width() - 60, 18), Qt::AlignLeft | Qt::AlignVCenter,
-               T("Each month is shown as an individual summary card.", "كل شهر يظهر ببطاقة مستقلة"));
+               tr_each_month_is_shown_as_an_indi_81dc38());
     p.drawText(QRect(size.width() - 270, 18, 240, 18), Qt::AlignRight | Qt::AlignVCenter,
                QDateTime::currentDateTime().toString("yyyy-MM-dd  hh:mm"));
 
@@ -660,9 +660,9 @@ static QImage renderMonthlyReportPage(const AppData& data, const QSize& size, co
             p.drawText(QRect(inner.left(), y, inner.width(), 16), Qt::AlignRight | Qt::AlignVCenter, value);
         };
 
-        drawLine(inner.top() + 30, T("Net Sales", "صافي المبيعات"), money(netSales), netSales >= 0 ? kGreen : kRed);
-        drawLine(inner.top() + 52, T("COGS", "تكلفة البضاعة"), money(cogs), kAmber);
-        drawLine(inner.top() + 74, T("Profit Margin", "هامش الربح"), money(profit), profit >= 0 ? kGreen : kRed);
+        drawLine(inner.top() + 30, tr_net_sales_23a2f1(), money(netSales), netSales >= 0 ? kGreen : kRed);
+        drawLine(inner.top() + 52, tr_cogs_d716f1(), money(cogs), kAmber);
+        drawLine(inner.top() + 74, tr_profit_margin_ec3b22(), money(profit), profit >= 0 ? kGreen : kRed);
     };
 
     const auto months = monthNames();
@@ -707,7 +707,7 @@ static QImage renderChartPage(const AppData& data, const ChartRequest& req, cons
     p.setPen(kMuted);
     p.setFont(QFont("Segoe UI", 9));
     p.drawText(QRect(margin, 36, size.width() - 2 * margin, 18), Qt::AlignLeft | Qt::AlignVCenter,
-               T("Exported as a detailed static chart", "\u062A\u0645 \u062A\u0635\u062F\u064A\u0631\u0647 \u0643\u0631\u0633\u0645 \u0633\u0627\u0628\u062A \u0645\u0641\u0635\u0644"));
+               tr_exported_as_a_detailed_static__365ac4());
     p.drawText(QRect(size.width() - 260, 18, 236, 22), Qt::AlignRight | Qt::AlignVCenter,
                QDateTime::currentDateTime().toString("yyyy-MM-dd  hh:mm"));
 
@@ -729,14 +729,14 @@ static QImage renderChartPage(const AppData& data, const ChartRequest& req, cons
         if (n > 0) avgGap /= n;
         drawMetricCard(p, m1, meta.nameA, money(totalA), kAccent);
         drawMetricCard(p, m2, meta.nameB, money(totalB), kGreen);
-        drawMetricCard(p, m3, T("Avg gap", "\u0645\u062A\u0648\u0633\u0637 \u0627\u0644\u0641\u0627\u0631\u0642"), money(avgGap), kAmber);
-        drawMetricCard(p, m4, T("Max gap", "\u0623\u0643\u0628\u0631 \u0641\u0627\u0631\u0642"), money(maxGap), kRed);
+        drawMetricCard(p, m3, tr_avg_gap_7363da(), money(avgGap), kAmber);
+        drawMetricCard(p, m4, tr_max_gap_fd508b(), money(maxGap), kRed);
     } else {
         const ValueStats s = statsFor(meta.values);
-        drawMetricCard(p, m1, T("Total", "\u0627\u0644\u0625\u062C\u0645\u0627\u0644\u064A"), money(s.total), kAccent);
-        drawMetricCard(p, m2, T("Average", "\u0627\u0644\u0645\u062A\u0648\u0633\u0637"), money(s.avg), kGreen);
-        drawMetricCard(p, m3, T("High", "\u0627\u0644\u0623\u0639\u0644\u0649"), money(s.max), kAmber);
-        drawMetricCard(p, m4, T("Low", "\u0627\u0644\u0623\u062F\u0646\u0649"), money(s.min), kRed);
+        drawMetricCard(p, m1, tr_total_a52764(), money(s.total), kAccent);
+        drawMetricCard(p, m2, tr_average_7302d6(), money(s.avg), kGreen);
+        drawMetricCard(p, m3, tr_high_5ed23d(), money(s.max), kAmber);
+        drawMetricCard(p, m4, tr_low_abc4e2(), money(s.min), kRed);
     }
 
     QRect chartPanel(margin, bodyTop, splitX - margin - gap / 2, bodyH);
@@ -749,7 +749,7 @@ static QImage renderChartPage(const AppData& data, const ChartRequest& req, cons
     p.setPen(kAccent);
     p.setFont(QFont("Segoe UI", 10, QFont::Bold));
     p.drawText(QRect(chartInner.left(), chartInner.top(), chartInner.width(), 22), Qt::AlignLeft | Qt::AlignVCenter,
-               T("Chart preview", "\u0645\u0639\u0627\u064A\u0646\u0629 \u0627\u0644\u0631\u0633\u0645"));
+               tr_chart_preview_9abc22());
     QRect chartArea = chartInner.adjusted(0, 26, 0, 0);
     drawChartPreview(p, chartArea, meta);
 
@@ -770,7 +770,7 @@ static void drawMonthFlowBlock(QPainter& p, const QRect& rect, const AppData& da
     p.setPen(kText);
     p.setFont(QFont("Segoe UI", 12, QFont::Black));
     p.drawText(QRect(inner.left(), inner.top(), inner.width(), 20), Qt::AlignLeft | Qt::AlignVCenter,
-               summary ? T("All months", "كل الأشهر") : months.value(monthIdx - 1));
+               summary ? tr_all_months_428b74() : months.value(monthIdx - 1));
 
     auto drawLine = [&](int y, const QString& label, const QString& value, const QColor& col) {
         p.setFont(QFont("Segoe UI", 8, QFont::Bold));
@@ -782,14 +782,14 @@ static void drawMonthFlowBlock(QPainter& p, const QRect& rect, const AppData& da
     };
 
     if (summary) {
-        drawLine(inner.top() + 30, T("Net Sales", "صافي المبيعات"), money(data.totalNetSales), data.totalNetSales >= 0 ? kGreen : kRed);
-        drawLine(inner.top() + 52, T("COGS", "تكلفة البضاعة"), money(data.totalCOGS), kAmber);
-        drawLine(inner.top() + 74, T("Profit Margin", "هامش الربح"), money(data.totalProfit), data.totalProfit >= 0 ? kGreen : kRed);
+        drawLine(inner.top() + 30, tr_net_sales_23a2f1(), money(data.totalNetSales), data.totalNetSales >= 0 ? kGreen : kRed);
+        drawLine(inner.top() + 52, tr_cogs_d716f1(), money(data.totalCOGS), kAmber);
+        drawLine(inner.top() + 74, tr_profit_margin_ec3b22(), money(data.totalProfit), data.totalProfit >= 0 ? kGreen : kRed);
     } else {
         const int idx = monthIdx - 1;
-        drawLine(inner.top() + 30, T("Net Sales", "صافي المبيعات"), money(data.netSales[idx]), data.netSales[idx] >= 0 ? kGreen : kRed);
-        drawLine(inner.top() + 52, T("COGS", "تكلفة البضاعة"), money(data.cogs[idx]), kAmber);
-        drawLine(inner.top() + 74, T("Profit Margin", "هامش الربح"), money(data.profitMargin[idx]), data.profitMargin[idx] >= 0 ? kGreen : kRed);
+        drawLine(inner.top() + 30, tr_net_sales_23a2f1(), money(data.netSales[idx]), data.netSales[idx] >= 0 ? kGreen : kRed);
+        drawLine(inner.top() + 52, tr_cogs_d716f1(), money(data.cogs[idx]), kAmber);
+        drawLine(inner.top() + 74, tr_profit_margin_ec3b22(), money(data.profitMargin[idx]), data.profitMargin[idx] >= 0 ? kGreen : kRed);
     }
 }
 
@@ -806,7 +806,7 @@ static void drawChartFlowBlock(QPainter& p, const QRect& rect, const AppData& da
     p.setPen(kMuted);
     p.setFont(QFont("Segoe UI", 8));
     p.drawText(QRect(header.left(), header.top() + 22, header.width(), 16), Qt::AlignLeft | Qt::AlignVCenter,
-               T("Chart block", "كتلة الرسم"));
+               tr_chart_block_583f01());
     QRect chartArea = rect.adjusted(14, 42, -14, -14);
     drawChartPreview(p, chartArea, meta);
 }
@@ -855,7 +855,7 @@ bool PdfExporter::exportToPdf(const QString& path, const AppData& data, const QL
         qp.setPen(kAccent);
         qp.setFont(QFont("Segoe UI", 18, QFont::Black));
         qp.drawText(QRect(30, 10, pageSize.width() - 60, 28), Qt::AlignLeft | Qt::AlignVCenter,
-                    T("Results flow", "تدفق النتائج"));
+                    tr_results_flow_77d465());
         qp.setFont(QFont("Segoe UI", 9));
         qp.setPen(kMuted);
         qp.drawText(QRect(30, 36, pageSize.width() - 60, 18), Qt::AlignLeft | Qt::AlignVCenter,

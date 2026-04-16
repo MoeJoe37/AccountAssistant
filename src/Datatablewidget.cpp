@@ -238,7 +238,7 @@ void MonthCard::buildHeader()
     m_warnIcon = new QLabel("⚠");
     m_warnIcon->setStyleSheet("color:#f59e0b; background:transparent;");
     m_warnIcon->setVisible(false);
-    m_warnIcon->setToolTip(T("Data warnings exist", "يوجد تحذيرات في البيانات"));
+    m_warnIcon->setToolTip(tr_data_warnings_exist_e01dcc());
 
     hl->addWidget(m_monthLabel);
     hl->addWidget(m_warnIcon);
@@ -288,26 +288,26 @@ void MonthCard::buildContent()
 
     // Column 1: Sales & Revenue
     auto* col1 = makeColumn(
-        T("Sales & Revenue", "المبيعات والإيرادات"),
+        tr_sales_revenue_41bc0b(),
         {
-            makeFieldRow(T("Sales Amount",  "مبلغ المبيعات"), m_sales),
-            makeFieldRow(T("Sales Return",  "مردودات المبيعات"), m_salesReturn)
+            makeFieldRow(tr_sales_amount_0a3f3e(), m_sales),
+            makeFieldRow(tr_sales_return_27c2fd(), m_salesReturn)
         }
     );
     // Column 2: Suppliers
     auto* col2 = makeColumn(
-        T("Suppliers", "الموردون"),
+        tr_suppliers_7beff3(),
         {
-            makeFieldRow(T("Supplier Purchases", "مشتريات الموردين"), m_suppPurchases),
-            makeFieldRow(T("Supplier Payments",  "مدفوعات الموردين"), m_suppPayments)
+            makeFieldRow(tr_supplier_purchases_f5a1cd(), m_suppPurchases),
+            makeFieldRow(tr_supplier_payments_eeef31(), m_suppPayments)
         }
     );
     // Column 3: Inventory
     auto* col3 = makeColumn(
-        T("Inventory", "المخزون"),
+        tr_inventory_22ffe2(),
         {
-            makeFieldRow(T("Opening Stock (First Period)", "اول المدة"), m_invFirst),
-            makeFieldRow(T("Closing Stock (Last Period)",  "اخر المدة"),  m_invLast)
+            makeFieldRow(tr_opening_stock_first_period_ba1057(), m_invFirst),
+            makeFieldRow(tr_closing_stock_last_period_a0c5b2(),  m_invLast)
         }
     );
     cols->addWidget(col1);
@@ -325,7 +325,7 @@ void MonthCard::buildContent()
     wl->setContentsMargins(12, 10, 12, 10);
     wl->setSpacing(4);
 
-    m_warnHdr = new QLabel("⚠  " + T("Warnings", "تحذيرات"));
+    m_warnHdr = new QLabel("⚠  " + tr_warnings_5eb706());
     m_warnHdr->setStyleSheet("color:#f59e0b; font-weight:700; background:transparent;");
     wl->addWidget(m_warnHdr);
 
@@ -450,15 +450,13 @@ void MonthCard::updateWarnings()
     double ret   = m_salesReturn->value();
 
     if (inv2 > inv1 + purch)
-        warnings << T("Unusual stock increase: Closing inventory is greater than opening inventory + purchases.",
-                      "زيادة غير معتادة في المخزون: المخزون الختامي أكبر من المخزون الافتتاحي + المشتريات.");
+        warnings << tr_unusual_stock_increase_closing_97f885();
 
     double netSales = sales - ret;
     double cogs     = inv1 + purch - inv2;
     double profit   = netSales - cogs;
     if (profit < 0)
-        warnings << T("Negative profit margin (Loss) detected.",
-                      "تم رصد هامش ربح سلبي (خسارة).");
+        warnings << tr_negative_profit_margin_loss_de_87719f();
 
     bool hasWarnings = !warnings.isEmpty();
     m_warnIcon->setVisible(hasWarnings && !m_expanded);
@@ -515,25 +513,25 @@ void MonthCard::retranslate()
 {
     const QStringList names = monthNames();
     m_monthLabel->setText(names.value(m_monthIndex));
-    m_warnIcon->setToolTip(T("Data warnings exist", "يوجد تحذيرات في البيانات"));
+    m_warnIcon->setToolTip(tr_data_warnings_exist_e01dcc());
 
     // Re-label section titles and field labels
-    if (m_warnHdr) m_warnHdr->setText("⚠  " + T("Warnings", "تحذيرات"));
+    if (m_warnHdr) m_warnHdr->setText("⚠  " + tr_warnings_5eb706());
 
     QList<QLabel*> secTitles = m_content->findChildren<QLabel*>("sectionTitle");
     if (secTitles.size() >= 3) {
-        secTitles[0]->setText(T("Sales & Revenue", "المبيعات والإيرادات"));
-        secTitles[1]->setText(T("Suppliers",        "الموردون"));
-        secTitles[2]->setText(T("Inventory",        "المخزون"));
+        secTitles[0]->setText(tr_sales_revenue_41bc0b());
+        secTitles[1]->setText(tr_suppliers_7beff3());
+        secTitles[2]->setText(tr_inventory_22ffe2());
     }
     QList<QLabel*> fieldLbls = m_content->findChildren<QLabel*>("fieldLabel");
     if (fieldLbls.size() >= 6) {
-        fieldLbls[0]->setText(T("Sales Amount",               "مبلغ المبيعات"));
-        fieldLbls[1]->setText(T("Sales Return",                "مردودات المبيعات"));
-        fieldLbls[2]->setText(T("Supplier Purchases",          "مشتريات الموردين"));
-        fieldLbls[3]->setText(T("Supplier Payments",           "مدفوعات الموردين"));
-        fieldLbls[4]->setText(T("Opening Stock (First Period)","اول المدة"));
-        fieldLbls[5]->setText(T("Closing Stock (Last Period)", "اخر المدة"));
+        fieldLbls[0]->setText(tr_sales_amount_0a3f3e());
+        fieldLbls[1]->setText(tr_sales_return_27c2fd());
+        fieldLbls[2]->setText(tr_supplier_purchases_f5a1cd());
+        fieldLbls[3]->setText(tr_supplier_payments_eeef31());
+        fieldLbls[4]->setText(tr_opening_stock_first_period_ba1057());
+        fieldLbls[5]->setText(tr_closing_stock_last_period_a0c5b2());
     }
 }
 
@@ -611,12 +609,11 @@ DataTableWidget::DataTableWidget(QWidget* parent) : QWidget(parent)
     tl->setContentsMargins(0, 0, 0, 8);
     tl->setSpacing(2);
 
-    m_title = new QLabel(T("Data Entry", "إدخال البيانات"));
+    m_title = new QLabel(tr_data_entry_e7b5c0());
     m_title->setStyleSheet(g_lightMode
         ? "color:#1e2340; font-weight:800; background:transparent;"
         : "color:#c8d0ed; font-weight:800; background:transparent;");
-    m_subtitle = new QLabel(T("Enter monthly figures below. Click a month to expand it.",
-                              "أدخل الأرقام الشهرية أدناه. انقر على الشهر لتوسيعه."));
+    m_subtitle = new QLabel(tr_enter_monthly_figures_below_cl_e7d622());
     m_subtitle->setStyleSheet("color:#5a6490; background:transparent;");
 
     tl->addWidget(m_title);
@@ -683,9 +680,8 @@ void DataTableWidget::updateCurrency()
 
 void DataTableWidget::retranslate()
 {
-    if (m_title) m_title->setText(T("Data Entry", "إدخال البيانات"));
-    if (m_subtitle) m_subtitle->setText(T("Enter monthly figures below. Click a month to expand it.",
-                                          "أدخل الأرقام الشهرية أدناه. انقر على الشهر لتوسيعه."));
+    if (m_title) m_title->setText(tr_data_entry_e7b5c0());
+    if (m_subtitle) m_subtitle->setText(tr_enter_monthly_figures_below_cl_e7d622());
 
     for (int i = 0; i < 12; ++i)
         m_cards[i]->retranslate();

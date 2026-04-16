@@ -87,20 +87,20 @@ SettingsDialog::SettingsDialog(AppLanguage current, bool lightMode,
     : QDialog(parent)
 {
     setStyleSheet(lightMode ? kSetSSLt : kSetSSDark);
-    setWindowTitle(T("Settings","\u0627\u0644\u0625\u0639\u062f\u0627\u062f\u0627\u062a"));
+    setWindowTitle(tr_settings_a53cf0());
     setMinimumWidth(400);
 
     auto* vl = new QVBoxLayout(this);
     vl->setContentsMargins(28,24,28,24);
     vl->setSpacing(14);
 
-    auto* title = new QLabel(T("Settings","\u0625\u0639\u062f\u0627\u062f\u0627\u062a \u0627\u0644\u062a\u0637\u0628\u064a\u0642"));
+    auto* title = new QLabel(tr_settings_a33f70());
     title->setObjectName("title");
     title->setAlignment(Qt::AlignCenter);
     vl->addWidget(title);
 
     // ── Language group ────────────────────────────────────────────────────
-    auto* langGrp = new QGroupBox(T("Language","\u0627\u0644\u0644\u063a\u0629"));
+    auto* langGrp = new QGroupBox(tr_language_31ad2d());
     auto* gl  = new QVBoxLayout(langGrp);
     gl->setSpacing(12);
     m_en = new QRadioButton("English");
@@ -112,31 +112,28 @@ SettingsDialog::SettingsDialog(AppLanguage current, bool lightMode,
     vl->addWidget(langGrp);
 
     // ── Appearance group ──────────────────────────────────────────────────
-    auto* appGrp = new QGroupBox(T("Appearance","\u0627\u0644\u0645\u0638\u0647\u0631"));
+    auto* appGrp = new QGroupBox(tr_appearance_97f3e4());
     auto* al = new QVBoxLayout(appGrp);
     al->setSpacing(12);
 
-    m_lightCheck = new QCheckBox(T("Light Mode","\u0627\u0644\u0648\u0636\u0639 \u0627\u0644\u0641\u0627\u062a\u062d"));
+    m_lightCheck = new QCheckBox(tr_light_mode_1a03c6());
     m_lightCheck->setChecked(lightMode);
     al->addWidget(m_lightCheck);
 
-    m_classicViewCheck = new QCheckBox(T("Classic Table View (spreadsheet layout)",
-                                         "\u0639\u0631\u0636 \u0627\u0644\u062c\u062f\u0648\u0644 \u0627\u0644\u0643\u0644\u0627\u0633\u064a\u0643\u064a"));
+    m_classicViewCheck = new QCheckBox(tr_classic_table_view_spreadsheet_b69d40());
     m_classicViewCheck->setChecked(classicView);
-    m_classicViewCheck->setToolTip(T(
-        "Switch between the card-based input view (default) and the classic spreadsheet table.",
-        "\u0627\u0644\u062a\u0628\u062f\u064a\u0644 \u0628\u064a\u0646 \u0639\u0631\u0636 \u0627\u0644\u0628\u0637\u0627\u0642\u0627\u062a \u0648\u0627\u0644\u062c\u062f\u0648\u0644 \u0627\u0644\u0643\u0644\u0627\u0633\u064a\u0643\u064a."));
+    m_classicViewCheck->setToolTip(tr_switch_between_the_card_based__d92db3());
     al->addWidget(m_classicViewCheck);
 
     // Font size row
     {
         auto* row = new QHBoxLayout;
-        auto* lbl = new QLabel(T("Text Size:", "\u062d\u062c\u0645 \u0627\u0644\u062e\u0637:"));
+        auto* lbl = new QLabel(tr_text_size_5b8d4f());
         lbl->setStyleSheet("background:transparent; ");
         m_fontSizeCombo = new QComboBox;
-        m_fontSizeCombo->addItem(T("Normal (12px)", "\u0639\u0627\u062f\u064a (12px)"), 12);
-        m_fontSizeCombo->addItem(T("Large (14px)",  "\u0643\u0628\u064a\u0631 (14px)"),  14);
-        m_fontSizeCombo->addItem(T("Extra Large (16px)", "\u0623\u0643\u0628\u0631 (16px)"), 16);
+        m_fontSizeCombo->addItem(tr_normal_12px_ac2426(), 12);
+        m_fontSizeCombo->addItem(tr_large_14px_57768d(),  14);
+        m_fontSizeCombo->addItem(tr_extra_large_16px_3e8432(), 16);
         // Select current
         for (int i = 0; i < m_fontSizeCombo->count(); ++i) {
             if (m_fontSizeCombo->itemData(i).toInt() == fontSize) {
@@ -152,11 +149,11 @@ SettingsDialog::SettingsDialog(AppLanguage current, bool lightMode,
     vl->addWidget(appGrp);
 
     // ── Currency group ────────────────────────────────────────────────────
-    auto* curGrp = new QGroupBox(T("Currency", "\u0627\u0644\u0639\u0645\u0644\u0629"));
+    auto* curGrp = new QGroupBox(tr_currency_88f072());
     auto* cl = new QVBoxLayout(curGrp);
     cl->setSpacing(12);
-    m_usd = new QRadioButton(T("US Dollar ($)", "\u062f\u0648\u0644\u0627\u0631 \u0623\u0645\u0631\u064a\u0643\u064a ($)"));
-    m_iqd = new QRadioButton(T("Iraqi Dinar (IQD)", "\u062f\u064a\u0646\u0627\u0631 \u0639\u0631\u0627\u0642\u064a (IQD)"));
+    m_usd = new QRadioButton(tr_us_dollar_105f33());
+    m_iqd = new QRadioButton(tr_iraqi_dinar_iqd_c97fa1());
     if (currency == AppCurrency::USD) m_usd->setChecked(true);
     else m_iqd->setChecked(true);
     cl->addWidget(m_usd);
@@ -165,9 +162,9 @@ SettingsDialog::SettingsDialog(AppLanguage current, bool lightMode,
 
     // ── Buttons ───────────────────────────────────────────────────────────
     auto* bl = new QHBoxLayout;
-    auto* cancel = new QPushButton(T("Cancel","\u0625\u0644\u063a\u0627\u0621"));
+    auto* cancel = new QPushButton(tr_cancel_b879b2());
     cancel->setObjectName("cancel");
-    auto* ok = new QPushButton(T("Apply","\u062a\u0637\u0628\u064a\u0642"));
+    auto* ok = new QPushButton(tr_apply_042b05());
     bl->addWidget(cancel);
     bl->addWidget(ok);
     vl->addLayout(bl);

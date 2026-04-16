@@ -199,91 +199,91 @@ void ChartsWidget::buildCharts(const AppData& d)
 
     // ── Sales ─────────────────────────────────────────────────────────────
     if (d.sel[M_SALES].pie)
-        addPieChart(T("Sales","المبيعات"), months, monthVals(&MonthData::sales));
+        addPieChart(tr_sales_4af850(), months, monthVals(&MonthData::sales));
     if (d.sel[M_SALES].candle)
-        addCandleChart(T("Sales","المبيعات"), months, monthVals(&MonthData::sales));
+        addCandleChart(tr_sales_4af850(), months, monthVals(&MonthData::sales));
     if (d.sel[M_SALES].line)
-        addLineChart(T("Sales","المبيعات"), months, monthVals(&MonthData::sales));
+        addLineChart(tr_sales_4af850(), months, monthVals(&MonthData::sales));
 
     // ── Sales Return ──────────────────────────────────────────────────────
     if (d.sel[M_SALES_RETURN].pie)
-        addPieChart(T("Sales Return","\u0645\u0631\u062a\u062c\u0639\u0627\u062a"),
+        addPieChart(tr_sales_return_7b335a(),
                     months, monthVals(&MonthData::salesReturn));
     if (d.sel[M_SALES_RETURN].candle)
-        addCandleChart(T("Sales Return","\u0645\u0631\u062a\u062c\u0639\u0627\u062a"),
+        addCandleChart(tr_sales_return_7b335a(),
                        months, monthVals(&MonthData::salesReturn));
     if (d.sel[M_SALES_RETURN].line)
-        addLineChart(T("Sales Return","مرتجعات"),
+        addLineChart(tr_sales_return_e520e9(),
                      months, monthVals(&MonthData::salesReturn));
 
     // ── Purchases ─────────────────────────────────────────────────────────
     if (d.sel[M_PURCHASES].pie) {
         QList<double> combined;
         for (auto& m : d.months) combined << (m.supplierPurchases + m.supplierPayments);
-        addPieChart(T("Purchases","\u0645\u0634\u062a\u0631\u064a\u0627\u062a"), months, combined);
+        addPieChart(tr_purchases_988898(), months, combined);
     }
     if (d.sel[M_PURCHASES].candle)
-        addCandleChart(T("Purchases","\u0645\u0634\u062a\u0631\u064a\u0627\u062a"),
+        addCandleChart(tr_purchases_988898(),
                        months, monthVals(&MonthData::supplierPurchases));
     if (d.sel[M_PURCHASES].line)
-        addLineChart(T("Purchases","مشتريات"),
+        addLineChart(tr_purchases_16236c(),
                      months, monthVals(&MonthData::supplierPurchases));
 
     // ── Expenses ──────────────────────────────────────────────────────────
     if (d.sel[M_EXPENSES].pie)
-        addPieChart(T("Expenses","\u0645\u0635\u0631\u0648\u0641\u0627\u062a"),
+        addPieChart(tr_expenses_ed49c9(),
                     months, monthVals(&MonthData::expenseAmount));
     if (d.sel[M_EXPENSES].candle)
-        addCandleChart(T("Expenses","\u0645\u0635\u0631\u0648\u0641\u0627\u062a"),
+        addCandleChart(tr_expenses_ed49c9(),
                        months, monthVals(&MonthData::expenseAmount));
     if (d.sel[M_EXPENSES].line)
-        addLineChart(T("Expenses","مصروفات"),
+        addLineChart(tr_expenses_5a0c3c(),
                      months, monthVals(&MonthData::expenseAmount));
 
     // ── Inventory ─────────────────────────────────────────────────────────
     if (d.sel[M_INVENTORY].pie) {
         QList<double> combined;
         for (auto& m : d.months) combined << (m.inventoryFirst + m.inventoryLast);
-        addPieChart(T("Inventory","\u0645\u062e\u0632\u0648\u0646"), months, combined);
+        addPieChart(tr_inventory_d636e9(), months, combined);
     }
     if (d.sel[M_INVENTORY].candle)
-        addCandleChart(T("Inventory","\u0645\u062e\u0632\u0648\u0646"),
+        addCandleChart(tr_inventory_d636e9(),
                        months, monthVals(&MonthData::inventoryFirst));
     if (d.sel[M_INVENTORY].line)
-        addLineChart(T("Inventory","مخزون"),
+        addLineChart(tr_inventory_18734c(),
                      months, monthVals(&MonthData::inventoryFirst));
 
     // ── Net Sales ─────────────────────────────────────────────────────────
     if (d.sel[M_NET_SALES].pie)
-        addPieChart(T("Net Sales","\u0635\u0627\u0641\u064a \u0627\u0644\u0645\u0628\u064a\u0639\u0627\u062a"),
+        addPieChart(tr_net_sales_ae3003(),
                     months, arr12(d.netSales));
     if (d.sel[M_NET_SALES].candle)
-        addCandleChart(T("Net Sales","\u0635\u0627\u0641\u064a \u0627\u0644\u0645\u0628\u064a\u0639\u0627\u062a"),
+        addCandleChart(tr_net_sales_ae3003(),
                        months, arr12(d.netSales));
     if (d.sel[M_NET_SALES].line)
-        addLineChart(T("Net Sales","صافي المبيعات"),
+        addLineChart(tr_net_sales_23a2f1(),
                      months, arr12(d.netSales));
 
     // ── COGS ──────────────────────────────────────────────────────────────
     if (d.sel[M_COGS].pie)
-        addPieChart(T("Cost of Goods Sold","\u062a\u0643\u0644\u0641\u0629 \u0627\u0644\u0628\u0636\u0627\u0639\u0629"),
+        addPieChart(tr_cost_of_goods_sold_31b73d(),
                     months, arr12(d.cogs));
     if (d.sel[M_COGS].candle)
-        addCandleChart(T("Cost of Goods Sold","\u062a\u0643\u0644\u0641\u0629 \u0627\u0644\u0628\u0636\u0627\u0639\u0629"),
+        addCandleChart(tr_cost_of_goods_sold_31b73d(),
                        months, arr12(d.cogs));
     if (d.sel[M_COGS].line)
-        addLineChart(T("Cost of Goods Sold","تكلفة البضاعة"),
+        addLineChart(tr_cost_of_goods_sold_6e7684(),
                      months, arr12(d.cogs));
 
     // ── Profit Margin ─────────────────────────────────────────────────────
     if (d.sel[M_PROFIT_MARGIN].pie)
-        addPieChart(T("Profit Margin","\u0647\u0627\u0645\u0634 \u0627\u0644\u0631\u0628\u062d"),
+        addPieChart(tr_profit_margin_ff57d3(),
                     months, arr12(d.profitMargin));
     if (d.sel[M_PROFIT_MARGIN].candle)
-        addCandleChart(T("Profit Margin","\u0647\u0627\u0645\u0634 \u0627\u0644\u0631\u0628\u062d"),
+        addCandleChart(tr_profit_margin_ff57d3(),
                        months, arr12(d.profitMargin));
     if (d.sel[M_PROFIT_MARGIN].line)
-        addLineChart(T("Profit Margin","هامش الربح"),
+        addLineChart(tr_profit_margin_ec3b22(),
                      months, arr12(d.profitMargin));
 }
 
@@ -308,7 +308,7 @@ void ChartsWidget::addCandleChart(const QString& title,
     auto* cv = makeCandle(title, labels, values);
     m_views << cv;
     auto* wrap = wrapChartWithLegend(m_container, cv,
-                                     QStringList{T("Increasing", "ارتفاع"), T("Decreasing", "انخفاض")},
+                                     QStringList{tr_increasing_faa4d2(), tr_decreasing_d64136()},
                                      QList<QColor>{QColor("#59A14F"), QColor("#E15759")});
     m_layout->insertWidget(m_layout->count()-1, wrap);
 }
@@ -416,10 +416,10 @@ QChartView* ChartsWidget::makeCandle(const QString& title,
 
     // Legend: add two invisible dummy series so the colour key is visible
     auto* legendInc = new QLineSeries;
-    legendInc->setName(T("↗ Increasing", "↗ ارتفاع"));
+    legendInc->setName(tr_increasing_c5cd67());
     legendInc->setColor(QColor("#59A14F"));
     auto* legendDec = new QLineSeries;
-    legendDec->setName(T("↘ Decreasing", "↘ انخفاض"));
+    legendDec->setName(tr_decreasing_b4c279());
     legendDec->setColor(QColor("#E15759"));
     chart->addSeries(legendInc);
     chart->addSeries(legendDec);
@@ -429,8 +429,8 @@ QChartView* ChartsWidget::makeCandle(const QString& title,
     legendDec->attachAxis(axisY);
 
     chart->legend()->setVisible(false);
-    applyLegendMarkerColorsLater(chart, legendInc, QStringList{T("↗ Increasing", "↗ ارتفاع")}, QList<QColor>{QColor("#59A14F")});
-    applyLegendMarkerColorsLater(chart, legendDec, QStringList{T("↘ Decreasing", "↘ انخفاض")}, QList<QColor>{QColor("#E15759")});
+    applyLegendMarkerColorsLater(chart, legendInc, QStringList{tr_increasing_c5cd67()}, QList<QColor>{QColor("#59A14F")});
+    applyLegendMarkerColorsLater(chart, legendDec, QStringList{tr_decreasing_b4c279()}, QList<QColor>{QColor("#E15759")});
     chart->setMargins(QMargins(2, 2, 2, 20));
     chart->setAnimationOptions(QChart::AllAnimations);
 

@@ -189,7 +189,7 @@ static QStringList monthlyLabels()
 
 static QString pageModeText(bool landscape)
 {
-    return landscape ? T("Landscape", "أفقي") : T("Portrait", "عمودي");
+    return landscape ? tr_landscape_94f6c5() : tr_portrait_247c2f();
 }
 
 class SafeChartView : public QChartView
@@ -392,10 +392,10 @@ public:
             grid->addWidget(box, row, col);
         };
 
-        makeMetric(m_netLabel, 0, 0, T("Net Sales", "صافي المبيعات"), money(netSales),
+        makeMetric(m_netLabel, 0, 0, tr_net_sales_23a2f1(), money(netSales),
                    netSales >= 0 ? QColor("#3ecf8e") : QColor("#e05c6a"));
-        makeMetric(m_cogsLabel, 0, 1, T("COGS", "تكلفة البضاعة"), money(cogs), QColor("#f0a500"));
-        makeMetric(m_profitLabel, 1, 0, T("Profit Margin", "هامش الربح"), money(profit),
+        makeMetric(m_cogsLabel, 0, 1, tr_cogs_d716f1(), money(cogs), QColor("#f0a500"));
+        makeMetric(m_profitLabel, 1, 0, tr_profit_margin_ec3b22(), money(profit),
                    profit >= 0 ? QColor("#3ecf8e") : QColor("#e05c6a"));
 
         // Spacer box to balance grid
@@ -422,14 +422,14 @@ public:
     {
         if (m_title) {
             if (m_monthIndex < 0) {
-                m_title->setText(T("ALL MONTHS", "كل الأشهر"));
+                m_title->setText(tr_all_months_e73b82());
             } else {
                 m_title->setText(monthNames().value(m_monthIndex).toUpper());
             }
         }
-        if (m_netLabel)    m_netLabel->setText(T("Net Sales", "صافي المبيعات"));
-        if (m_cogsLabel)   m_cogsLabel->setText(T("COGS", "تكلفة البضاعة"));
-        if (m_profitLabel) m_profitLabel->setText(T("Profit Margin", "هامش الربح"));
+        if (m_netLabel)    m_netLabel->setText(tr_net_sales_23a2f1());
+        if (m_cogsLabel)   m_cogsLabel->setText(tr_cogs_d716f1());
+        if (m_profitLabel) m_profitLabel->setText(tr_profit_margin_ec3b22());
     }
 
 signals:
@@ -495,7 +495,7 @@ protected:
     void contextMenuEvent(QContextMenuEvent* e) override
     {
         QMenu menu(this);
-        QAction* insertSep = menu.addAction(T("Add page separator below", "إضافة فاصل صفحة أسفلها"));
+        QAction* insertSep = menu.addAction(tr_add_page_separator_below_862284());
         if (menu.exec(e->globalPos()) == insertSep) {
             emit insertSeparatorRequested(m_flowIndex);
         }
@@ -542,7 +542,7 @@ public:
         right->setFrameShadow(QFrame::Plain);
         right->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
-        m_label = new QLabel(T("Page separator", "فاصل صفحة"));
+        m_label = new QLabel(tr_page_separator_5ac5db());
         m_label->setObjectName("pageBreakLabel");
         m_label->setAlignment(Qt::AlignCenter);
 
@@ -615,7 +615,7 @@ protected:
     void contextMenuEvent(QContextMenuEvent* e) override
     {
         QMenu menu(this);
-        QAction* removeAct = menu.addAction(T("Remove page separator", "إزالة فاصل الصفحة"));
+        QAction* removeAct = menu.addAction(tr_remove_page_separator_f78ac7());
         if (menu.exec(e->globalPos()) == removeAct) emit removeRequested(m_separatorId);
     }
 
@@ -659,14 +659,14 @@ ResultsWidget::ResultsWidget(QWidget* parent) : QWidget(parent)
         bl->addWidget(card, 1);
     };
 
-    makeCard(m_sumNetSalesTitle, m_sumNetSales, T("NET SALES", "صافي المبيعات"), QColor("#3ecf8e"));
-    makeCard(m_sumCOGSTitle, m_sumCOGS, T("COGS", "تكلفة البضاعة"), QColor("#f0a500"));
-    makeCard(m_sumProfitTitle, m_sumProfit, T("PROFIT MARGIN", "هامش الربح"), QColor("#4f86f7"));
+    makeCard(m_sumNetSalesTitle, m_sumNetSales, tr_net_sales_e81e65(), QColor("#3ecf8e"));
+    makeCard(m_sumCOGSTitle, m_sumCOGS, tr_cogs_d716f1(), QColor("#f0a500"));
+    makeCard(m_sumProfitTitle, m_sumProfit, tr_profit_margin_dafda2(), QColor("#4f86f7"));
 
 
     m_hiddenBtn = new QToolButton;
     m_hiddenBtn->setObjectName("hiddenChartsBtn");
-    m_hiddenBtn->setText(T("Hidden charts", "\u0627\u0644\u0631\u0633\u0648\u0645 \u0627\u0644\u0645\u062E\u0641\u064A\u0629"));
+    m_hiddenBtn->setText(tr_hidden_charts_e4bae7());
     m_hiddenBtn->setPopupMode(QToolButton::InstantPopup);
     m_hiddenMenu = new QMenu(m_hiddenBtn);
     connect(m_hiddenMenu, &QMenu::triggered, this, &ResultsWidget::onRestoreHidden);
@@ -688,9 +688,9 @@ ResultsWidget::ResultsWidget(QWidget* parent) : QWidget(parent)
     m_orientBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     m_orientBtn->setArrowType(Qt::DownArrow);
     m_orientMenu = new QMenu(m_orientBtn);
-    QAction* landscapeAct = m_orientMenu->addAction(T("Landscape", "أفقي"));
+    QAction* landscapeAct = m_orientMenu->addAction(tr_landscape_94f6c5());
     landscapeAct->setData(true);
-    QAction* portraitAct = m_orientMenu->addAction(T("Portrait", "عمودي"));
+    QAction* portraitAct = m_orientMenu->addAction(tr_portrait_247c2f());
     portraitAct->setData(false);
     connect(m_orientMenu, &QMenu::triggered, this, [this](QAction* act) {
         if (!act) return;
@@ -806,18 +806,18 @@ void ResultsWidget::applyTheme()
 
 void ResultsWidget::retranslate()
 {
-    if (m_sumNetSalesTitle) m_sumNetSalesTitle->setText(T("NET SALES", "صافي المبيعات"));
-    if (m_sumCOGSTitle)     m_sumCOGSTitle->setText(T("COGS", "تكلفة البضاعة"));
-    if (m_sumProfitTitle)   m_sumProfitTitle->setText(T("PROFIT MARGIN", "هامش الربح"));
+    if (m_sumNetSalesTitle) m_sumNetSalesTitle->setText(tr_net_sales_e81e65());
+    if (m_sumCOGSTitle)     m_sumCOGSTitle->setText(tr_cogs_d716f1());
+    if (m_sumProfitTitle)   m_sumProfitTitle->setText(tr_profit_margin_dafda2());
 
-    if (m_hiddenBtn) m_hiddenBtn->setText(T("Hidden charts", "الرسوم المخفية"));
+    if (m_hiddenBtn) m_hiddenBtn->setText(tr_hidden_charts_7e1497());
 
     if (m_orientMenu) {
         m_orientMenu->disconnect();
         m_orientMenu->clear();
-        QAction* landscapeAct = m_orientMenu->addAction(T("Landscape", "أفقي"));
+        QAction* landscapeAct = m_orientMenu->addAction(tr_landscape_94f6c5());
         landscapeAct->setData(true);
-        QAction* portraitAct = m_orientMenu->addAction(T("Portrait", "عمودي"));
+        QAction* portraitAct = m_orientMenu->addAction(tr_portrait_247c2f());
         portraitAct->setData(false);
         connect(m_orientMenu, &QMenu::triggered, this, [this](QAction* act) {
             if (!act) return;
@@ -826,22 +826,16 @@ void ResultsWidget::retranslate()
         });
     }
 
-    if (m_reportTitle) m_reportTitle->setText(T("Monthly Report", "التقرير الشهري"));
-    if (m_reportSub) m_reportSub->setText(T(
-        "Each month appears as a draggable summary card with net sales, COGS, and profit margin.",
-        "كل شهر يظهر كبطاقة ملخص قابلة للسحب مع صافي المبيعات وتكلفة البضاعة وهامش الربح"));
-    if (m_pageBreakLabel) m_pageBreakLabel->setText(T("Page break", "فاصل صفحة"));
-    if (m_chartsTitle) m_chartsTitle->setText(T("Charts", "الرسوم"));
-    if (m_chartsSub) m_chartsSub->setText(T(
-        "Drag to reorder. Right-click a chart to hide it.",
-        "اسحب للترتيب. انقر بالزر الأيمن لإخفاء الرسم."));
-    if (m_flowTitle) m_flowTitle->setText(T("Results page", "صفحة النتائج"));
-    if (m_flowSub) m_flowSub->setText(T(
-        "Choose one or more month cards, then place them before or after the charts.",
-        "اختر بطاقة شهر واحدة أو أكثر ثم ضعها قبل المخططات أو بعدها."));
-    if (m_monthEmpty) m_monthEmpty->setText(T("No months available.", "لا توجد أشهر متاحة"));
-    if (m_emptyState) m_emptyState->setText(T("No charts selected.", "لا توجد رسوم مختارة"));
-    if (m_flowEmpty) m_flowEmpty->setText(T("No results available.", "لا توجد نتائج متاحة"));
+    if (m_reportTitle) m_reportTitle->setText(tr_monthly_report_18dfcd());
+    if (m_reportSub) m_reportSub->setText(tr_each_month_appears_as_a_dragga_9d0352());
+    if (m_pageBreakLabel) m_pageBreakLabel->setText(tr_page_break_0e9502());
+    if (m_chartsTitle) m_chartsTitle->setText(tr_charts_ced4c1());
+    if (m_chartsSub) m_chartsSub->setText(tr_drag_to_reorder_right_click_a__b70e11());
+    if (m_flowTitle) m_flowTitle->setText(tr_results_page_3159bf());
+    if (m_flowSub) m_flowSub->setText(tr_choose_one_or_more_month_cards_18cee3());
+    if (m_monthEmpty) m_monthEmpty->setText(tr_no_months_available_9220b0());
+    if (m_emptyState) m_emptyState->setText(tr_no_charts_selected_7a4c8f());
+    if (m_flowEmpty) m_flowEmpty->setText(tr_no_results_available_669e79());
 
     for (auto* card : findChildren<MonthReportCard*>()) {
         if (card) card->retranslate();
@@ -872,9 +866,9 @@ void ResultsWidget::buildResults(const AppData& data)
     vl->setContentsMargins(0, 0, 0, 0);
     vl->setSpacing(14);
 
-    m_flowTitle = new QLabel(T("Results page", "صفحة النتائج"));
+    m_flowTitle = new QLabel(tr_results_page_3159bf());
     m_flowTitle->setObjectName("sectionTitle");
-    m_flowSub = new QLabel(T("Choose one or more month cards, then place them before or after the charts.", "اختر بطاقة شهر واحدة أو أكثر ثم ضعها قبل المخططات أو بعدها."));
+    m_flowSub = new QLabel(tr_choose_one_or_more_month_cards_18cee3());
     m_flowSub->setObjectName("sectionSub");
     vl->addWidget(m_flowTitle);
     vl->addWidget(m_flowSub);
@@ -901,7 +895,7 @@ void ResultsWidget::buildResults(const AppData& data)
     };
 
     m_monthCards.append(new MonthReportCard(
-        T("All months", "كل الأشهر"),
+        tr_all_months_428b74(),
         data.totalNetSales,
         data.totalCOGS,
         data.totalProfit,
@@ -958,11 +952,9 @@ QWidget* ResultsWidget::buildReportSection(const AppData& data)
     vl->setContentsMargins(0, 0, 0, 0);
     vl->setSpacing(16);
 
-    m_reportTitle = new QLabel(T("Monthly Report", "التقرير الشهري"));
+    m_reportTitle = new QLabel(tr_monthly_report_18dfcd());
     m_reportTitle->setObjectName("sectionTitle");
-    m_reportSub = new QLabel(T(
-        "Each month appears as a draggable summary card with net sales, COGS, and profit margin.",
-        "كل شهر يظهر كبطاقة ملخص قابلة للسحب مع صافي المبيعات وتكلفة البضاعة وهامش الربح"));
+    m_reportSub = new QLabel(tr_each_month_appears_as_a_dragga_9d0352());
     m_reportSub->setObjectName("sectionSub");
     vl->addWidget(m_reportTitle);
     vl->addWidget(m_reportSub);
@@ -1015,7 +1007,7 @@ QWidget* ResultsWidget::buildPageBreakSection()
     line->setFrameShadow(QFrame::Plain);
     line->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 
-    m_pageBreakLabel = new QLabel(T("Page break", "فاصل صفحة"));
+    m_pageBreakLabel = new QLabel(tr_page_break_0e9502());
     m_pageBreakLabel->setObjectName("pageBreakLabel");
     m_pageBreakLabel->setAlignment(Qt::AlignCenter);
 
@@ -1032,9 +1024,9 @@ QWidget* ResultsWidget::buildChartsSection()
     vl->setContentsMargins(0, 0, 0, 0);
     vl->setSpacing(12);
 
-    m_chartsTitle = new QLabel(T("Charts", "الرسوم"));
+    m_chartsTitle = new QLabel(tr_charts_ced4c1());
     m_chartsTitle->setObjectName("sectionTitle");
-    m_chartsSub = new QLabel(T("Drag to reorder. Right-click a chart to hide it.", "اسحب للترتيب. انقر بالزر الأيمن لإخفاء الرسم."));
+    m_chartsSub = new QLabel(tr_drag_to_reorder_right_click_a__b70e11());
     m_chartsSub->setObjectName("sectionSub");
     vl->addWidget(m_chartsTitle);
     vl->addWidget(m_chartsSub);
@@ -1069,15 +1061,15 @@ void ResultsWidget::rebuildMonthSelectorMenu()
     const auto months = monthNames();
 
     // ── Select All / Deselect All ──────────────────────────────────────────
-    auto* selAll   = m_monthMenu->addAction(T("✓  Select All",   "✓  تحديد الكل"));
-    auto* deselAll = m_monthMenu->addAction(T("✗  Deselect All", "✗  إلغاء الكل"));
+    auto* selAll   = m_monthMenu->addAction(tr_select_all_7812c3());
+    auto* deselAll = m_monthMenu->addAction(tr_deselect_all_474bc1());
     m_monthMenu->addSeparator();
 
     // ── All-months summary card (index 0) + individual months (1–12) ──────
     QList<QAction*> acts;
     for (int i = 0; i <= 12; ++i) {
         const QString label = (i == 0)
-            ? T("All months (summary)", "كل الأشهر (ملخص)")
+            ? tr_all_months_summary_b46139()
             : months.value(i - 1);
         QAction* act = m_monthMenu->addAction(label);
         act->setCheckable(true);
@@ -1094,18 +1086,18 @@ void ResultsWidget::rebuildMonthSelectorMenu()
 
         QString txt;
         if (sel.isEmpty()) {
-            txt = T("Months: None selected", "الأشهر: لا شيء محدد");
+            txt = tr_months_none_selected_7918be();
         } else if (sel.size() == 13) {
-            txt = T("Months: All", "الأشهر: الكل");
+            txt = tr_months_all_9f9e09();
         } else {
             // Build a readable label (skip index-0 "All months" summary in the name list)
             QStringList names;
             for (int x : sel) {
-                names << (x == 0 ? T("Summary", "ملخص") : monthNames().value(x - 1));
+                names << (x == 0 ? tr_summary_04237c() : monthNames().value(x - 1));
             }
             txt = (names.size() <= 3)
-                ? T("Months: ", "الأشهر: ") + names.join(", ")
-                : T("Months: ", "الأشهر: ") + names.mid(0, 3).join(", ")
+                ? tr_months_d113f0() + names.join(", ")
+                : tr_months_d113f0() + names.mid(0, 3).join(", ")
                   + QStringLiteral(" +%1").arg(names.size() - 3);
         }
         m_monthBtn->setText(txt);
@@ -1165,7 +1157,7 @@ void ResultsWidget::updatePageMode()
         m_container->setMaximumWidth(width);
     }
     if (m_orientBtn) {
-        m_orientBtn->setText(T("Page: %1", "الصفحة: %1").arg(pageModeText(m_pageLandscape)));
+        m_orientBtn->setText(tr_page_1_d40a68().arg(pageModeText(m_pageLandscape)));
     }
 }
 
@@ -1196,7 +1188,7 @@ void ResultsWidget::rebuildMonthGrid()
 
     if (m_monthCards.isEmpty()) {
         if (!m_monthEmpty) {
-            m_monthEmpty = new QLabel(T("No months available.", "لا توجد أشهر متاحة"), m_monthSection);
+            m_monthEmpty = new QLabel(tr_no_months_available_9220b0(), m_monthSection);
             m_monthEmpty->setObjectName("emptyMsg");
             m_monthEmpty->setAlignment(Qt::AlignCenter);
         }
@@ -1251,7 +1243,7 @@ void ResultsWidget::rebuildFlow()
 
     if (m_flowOrder.isEmpty()) {
         if (!m_flowEmpty) {
-            m_flowEmpty = new QLabel(T("No results available.", "لا توجد نتائج متاحة"), m_flowSection);
+            m_flowEmpty = new QLabel(tr_no_results_available_669e79(), m_flowSection);
             m_flowEmpty->setObjectName("emptyMsg");
             m_flowEmpty->setAlignment(Qt::AlignCenter);
         }
@@ -1317,7 +1309,7 @@ void ResultsWidget::rebuildGrid()
         m_grid->addWidget(m_cards[i], i / cols, i % cols);
     }
     if (m_cards.isEmpty()) {
-        m_emptyState = new QLabel(T("No charts selected.", "لا توجد رسوم مختارة"), m_container);
+        m_emptyState = new QLabel(tr_no_charts_selected_7a4c8f(), m_container);
         m_emptyState->setObjectName("emptyMsg");
         m_emptyState->setAlignment(Qt::AlignCenter);
         m_grid->addWidget(m_emptyState, 0, 0, 1, 2);
@@ -1577,10 +1569,10 @@ QChartView* ResultsWidget::makeCandleChart(const QString& title,
     series->attachAxis(axY);
 
     auto* legInc = new QLineSeries;
-    legInc->setName(T("↗ Increasing", "↗ ارتفاع"));
+    legInc->setName(tr_increasing_c5cd67());
     legInc->setColor(QColor("#3ecf8e"));
     auto* legDec = new QLineSeries;
-    legDec->setName(T("↘ Decreasing", "↘ انخفاض"));
+    legDec->setName(tr_decreasing_b4c279());
     legDec->setColor(QColor("#e05c6a"));
     chart->addSeries(legInc);
     chart->addSeries(legDec);
@@ -1595,7 +1587,7 @@ QChartView* ResultsWidget::makeCandleChart(const QString& title,
     view->setStyleSheet(g_lightMode
         ? "background:#ffffff; border:none; border-radius:0 0 10px 10px;"
         : "background:#151929; border:none; border-radius:0 0 10px 10px;");
-    view->setProperty("legendLabels", QStringList{T("↗ Increasing", "↗ ارتفاع"), T("↘ Decreasing", "↘ انخفاض")});
+    view->setProperty("legendLabels", QStringList{tr_increasing_c5cd67(), tr_decreasing_b4c279()});
     view->setProperty("legendColors", QStringList{QString("#3ecf8e"), QString("#e05c6a")});
     view->setProperty("chartLabels", labels);
     QVariantList vl; for (double x : values) vl << x;

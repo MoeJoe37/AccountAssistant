@@ -47,8 +47,8 @@ static StayOpenMenu* makeMonthMenu(QToolButton* btn, const QList<int>& preChecke
     const auto names = monthNames();
 
     // Select All / Deselect All
-    auto* selAll  = menu->addAction(T("✓  Select All",   "✓  تحديد الكل"));
-    auto* deselAll= menu->addAction(T("✗  Deselect All", "✗  إلغاء الكل"));
+    auto* selAll  = menu->addAction(tr_select_all_7812c3());
+    auto* deselAll= menu->addAction(tr_deselect_all_474bc1());
     menu->addSeparator();
 
     // Month checkboxes
@@ -66,7 +66,7 @@ static StayOpenMenu* makeMonthMenu(QToolButton* btn, const QList<int>& preChecke
         QList<int> sel;
         for (int i = 0; i < monthActs.size(); ++i)
             if (monthActs[i]->isChecked()) sel << i;
-        btn->setText(T("Months: %1","الأشهر: %1").arg(monthSummaryText(sel)));
+        btn->setText(tr_months_1_b69e08().arg(monthSummaryText(sel)));
     };
 
     QObject::connect(selAll,   &QAction::triggered, btn, [monthActs, updateBtn]() {
@@ -352,7 +352,7 @@ static QString monthSummaryText(const QList<int>& months)
     const auto names = monthNames();
     QList<int> clean = normalizedMonths(months);
     if (clean.isEmpty() || clean.size() == 12)
-        return T("All months", "كل الأشهر");
+        return tr_all_months_428b74();
 
     QStringList parts;
     for (int idx : clean)
@@ -370,7 +370,7 @@ static void updateMonthButtonText(QToolButton* button, const QVector<QAction*>& 
         if (actions[i] && actions[i]->isChecked())
             selected << i;
     }
-    button->setText(T("Months: %1", "الأشهر: %1").arg(monthSummaryText(selected)));
+    button->setText(tr_months_1_b69e08().arg(monthSummaryText(selected)));
 }
 
 static void updateCompareMonthButtonText(QToolButton* button, const QVector<QAction*>& actions)
@@ -383,7 +383,7 @@ static void updateCompareMonthButtonText(QToolButton* button, const QVector<QAct
         if (actions[i] && actions[i]->isChecked())
             selected << i;
     }
-    button->setText(T("Month: %1", "الشهر: %1").arg(monthSummaryText(selected)));
+    button->setText(tr_month_1_5fc620().arg(monthSummaryText(selected)));
 }
 
 static QString stripGeneratedMonthSuffix(const QString& text)
@@ -403,7 +403,7 @@ ChartSelectionDialog::ChartSelectionDialog(const AppData& data, QWidget* parent)
     : QDialog(parent)
 {
     setStyleSheet(g_lightMode ? kDialogSSLight : kDialogSS);
-    setWindowTitle(T("Select Charts", "اختيار المخططات"));
+    setWindowTitle(tr_select_charts_d37b65());
     setMinimumWidth(960);
     setModal(true);
     buildUI(data);
@@ -415,14 +415,12 @@ void ChartSelectionDialog::buildUI(const AppData& data)
     root->setContentsMargins(24, 20, 24, 20);
     root->setSpacing(12);
 
-    auto* title = new QLabel(T("Choose what appears in Results", "اختر ما يظهر في النتائج"));
+    auto* title = new QLabel(tr_choose_what_appears_in_results_05286a());
     title->setObjectName("title");
     title->setAlignment(Qt::AlignCenter);
     root->addWidget(title);
 
-    auto* sub = new QLabel(T(
-        "The report shows each month first, then the charts you select below.",
-        "التقرير يعرض كل شهر أولاً ثم المخططات التي تختارها أدناه"));
+    auto* sub = new QLabel(tr_the_report_shows_each_month_fi_883ac5());
     sub->setObjectName("subtitle");
     sub->setAlignment(Qt::AlignCenter);
     root->addWidget(sub);
@@ -443,7 +441,7 @@ void ChartSelectionDialog::buildUI(const AppData& data)
     metricToggle->setChecked(false);
     metricToggle->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     metricToggle->setArrowType(Qt::RightArrow);
-    metricToggle->setText(T("Metric charts", "مخططات المقاييس"));
+    metricToggle->setText(tr_metric_charts_eb2569());
     metricToggle->setStyleSheet("QToolButton#sectionToggle{font-weight:800;padding:6px 10px;border:none;background:transparent;text-align:left;} QToolButton#sectionToggle:hover{color:#4f86f7;}");
     vl->addWidget(metricToggle);
 
@@ -457,9 +455,9 @@ void ChartSelectionDialog::buildUI(const AppData& data)
     auto* metricControls = new QHBoxLayout;
     metricControls->setContentsMargins(0, 0, 0, 0);
     metricControls->setSpacing(8);
-    auto* selectAllBtn = new QPushButton(T("Select all", "تحديد الكل"));
+    auto* selectAllBtn = new QPushButton(tr_select_all_48e265());
     selectAllBtn->setObjectName("metricSelBtn");
-    auto* deselectAllBtn = new QPushButton(T("Deselect all", "إلغاء التحديد"));
+    auto* deselectAllBtn = new QPushButton(tr_deselect_all_5e3e31());
     deselectAllBtn->setObjectName("metricSelBtn");
     metricControls->addWidget(selectAllBtn);
     metricControls->addWidget(deselectAllBtn);
@@ -485,7 +483,7 @@ void ChartSelectionDialog::buildUI(const AppData& data)
             if (row.enabled) row.enabled->setChecked(false);
     });
 
-    auto* sec2 = new QLabel(T("Custom comparisons", "المقارنات المخصصة"));
+    auto* sec2 = new QLabel(tr_custom_comparisons_63300f());
     sec2->setObjectName("section");
     vl->addWidget(sec2);
 
@@ -531,7 +529,7 @@ void ChartSelectionDialog::buildUI(const AppData& data)
     if (!hasCompareRows)
         appendCompareRow(nullptr);
 
-    auto* addBtn = new QPushButton(T("+  Add Comparison", "+  إضافة مقارنة"));
+    auto* addBtn = new QPushButton(tr_add_comparison_1c963e());
     addBtn->setObjectName("addBtn");
     addBtn->setCursor(Qt::PointingHandCursor);
     vl->addWidget(addBtn, 0, Qt::AlignLeft);
@@ -545,9 +543,9 @@ void ChartSelectionDialog::buildUI(const AppData& data)
 
     auto* btnRow = new QHBoxLayout;
     btnRow->setSpacing(10);
-    auto* cancel = new QPushButton(T("Cancel", "إلغاء"));
+    auto* cancel = new QPushButton(tr_cancel_8d40ef());
     cancel->setObjectName("cancelBtn");
-    auto* show = new QPushButton(T("▶  Show Results", "▶  عرض النتائج"));
+    auto* show = new QPushButton(tr_show_results_2b2ce7());
     show->setObjectName("showBtn");
     btnRow->addStretch();
     btnRow->addWidget(cancel);
@@ -571,9 +569,9 @@ void ChartSelectionDialog::appendMetricRow(MetricId id, ChartKind kind, const QL
     hl->setContentsMargins(14, 10, 14, 10);
     hl->setSpacing(10);
 
-    auto* enabled = new QCheckBox(T("Show", "عرض"));
+    auto* enabled = new QCheckBox(tr_show_9ed617());
     enabled->setChecked(false);
-    enabled->setToolTip(T("Include this chart in the results", "إظهار هذا المخطط في النتائج"));
+    enabled->setToolTip(tr_include_this_chart_in_the_resu_2a37da());
     hl->addWidget(enabled);
 
     auto* name = new QLabel(metricDisplayName(id));
@@ -582,10 +580,10 @@ void ChartSelectionDialog::appendMetricRow(MetricId id, ChartKind kind, const QL
     hl->addWidget(name);
 
     auto* type = new QComboBox;
-    type->addItem(T("Grouped bar", "أعمدة مجمعة"), int(ChartKind::MetricBar));
-    type->addItem(T("Line", "خط"), int(ChartKind::MetricLine));
-    type->addItem(T("Pie", "دائري"), int(ChartKind::Pie));
-    type->addItem(T("Candle", "شمعة"), int(ChartKind::Candle));
+    type->addItem(tr_grouped_bar_82dd84(), int(ChartKind::MetricBar));
+    type->addItem(tr_line_133e6e(), int(ChartKind::MetricLine));
+    type->addItem(tr_pie_97ce50(), int(ChartKind::Pie));
+    type->addItem(tr_candle_77e8b9(), int(ChartKind::Candle));
     if (kind != ChartKind::MetricBar && kind != ChartKind::MetricLine && kind != ChartKind::Pie && kind != ChartKind::Candle)
         kind = ChartKind::Candle;
     int kindIdx = type->findData(int(kind));
@@ -605,7 +603,7 @@ void ChartSelectionDialog::appendMetricRow(MetricId id, ChartKind kind, const QL
     monthsBtn->setPopupMode(QToolButton::InstantPopup);
     monthsBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     monthsBtn->setArrowType(Qt::DownArrow);
-    monthsBtn->setToolTip(T("Choose months", "اختيار الأشهر"));
+    monthsBtn->setToolTip(tr_choose_months_ff1808());
 
     QVector<QAction*> monthActs;
     auto* menu = makeMonthMenu(monthsBtn, months, months.isEmpty(), &monthActs);
@@ -616,7 +614,7 @@ void ChartSelectionDialog::appendMetricRow(MetricId id, ChartKind kind, const QL
     { QList<int> sel; for (int i = 0; i < 12 && i < monthActs.size(); ++i) if (monthActs[i]->isChecked()) sel << i; updateMonthButtonText(monthsBtn, monthActs); }
     hl->addWidget(monthsBtn);
 
-    auto* duplicateBtn = new QPushButton(T("Duplicate", "تكرار"));
+    auto* duplicateBtn = new QPushButton(tr_duplicate_47648b());
     duplicateBtn->setObjectName("dupBtn");
     duplicateBtn->setCursor(Qt::PointingHandCursor);
     hl->addWidget(duplicateBtn);
@@ -754,10 +752,10 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset)
     styleComboPopup(right);
 
     auto* type = new QComboBox;
-    type->addItem(T("Grouped bar", "أعمدة مجمعة"), int(ChartKind::CompareBar));
-    type->addItem(T("Line", "خط"), int(ChartKind::CompareLine));
-    type->addItem(T("Pie", "دائري"), int(ChartKind::ComparePie));
-    type->addItem(T("Candle", "شمعة"), int(ChartKind::Candle));
+    type->addItem(tr_grouped_bar_82dd84(), int(ChartKind::CompareBar));
+    type->addItem(tr_line_133e6e(), int(ChartKind::CompareLine));
+    type->addItem(tr_pie_97ce50(), int(ChartKind::ComparePie));
+    type->addItem(tr_candle_77e8b9(), int(ChartKind::Candle));
     styleComboPopup(type);
 
     auto* monthBtn = new QToolButton;
@@ -765,7 +763,7 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset)
     monthBtn->setPopupMode(QToolButton::InstantPopup);
     monthBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     monthBtn->setArrowType(Qt::DownArrow);
-    monthBtn->setToolTip(T("Choose months", "اختيار الأشهر"));
+    monthBtn->setToolTip(tr_choose_months_ff1808());
 
     QVector<QAction*> cmpMonthActs;
     QList<int> presetMonths;
@@ -788,7 +786,7 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset)
     updateCompareMonthButtonText(monthBtn, cmpMonthActs);
 
     auto* title = new QLineEdit;
-    title->setPlaceholderText(T("Comparison title (optional)", "عنوان اختياري"));
+    title->setPlaceholderText(tr_comparison_title_optional_fae13e());
     if (!presetTitle.isEmpty())
         title->setText(presetTitle);
 
@@ -797,11 +795,11 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset)
     removeBtn->setCursor(Qt::PointingHandCursor);
     removeBtn->setFixedSize(28, 28);
 
-    grid->addWidget(makeHdr(T("Left metric", "المقياس الأيسر")),  0, 0);
-    grid->addWidget(makeHdr(T("Right metric", "المقياس الأيمن")), 0, 1);
-    grid->addWidget(makeHdr(T("Chart type", "نوع الرسم")),  0, 2);
-    grid->addWidget(makeHdr(T("Month", "الشهر")),  0, 3);
-    grid->addWidget(makeHdr(T("Title", "العنوان")),        0, 4);
+    grid->addWidget(makeHdr(tr_left_metric_c474b3()),  0, 0);
+    grid->addWidget(makeHdr(tr_right_metric_1d236d()), 0, 1);
+    grid->addWidget(makeHdr(tr_chart_type_bd42b2()),  0, 2);
+    grid->addWidget(makeHdr(tr_month_460756()),  0, 3);
+    grid->addWidget(makeHdr(tr_title_c1c427()),        0, 4);
     grid->addWidget(left,      1, 0);
     grid->addWidget(right,     1, 1);
     grid->addWidget(type,      1, 2);
@@ -895,17 +893,17 @@ QList<ChartRequest> ChartSelectionDialog::chartRequests() const
         req.kind = kind;
         switch (kind) {
         case ChartKind::Pie:
-            req.title = metricDisplayName(row.id) + QStringLiteral(" — ") + T("Pie", "دائري") + QStringLiteral(" (") + monthLabel + QStringLiteral(")");
+            req.title = metricDisplayName(row.id) + QStringLiteral(" — ") + tr_pie_97ce50() + QStringLiteral(" (") + monthLabel + QStringLiteral(")");
             break;
         case ChartKind::MetricBar:
-            req.title = metricDisplayName(row.id) + QStringLiteral(" — ") + T("Grouped bar", "أعمدة مجمعة") + QStringLiteral(" (") + monthLabel + QStringLiteral(")");
+            req.title = metricDisplayName(row.id) + QStringLiteral(" — ") + tr_grouped_bar_82dd84() + QStringLiteral(" (") + monthLabel + QStringLiteral(")");
             break;
         case ChartKind::MetricLine:
-            req.title = metricDisplayName(row.id) + QStringLiteral(" — ") + T("Line", "خط") + QStringLiteral(" (") + monthLabel + QStringLiteral(")");
+            req.title = metricDisplayName(row.id) + QStringLiteral(" — ") + tr_line_133e6e() + QStringLiteral(" (") + monthLabel + QStringLiteral(")");
             break;
         case ChartKind::Candle:
         default:
-            req.title = metricDisplayName(row.id) + QStringLiteral(" — ") + T("Candle", "شمعة") + QStringLiteral(" (") + monthLabel + QStringLiteral(")");
+            req.title = metricDisplayName(row.id) + QStringLiteral(" — ") + tr_candle_77e8b9() + QStringLiteral(" (") + monthLabel + QStringLiteral(")");
             break;
         }
         out << req;

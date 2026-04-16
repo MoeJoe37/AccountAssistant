@@ -87,9 +87,9 @@ static void execCardMenu(DraggableChartCard* self, const QPoint& globalPos)
           "QMenu::item{padding:7px 22px;min-width:180px;}"
           "QMenu::item:selected{background:#4f86f7;color:#ffffff;}"
           "QMenu::separator{height:1px;background:#2b3257;margin:4px 6px;}");
-    QAction* editAct = menu.addAction(T("Edit chart", "تعديل الرسم"));
-    QAction* insertSep = menu.addAction(T("Add page separator below", "إضافة فاصل صفحة أسفلها"));
-    QAction* hideAct = menu.addAction(T("Hide chart", "إخفاء الرسم"));
+    QAction* editAct = menu.addAction(tr_edit_chart_9932e2());
+    QAction* insertSep = menu.addAction(tr_add_page_separator_below_862284());
+    QAction* hideAct = menu.addAction(tr_hide_chart_9ad941());
     QAction* chosen = menu.exec(globalPos);
     if (chosen == editAct) {
         self->editRequested(self->cardIndex());

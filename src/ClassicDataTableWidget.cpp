@@ -334,21 +334,21 @@ void ClassicDataTableWidget::retranslate()
 {
     QStringList months = monthNames();
 
-    if (m_lSales)    m_lSales->setText(   T("Sales",        "\u0627\u0644\u0645\u0628\u064a\u0639\u0627\u062a"));
-    if (m_lSalesRet) m_lSalesRet->setText(T("Sales Return", "\u0645\u0631\u062a\u062c\u0639\u0627\u062a"));
-    if (m_lPurch)    m_lPurch->setText(   T("Purchases",    "\u0627\u0644\u0645\u0634\u062a\u0631\u064a\u0627\u062a"));
-    if (m_lInv)      m_lInv->setText(     T("Inventory",    "\u0627\u0644\u0645\u062e\u0632\u0648\u0646"));
+    if (m_lSales)    m_lSales->setText(   tr_sales_4fd176());
+    if (m_lSalesRet) m_lSalesRet->setText(tr_sales_return_7b335a());
+    if (m_lPurch)    m_lPurch->setText(   tr_purchases_00c2b6());
+    if (m_lInv)      m_lInv->setText(     tr_inventory_f08e08());
 
     for (int i = 0; i < 12; ++i) {
         if (m_monthHdr[i]) m_monthHdr[i]->setText(months[i]);
         if (m_purchCell[i])
             m_purchCell[i]->retranslate(
-                T("Purch.", "\u0634\u0631\u0627\u0621"),
-                T("Paym.",  "\u062f\u0641\u0639"));
+                tr_purch_1e85b9(),
+                tr_paym_631d4e());
         if (m_invCell[i])
             m_invCell[i]->retranslate(
-                T("First period", "\u0627\u0644\u0641\u062a\u0631\u0629 \u0627\u0644\u0623\u0648\u0644\u0649"),
-                T("Last period",  "\u0627\u0644\u0641\u062a\u0631\u0629 \u0627\u0644\u0623\u062e\u064a\u0631\u0629"));
+                tr_first_period_8d67c2(),
+                tr_last_period_30676e());
     }
 }
 

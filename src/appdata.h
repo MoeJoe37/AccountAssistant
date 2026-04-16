@@ -171,41 +171,41 @@ struct AppData {
 inline QString accountTypeDisplayName(AccountType type)
 {
     switch (type) {
-    case AccountType::Payable:   return T("Account Payable", "حساب دائن");
-    case AccountType::Receivable:return T("Account Receivable", "حساب مدين");
+    case AccountType::Payable:   return tr_account_payable_003206();
+    case AccountType::Receivable:return tr_account_receivable_59bf34();
     }
-    return T("Account Payable", "حساب دائن");
+    return tr_account_payable_003206();
 }
 
 inline QString accountTypeFilterDisplayName(AccountTypeFilter type)
 {
     switch (type) {
-    case AccountTypeFilter::All:        return T("All", "الكل");
-    case AccountTypeFilter::Payable:    return T("Account Payable", "حساب دائن");
-    case AccountTypeFilter::Receivable: return T("Account Receivable", "حساب مدين");
+    case AccountTypeFilter::All:        return tr_all_b4d286();
+    case AccountTypeFilter::Payable:    return tr_account_payable_003206();
+    case AccountTypeFilter::Receivable: return tr_account_receivable_59bf34();
     }
-    return T("All", "الكل");
+    return tr_all_b4d286();
 }
 
 inline QString metricDisplayName(MetricId id)
 {
     switch (id) {
-    case M_SALES:            return T("Sales", "\u0627\u0644\u0645\u0628\u064A\u0639\u0627\u062A");
-    case M_SALES_RETURN:     return T("Sales Return", "\u0645\u0631\u062A\u062C\u0639\u0627\u062A \u0627\u0644\u0645\u0628\u064A\u0639\u0627\u062A");
-    case M_PURCHASES:        return T("Purchases", "\u0627\u0644\u0645\u0634\u062A\u0631\u064A\u0627\u062A");
-    case M_EXPENSES:         return T("Expenses", "\u0627\u0644\u0645\u0635\u0631\u0648\u0641\u0627\u062A");
-    case M_INVENTORY:        return T("Inventory", "\u0627\u0644\u0645\u062E\u0632\u0648\u0646");
-    case M_NET_SALES:        return T("Net Sales", "\u0635\u0627\u0641\u064A \u0627\u0644\u0645\u0628\u064A\u0639\u0627\u062A");
-    case M_COGS:             return T("Cost of Goods Sold", "\u062A\u0643\u0644\u0641\u0629 \u0627\u0644\u0628\u0636\u0627\u0639\u0629");
-    case M_PROFIT_MARGIN:    return T("Profit Margin", "\u0647\u0627\u0645\u0634 \u0627\u0644\u0631\u0628\u062D");
-    case M_SUPPLIER_PAYMENTS:return T("Supplier Payments", "\u062F\u0641\u0639\u0627\u062A \u0627\u0644\u0645\u0648\u0631\u062F\u064A\u0646");
-    case M_EXPENSE_AMOUNT:   return T("Expense Amount", "\u0645\u0628\u0644\u063A \u0627\u0644\u0645\u0635\u0631\u0648\u0641");
-    case M_INVENTORY_OPENING:return T("Inventory Opening", "\u0627\u0644\u0645\u062E\u0632\u0648\u0646 \u0627\u0644\u0627\u0641\u062A\u062A\u0627\u062D\u064A");
-    case M_INVENTORY_CLOSING:return T("Inventory Closing", "\u0627\u0644\u0645\u062E\u0632\u0648\u0646 \u0627\u0644\u062E\u062A\u0627\u0645\u064A");
-    case M_COGS_VS_PROFIT:   return T("COGS vs Profit Margin", "\u062A\u0643\u0644\u0641\u0629 \u0645\u0642\u0627\u0628\u0644 \u0627\u0644\u0631\u0628\u062D");
+    case M_SALES:            return tr_sales_8fb4a6();
+    case M_SALES_RETURN:     return tr_sales_return_08f992();
+    case M_PURCHASES:        return tr_purchases_513aec();
+    case M_EXPENSES:         return tr_expenses_13597e();
+    case M_INVENTORY:        return tr_inventory_f1213f();
+    case M_NET_SALES:        return tr_net_sales_90f56d();
+    case M_COGS:             return tr_cost_of_goods_sold_55196f();
+    case M_PROFIT_MARGIN:    return tr_profit_margin_56b595();
+    case M_SUPPLIER_PAYMENTS:return tr_supplier_payments_bb713e();
+    case M_EXPENSE_AMOUNT:   return tr_expense_amount_1ad3d5();
+    case M_INVENTORY_OPENING:return tr_inventory_opening_ccde20();
+    case M_INVENTORY_CLOSING:return tr_inventory_closing_d69943();
+    case M_COGS_VS_PROFIT:   return tr_cogs_vs_profit_margin_fd48e9();
     case M_COUNT:            break;
     }
-    return T("Unknown", "\u063A\u064A\u0631 \u0645\u0639\u0631\u0648\u0641");
+    return tr_unknown_0240b2();
 }
 
 inline bool metricUsesMonthlySeries(MetricId id)

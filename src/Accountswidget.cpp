@@ -165,13 +165,13 @@ Accountswidget::Accountswidget(QWidget* parent) : QWidget(parent)
 
     auto* bottomRow = new QHBoxLayout;
     bottomRow->setSpacing(10);
-    m_sortLabel = new QLabel(T("Sort", "فرز"));
+    m_sortLabel = new QLabel(tr_sort_0f56a7());
     m_sortLabel->setStyleSheet("background:transparent; font-weight:700;");
-    m_groupLabel = new QLabel(T("Group by", "تجميع حسب"));
+    m_groupLabel = new QLabel(tr_group_by_835ff3());
     m_groupLabel->setObjectName("accountsGroupLabel");
     m_sortCombo = new NoWheelComboBox;
-    m_sortCombo->addItem(T("Ascending", "تصاعدي"));
-    m_sortCombo->addItem(T("Descending", "تنازلي"));
+    m_sortCombo->addItem(tr_ascending_c0fe46());
+    m_sortCombo->addItem(tr_descending_d6045b());
     m_groupCombo = new NoWheelComboBox;
     m_groupCombo->addItem(accountTypeFilterDisplayName(AccountTypeFilter::All));
     m_groupCombo->addItem(accountTypeFilterDisplayName(AccountTypeFilter::Payable));
@@ -274,17 +274,15 @@ void Accountswidget::applyTheme()
 
 void Accountswidget::retranslate()
 {
-    m_title->setText(T("Accounts", "الحسابات"));
-    if (m_sortLabel) m_sortLabel->setText(T("Sort", "فرز"));
-    if (m_groupLabel) m_groupLabel->setText(T("Group by", "تجميع حسب"));
-    m_subtitle->setText(T(
-        "Add expense accounts here. These accounts are independent from the monthly table.",
-        "أضف حسابات المصروفات هنا. هذه الحسابات مستقلة عن جدول الأشهر."));
-    m_nameEdit->setPlaceholderText(T("Expense account", "حساب المصروف"));
+    m_title->setText(tr_accounts_08f9e5());
+    if (m_sortLabel) m_sortLabel->setText(tr_sort_0f56a7());
+    if (m_groupLabel) m_groupLabel->setText(tr_group_by_835ff3());
+    m_subtitle->setText(tr_add_expense_accounts_here_thes_d000bc());
+    m_nameEdit->setPlaceholderText(tr_expense_account_b36f13());
     m_amountSpin->setPrefix(currencyPrefix());
-    m_addBtn->setText(T("+  Add", "+  إضافة"));
-    m_sortCombo->setItemText(0, T("Ascending", "تصاعدي"));
-    m_sortCombo->setItemText(1, T("Descending", "تنازلي"));
+    m_addBtn->setText(tr_add_a98dbf());
+    m_sortCombo->setItemText(0, tr_ascending_c0fe46());
+    m_sortCombo->setItemText(1, tr_descending_d6045b());
     if (m_typeCombo) {
         m_typeCombo->setItemText(0, accountTypeDisplayName(AccountType::Payable));
         m_typeCombo->setItemText(1, accountTypeDisplayName(AccountType::Receivable));
@@ -292,17 +290,17 @@ void Accountswidget::retranslate()
     m_groupCombo->setItemText(0, accountTypeFilterDisplayName(AccountTypeFilter::All));
     m_groupCombo->setItemText(1, accountTypeFilterDisplayName(AccountTypeFilter::Payable));
     m_groupCombo->setItemText(2, accountTypeFilterDisplayName(AccountTypeFilter::Receivable));
-    m_graphBtn->setText(T("Show graphs", "عرض الرسوم"));
-    m_empty->setText(T("No accounts added yet.", "لم تتم إضافة حسابات بعد."));
+    m_graphBtn->setText(tr_show_graphs_26cf20());
+    m_empty->setText(tr_no_accounts_added_yet_b3f1b8());
 
     for (auto& row : m_rows) {
         if (!row.row) continue;
-        if (row.name) row.name->setPlaceholderText(T("Expense account", "حساب المصروف"));
+        if (row.name) row.name->setPlaceholderText(tr_expense_account_b36f13());
         if (row.type) {
             row.type->setItemText(0, accountTypeDisplayName(AccountType::Payable));
             row.type->setItemText(1, accountTypeDisplayName(AccountType::Receivable));
         }
-        if (row.removeBtn) row.removeBtn->setText(T("Remove", "حذف"));
+        if (row.removeBtn) row.removeBtn->setText(tr_remove_c3a712());
     }
     updateGraphButtonMenu();
 }
@@ -313,11 +311,11 @@ void Accountswidget::updateGraphButtonMenu()
         m_graphBtn->menu()->deleteLater();
     }
     auto* menu = new QMenu(m_graphBtn);
-    QAction* pie = menu->addAction(T("Pie chart", "مخطط دائري"));
+    QAction* pie = menu->addAction(tr_pie_chart_9d4e04());
     pie->setData(int(ChartKind::Pie));
-    QAction* bar = menu->addAction(T("Bar chart", "مخطط أعمدة"));
+    QAction* bar = menu->addAction(tr_bar_chart_a5f324());
     bar->setData(int(ChartKind::RankedBar));
-    QAction* line = menu->addAction(T("Line chart", "مخطط خطي"));
+    QAction* line = menu->addAction(tr_line_chart_932796());
     line->setData(int(ChartKind::MetricLine));
     connect(menu, &QMenu::triggered, this, [this](QAction* act) {
         if (!act) return;
@@ -354,7 +352,7 @@ void Accountswidget::addRow(const QString& name, double amount, AccountType type
     hl->setSpacing(10);
 
     auto* nameEdit = new QLineEdit(rowW);
-    nameEdit->setPlaceholderText(T("Expense account", "حساب المصروف"));
+    nameEdit->setPlaceholderText(tr_expense_account_b36f13());
     nameEdit->setText(name);
 
     auto* typeCombo = new NoWheelComboBox(rowW);
@@ -372,7 +370,7 @@ void Accountswidget::addRow(const QString& name, double amount, AccountType type
     amountSpin->setPrefix(currencyPrefix());
     amountSpin->setValue(amount);
 
-    auto* removeBtn = new QPushButton(T("Remove", "حذف"), rowW);
+    auto* removeBtn = new QPushButton(tr_remove_c3a712(), rowW);
     removeBtn->setObjectName("removeAccountBtn");
     removeBtn->setFixedWidth(80);
 
@@ -479,10 +477,10 @@ void Accountswidget::applyGroupFilter()
         return;
 
     if (m_rows.isEmpty()) {
-        m_empty->setText(T("No accounts added yet.", "لم تتم إضافة حسابات بعد."));
+        m_empty->setText(tr_no_accounts_added_yet_b3f1b8());
         m_empty->show();
     } else if (visibleCount == 0) {
-        m_empty->setText(T("No accounts match the selected group.", "لا توجد حسابات ضمن هذا التجميع."));
+        m_empty->setText(tr_no_accounts_match_the_selected_a3e66e());
         m_empty->show();
     } else {
         m_empty->hide();
@@ -499,8 +497,8 @@ void Accountswidget::onAddAccount()
     if (!name.isEmpty() && hasDuplicateName(name)) {
         showThemedMessageBox(this,
             QMessageBox::Warning,
-            T("Duplicate account", "حساب مكرر"),
-            T("An account with this name already exists.", "يوجد حساب بهذا الاسم بالفعل."));
+            tr_duplicate_account_e404c5(),
+            tr_an_account_with_this_name_alre_7f9103());
         return;
     }
     addRow(name, amount, type);
@@ -545,8 +543,8 @@ void Accountswidget::onNameEdited()
             edit->setCursorPosition(edit->text().length());
             showThemedMessageBox(this,
                 QMessageBox::Warning,
-                T("Duplicate account", "حساب مكرر"),
-                T("An account with this name already exists.", "يوجد حساب بهذا الاسم بالفعل."));
+                tr_duplicate_account_e404c5(),
+                tr_an_account_with_this_name_alre_7f9103());
             return;
         }
 
