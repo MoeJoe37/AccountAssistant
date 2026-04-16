@@ -340,7 +340,7 @@ public:
         setStyleSheet(g_lightMode ? kMonthCardSSLight : kMonthCardSSDark);
         setFixedHeight(168);
         hide();
-
+        
         auto* root = new QVBoxLayout(this);
         root->setContentsMargins(0, 0, 0, 0);
         root->setSpacing(0);
@@ -1234,6 +1234,21 @@ void ResultsWidget::rebuildFlow()
 {
     if (!m_flowLayout) return;
 
+    // Keep the saved flow clean so hidden month cards never reappear later.
+    QList<ResultFlowItem> filteredFlow;
+    QSet<int> seenMonths;
+    for (const auto& item : m_flowOrder) {
+        if (item.kind == ResultFlowItemKind::MonthCard) {
+            if (item.index < 0 || item.index >= m_monthCards.size()) continue;
+            if (!m_visibleMonths.contains(item.index)) continue;
+            if (seenMonths.contains(item.index)) continue;
+            seenMonths.insert(item.index);
+        }
+        filteredFlow.append(item);
+    }
+    if (filteredFlow != m_flowOrder)
+        m_flowOrder = filteredFlow;
+
     while (auto* item = m_flowLayout->takeAt(0)) {
         if (item->widget()) {
             item->widget()->hide();
@@ -1257,6 +1272,7 @@ void ResultsWidget::rebuildFlow()
         if (item.kind == ResultFlowItemKind::MonthCard) {
             // item.index: 0 = "All months" summary card, 1-12 = individual month cards
             if (item.index < 0 || item.index >= m_monthCards.size()) continue;
+            if (!m_visibleMonths.contains(item.index)) continue;
             auto* card = m_monthCards[item.index];
             if (!card) continue;
             card->setFlowIndex(i);
@@ -1430,6 +1446,37 @@ QList<ChartRequest> ResultsWidget::chartRequests() const
         }
     }
     return list;
+}
+
+QImage ResultsWidget::renderFlowItemImage(const ResultFlowItem& item) const
+{
+    QWidget* widget = nullptr;
+
+    if (item.kind == ResultFlowItemKind::MonthCard) {
+        if (item.index >= 0 && item.index < m_monthCards.size())
+            widget = m_monthCards[item.index];
+    } else if (item.kind == ResultFlowItemKind::ChartCard) {
+        for (auto* card : m_cards) {
+            if (card && card->cardIndex() == item.index) {
+                widget = card;
+                break;
+            }
+        }
+    }
+
+    if (!widget)
+        return {};
+
+    const QSize sz = widget->size().isValid() ? widget->size() : widget->sizeHint();
+    if (sz.isEmpty())
+        return {};
+
+    widget->ensurePolished();
+
+    QImage img(sz, QImage::Format_ARGB32_Premultiplied);
+    img.fill(Qt::transparent);
+    widget->render(&img);
+    return img;
 }
 
 

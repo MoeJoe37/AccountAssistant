@@ -9,6 +9,7 @@
 #include <QToolButton>
 #include <QMenu>
 #include <QTableWidget>
+#include <QImage>
 #include "appdata.h"
 #include "draggablechartcard.h"
 
@@ -32,6 +33,8 @@ public:
     QList<int> monthOrder() const;
     QList<ResultFlowItem> flowOrder() const;
     bool pageLandscape() const { return m_pageLandscape; }
+
+    QImage renderFlowItemImage(const ResultFlowItem& item) const;
 
 signals:
     void editChartsRequested();

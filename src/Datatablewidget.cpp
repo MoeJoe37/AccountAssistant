@@ -177,6 +177,12 @@ void NavigableSpinBox::focusInEvent(QFocusEvent* e)
     QTimer::singleShot(0, this, [this]() { lineEdit()->selectAll(); });
 }
 
+void NavigableSpinBox::wheelEvent(QWheelEvent* e)
+{
+    if (e)
+        e->ignore();
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  MonthCard
 // ─────────────────────────────────────────────────────────────────────────────

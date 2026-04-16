@@ -1,5 +1,6 @@
 #include "pdfexporter.h"
 #include "translations.h"
+#include "resultswidget.h"
 
 #include <QPdfWriter>
 #include <QPainter>
@@ -811,7 +812,8 @@ static void drawChartFlowBlock(QPainter& p, const QRect& rect, const AppData& da
     drawChartPreview(p, chartArea, meta);
 }
 
-bool PdfExporter::exportToPdf(const QString& path, const AppData& data, const QList<ChartRequest>& requests, const QList<ResultFlowItem>& flowOrder, bool landscape)
+
+bool PdfExporter::exportToPdf(const QString& path, const AppData& data, const ResultsWidget* results, bool landscape)
 {
     QPdfWriter writer(path);
     writer.setPageSize(QPageSize(QPageSize::A4));
@@ -836,11 +838,11 @@ bool PdfExporter::exportToPdf(const QString& path, const AppData& data, const QL
     paintPage(renderCoverPage(data, pageSize));
     writer.newPage();
 
-    QList<ResultFlowItem> flow = flowOrder;
+    QList<ResultFlowItem> flow = results ? results->flowOrder() : data.resultFlowOrder;
     if (flow.isEmpty()) {
         flow.append(ResultFlowItem{ResultFlowItemKind::MonthCard, 0, -1});
         for (int i = 1; i <= 12; ++i) flow.append(ResultFlowItem{ResultFlowItemKind::MonthCard, i, -1});
-        for (int i = 0; i < requests.size(); ++i) flow.append(ResultFlowItem{ResultFlowItemKind::ChartCard, i, -1});
+        for (int i = 0; i < data.chartRequests.size(); ++i) flow.append(ResultFlowItem{ResultFlowItemKind::ChartCard, i, -1});
     }
 
     QImage page(pageSize, QImage::Format_ARGB32_Premultiplied);
@@ -866,6 +868,7 @@ bool PdfExporter::exportToPdf(const QString& path, const AppData& data, const QL
     int y = 96;
     const int margin = 28;
     const int contentW = pageSize.width() - 2 * margin;
+    const int gap = 14;
 
     auto flushPage = [&]() {
         paintPage(page);
@@ -879,18 +882,45 @@ bool PdfExporter::exportToPdf(const QString& path, const AppData& data, const QL
             flushPage();
             continue;
         }
-        const int blockH = (item.kind == ResultFlowItemKind::MonthCard) ? 168 : 400;
-        if (y + blockH > pageSize.height() - margin) {
+
+        if (!results) {
+            // Fallback to the old drawn report if we do not have access to the live widgets.
+            const int blockH = (item.kind == ResultFlowItemKind::MonthCard) ? 168 : 400;
+            if (y + blockH > pageSize.height() - margin)
+                flushPage();
+            QPainter qp(&page);
+            QRect block(margin, y, contentW, blockH);
+            if (item.kind == ResultFlowItemKind::MonthCard && item.index >= 0 && item.index <= 12) {
+                drawMonthFlowBlock(qp, block, data, item.index);
+            } else if (item.kind == ResultFlowItemKind::ChartCard && item.index >= 0 && item.index < data.chartRequests.size()) {
+                drawChartFlowBlock(qp, block, data, data.chartRequests[item.index]);
+            }
+            y += blockH + gap;
+            continue;
+        }
+
+        QImage cardImg = results->renderFlowItemImage(item);
+        if (cardImg.isNull())
+            continue;
+
+        const int maxBlockH = pageSize.height() - margin - y;
+        QSize target(contentW, cardImg.height() * contentW / qMax(1, cardImg.width()));
+        if (target.height() > maxBlockH && maxBlockH > 0) {
+            target = cardImg.size().scaled(QSize(contentW, maxBlockH), Qt::KeepAspectRatio);
+        }
+        if (target.isEmpty())
+            target = cardImg.size();
+
+        if (y + target.height() > pageSize.height() - margin)
             flushPage();
-        }
+
         QPainter qp(&page);
-        QRect block(margin, y, contentW, blockH);
-        if (item.kind == ResultFlowItemKind::MonthCard && item.index >= 0 && item.index <= 12) {
-            drawMonthFlowBlock(qp, block, data, item.index);
-        } else if (item.kind == ResultFlowItemKind::ChartCard && item.index >= 0 && item.index < requests.size()) {
-            drawChartFlowBlock(qp, block, data, requests[item.index]);
-        }
-        y += blockH + 14;
+        QRect block(margin, y, contentW, target.height());
+        QImage scaled = cardImg.scaled(block.size(), Qt::KeepAspectRatio, Qt::SmoothTransformation);
+        const QPoint topLeft(block.left() + (block.width() - scaled.width()) / 2,
+                             block.top() + (block.height() - scaled.height()) / 2);
+        qp.drawImage(topLeft, scaled);
+        y += scaled.height() + gap;
     }
 
     paintPage(page);
@@ -898,3 +928,4 @@ bool PdfExporter::exportToPdf(const QString& path, const AppData& data, const QL
     p.end();
     return QFileInfo::exists(path) && QFileInfo(path).size() > 0;
 }
+

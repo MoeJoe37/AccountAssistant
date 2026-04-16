@@ -2,12 +2,12 @@
 #include <QString>
 #include <QList>
 #include "appdata.h"
+class ResultsWidget;
 
 class PdfExporter {
 public:
     static bool exportToPdf(const QString& path,
                             const AppData& data,
-                            const QList<ChartRequest>& requests,
-                            const QList<ResultFlowItem>& flowOrder = QList<ResultFlowItem>(),
+                            const ResultsWidget* results,
                             bool landscape = true);
 };

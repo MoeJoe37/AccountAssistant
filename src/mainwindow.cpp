@@ -1257,7 +1257,7 @@ void MainWindow::onExportPdf()
         "PDF (*.pdf)");
     if (path.isEmpty()) return;
 
-    bool ok = PdfExporter::exportToPdf(path, m_data, m_results->chartRequests(), m_results->flowOrder(), m_results->pageLandscape());
+    bool ok = PdfExporter::exportToPdf(path, m_data, m_results, m_results->pageLandscape());
     if (ok) {
         QMessageBox box(this);
         box.setIcon(QMessageBox::Information);

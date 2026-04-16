@@ -110,6 +110,16 @@ struct ResultFlowItem {
     int id = -1;      // Unique separator id when kind == PageSeparator.
 };
 
+inline bool operator==(const ResultFlowItem& a, const ResultFlowItem& b)
+{
+    return a.kind == b.kind && a.index == b.index && a.id == b.id;
+}
+
+inline bool operator!=(const ResultFlowItem& a, const ResultFlowItem& b)
+{
+    return !(a == b);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  Full application state
 // ─────────────────────────────────────────────────────────────────────────────

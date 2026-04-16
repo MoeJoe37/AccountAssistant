@@ -8,6 +8,7 @@
 #include <QFrame>
 #include <QPropertyAnimation>
 #include <QKeyEvent>
+#include <QWheelEvent>
 #include <QEvent>
 #include "appdata.h"
 
@@ -22,6 +23,7 @@ public:
 protected:
     void keyPressEvent(QKeyEvent* e) override;
     void focusInEvent(QFocusEvent* e) override;
+    void wheelEvent(QWheelEvent* e) override;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
