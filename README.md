@@ -15,7 +15,6 @@ The application is organized around a workflow:
 3. Open the Results tab to generate charts and summary cards.
 4. Export the finished report to PDF or save/load the data as an XLSX workbook.
 
-The app starts **maximized** with the normal window controls visible.
 
 ---
 
@@ -37,10 +36,6 @@ The app starts **maximized** with the normal window controls visible.
 - Inventory Opening
 - Inventory Closing
 
-The Arabic labels for inventory are:
-
-- **Opening Stock** → **اول المدة**
-- **Closing Stock** → **اخر المدة**
 
 ### Accounts tab
 - Add multiple accounts with:
