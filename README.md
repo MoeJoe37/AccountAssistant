@@ -1,111 +1,195 @@
 # Account Assistant
 
-A bilingual (English / Arabic) Qt 6 accounting data-entry application with
-interactive pie and candlestick charts and PDF report export.
+Account Assistant is a bilingual (English / Arabic) Qt 6 desktop application for entering accounting data, reviewing results, generating charts, exporting reports, and saving/importing workbook data.
+
+The current version is **4.0.0**.
 
 ---
 
-## Features
+## What the app does
 
-| Section | Fields |
-|---------|--------|
-| **Sales** | 12 monthly figures |
-| **Sales Return** | 12 monthly figures |
-| **Purchases** | Supplier Purchases · Supplier Payments |
-| **Expenses** | Dynamic table – Account Name · Month · Amount |
-| **Inventory** | 12 × First Period + 12 × Last Period |
+The application is organized around a workflow:
 
-Each section has **Pie Chart** and **Candle Chart** checkboxes to control which
-charts are rendered on the right panel.
+1. Enter monthly accounting data.
+2. Manage expense accounts in the dedicated Accounts tab.
+3. Open the Results tab to generate charts and summary cards.
+4. Export the finished report to PDF or save/load the data as an XLSX workbook.
 
-### Calculations
-```
-Cost of Goods Sold  = Σ First Period  +  Supplier Purchases  +  Σ Last Period
-Net Sales           = Σ Sales  −  Σ Sales Return
-Profit Margin       = Cost of Goods Sold  −  Net Sales
-```
-
-### Other features
-- **Language switching** — Settings button → English / Arabic (full RTL layout)
-- **PDF export** — exports summary figures + all visible charts to a PDF file
+The app starts **maximized** with the normal window controls visible.
 
 ---
 
-## Prerequisites
+## Main features
 
-| Tool | Version |
-|------|---------|
-| CMake | ≥ 3.20 |
-| vcpkg | latest |
-| Qt 6 | ≥ 6.4 (via vcpkg or system) |
-| C++ compiler | MSVC 2022 / GCC 12+ / Clang 15+ |
+### Bilingual interface
+- Full English / Arabic UI.
+- Right-to-left layout when Arabic is selected.
+- Arabic translations are used throughout the forms, dialogs, results, and exports.
+
+### Data entry
+- 12 monthly periods.
+- Sales
+- Sales Return
+- Supplier Purchases
+- Supplier Payments
+- Expense Account name
+- Expense Amount
+- Inventory Opening
+- Inventory Closing
+
+The Arabic labels for inventory are:
+
+- **Opening Stock** → **اول المدة**
+- **Closing Stock** → **اخر المدة**
+
+### Accounts tab
+- Add multiple accounts with:
+  - account name
+  - account type
+  - amount
+- Account type filtering:
+  - All
+  - Account Payable
+  - Account Receivable
+- Sort order:
+  - Ascending
+  - Descending
+- Currency-style numeric display with thousands separators.
+- Mouse wheel scrolling on the combo boxes is disabled so values do not change accidentally.
+
+### Results tab
+- Calculates and displays the aggregated accounting results.
+- Supports multiple chart types:
+  - pie charts
+  - candlestick charts
+  - line charts
+  - grouped bar charts
+  - comparison charts for two metrics / series
+- The chart area is protected against accidental zooming, panning, dragging, and wheel-based interaction.
+- Chart legends are handled so labels stay readable and the color swatches match the chart series.
+
+### PDF export
+- Exports the current results and selected charts to a PDF file.
+- Uses a custom PDF rendering path so charts remain readable in the exported report.
+- Legends are rendered in the PDF so chart colors and labels remain clear.
+
+### Import / export
+- Save the current workbook to `.xlsx`.
+- Import the workbook back from `.xlsx`.
+- Data is also persisted locally between launches.
+
+### Appearance and settings
+- Light and dark modes.
+- Adjustable text size.
+- Classic table view option in Settings.
+- Theme-aware confirmation dialogs, including the Clear Data popup.
 
 ---
 
-## Build
+## Calculations
 
-### 1. Install dependencies via vcpkg
-```bash
-# Clone vcpkg if you don't have it
-git clone https://github.com/microsoft/vcpkg.git
-./vcpkg/bootstrap-vcpkg.sh   # Linux/macOS
-# or
-.\vcpkg\bootstrap-vcpkg.bat  # Windows
+The app derives the key accounting totals using the following logic:
 
-# Install Qt packages (this may take a while)
-./vcpkg/vcpkg install qtbase qtcharts qtsvg
+```text
+Net Sales = Sales - Sales Return
+
+COGS = Inventory Opening + Supplier Purchases - Inventory Closing
+
+Profit Margin = Net Sales - COGS
 ```
 
-### 2. Configure & build
-```bash
-cmake -B build \
-  -DCMAKE_TOOLCHAIN_FILE=/path/to/vcpkg/scripts/buildsystems/vcpkg.cmake \
-  -DCMAKE_BUILD_TYPE=Release
+Expense summaries are built from the Accounts tab. If the Accounts tab is empty, the legacy monthly expense fields are used as a fallback.
+
+---
+
+## Charts
+
+The Results tab and PDF export support chart requests that are built from the selected metrics and comparisons.
+
+Supported chart families include:
+
+- **Pie**
+- **Candlestick**
+- **Line**
+- **Grouped bar**
+- **Comparison pie**
+- **Comparison line**
+- **Comparison candlestick / bar**
+
+The charts are intentionally non-zoomable and non-draggable so the layout remains stable.
+
+---
+
+## Requirements
+
+- CMake 3.20 or newer
+- C++17 compiler
+- Qt 6
+- vcpkg
+- Qt components:
+  - Core
+  - Gui
+  - Widgets
+  - Charts
+  - PrintSupport
+  - Svg
+- Zlib
+
+The project is configured for MSVC 2022 on Windows, but the CMake project is cross-platform.
+
+---
+
+## Build instructions
+
+### Using vcpkg on Windows
+
+```powershell
+cmake -B build ^
+  -DCMAKE_TOOLCHAIN_FILE="C:\vcpkg\scripts\buildsystems\vcpkg.cmake" ^
+  -DCMAKE_PREFIX_PATH="C:/Qt/6.11.0/msvc2022_64"
 cmake --build build --config Release
 ```
 
-> **Windows (Visual Studio)**  
-> ```bat
-> cmake -B build -G "Visual Studio 17 2022" -A x64 ^
->   -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake
-> cmake --build build --config Release
-> ```
+### Running the app
 
-### 3. Run
-```bash
-./build/AccountAssistant          # Linux/macOS
-build\Release\AccountAssistant.exe  # Windows
+```powershell
+build\Release\AccountAssistant.exe
 ```
+
+The build system copies `icon.ico` next to the executable when available.
 
 ---
 
 ## Project structure
 
-```
+```text
 AccountAssistant/
 ├── CMakeLists.txt
-├── vcpkg.json
+├── icon.ico
+├── README.md
 └── src/
     ├── main.cpp
-    ├── mainwindow.h / .cpp      — main window, data entry tabs
-    ├── chartswidget.h / .cpp    — pie & candlestick chart panel
-    ├── pdfexporter.h / .cpp     — PDF export via QPrinter
-    ├── settingsdialog.h / .cpp  — language settings dialog
-    ├── translations.h           — bilingual string helper (T macro)
-    └── appdata.h                — shared data structures + calculations
+    ├── mainwindow.h / .cpp
+    ├── Datatablewidget.h / .cpp
+    ├── ClassicDataTableWidget.h / .cpp
+    ├── Accountswidget.h / .cpp
+    ├── Resultswidget.h / .cpp
+    ├── chartswidget.h / .cpp
+    ├── Chartselectiondialog.h / .cpp
+    ├── Draggablechartcard.h / .cpp
+    ├── pdfexporter.h / .cpp
+    ├── settingsdialog.h / .cpp
+    ├── appdata.h
+    └── translations.h
 ```
 
 ---
 
-## Troubleshooting
+## Notes
 
-**Qt Charts not found**  
-Make sure `qtcharts` is installed in vcpkg and the toolchain file is set.
+- The application remembers its settings and entered data locally.
+- PDF export is only available after results have been generated.
+- The default interface is modern card-based entry, with a classic spreadsheet-style view available from Settings.
+- Numeric fields use grouped formatting so large values remain readable.
+- The UI is designed to remain stable in both light and dark themes.
 
-**Arabic text not rendering**  
-Install an Arabic system font (e.g. *Tahoma*, *Arial*, *Segoe UI*). Qt uses the
-system font stack for Unicode shaping.
-
-**windeployqt not found**  
-Run `windeployqt.exe AccountAssistant.exe` manually from your Qt bin directory
-after building.
