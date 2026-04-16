@@ -339,6 +339,7 @@ public:
         setCursor(Qt::OpenHandCursor);
         setStyleSheet(g_lightMode ? kMonthCardSSLight : kMonthCardSSDark);
         setFixedHeight(168);
+        hide();
 
         auto* root = new QVBoxLayout(this);
         root->setContentsMargins(0, 0, 0, 0);
