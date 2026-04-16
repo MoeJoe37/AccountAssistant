@@ -187,6 +187,60 @@ QLineEdit, QDoubleSpinBox, QAbstractSpinBox {
 QLineEdit:focus, QDoubleSpinBox:focus, QAbstractSpinBox:focus { border-color:#4f86f7; }
 )";
 
+static const char* kMessageBoxSSDark = R"(
+QMessageBox {
+    background:#12152a;
+}
+QMessageBox QLabel {
+    color:#e6ebff;
+}
+QMessageBox QPushButton {
+    background:#4f86f7;
+    color:white;
+    font-weight:700;
+    border:none;
+    border-radius:7px;
+    min-width:92px;
+    min-height:32px;
+    padding:0 18px;
+}
+QMessageBox QPushButton:hover { background:#6a9df9; }
+QMessageBox QPushButton:pressed { background:#3a6fe0; }
+QMessageBox QPushButton[text="No"],
+QMessageBox QPushButton[text="Cancel"] {
+    background:#1e2340;
+    color:#c8d0ed;
+    border:1px solid #2e3455;
+}
+)";
+
+static const char* kMessageBoxSSLight = R"(
+QMessageBox {
+    background:#f4f6fb;
+}
+QMessageBox QLabel {
+    color:#1e2340;
+}
+QMessageBox QPushButton {
+    background:#4f86f7;
+    color:white;
+    font-weight:700;
+    border:none;
+    border-radius:7px;
+    min-width:92px;
+    min-height:32px;
+    padding:0 18px;
+}
+QMessageBox QPushButton:hover { background:#6a9df9; }
+QMessageBox QPushButton:pressed { background:#3a6fe0; }
+QMessageBox QPushButton[text="No"],
+QMessageBox QPushButton[text="Cancel"] {
+    background:#eef0fa;
+    color:#5a6490;
+    border:1px solid #dde2f0;
+}
+)";
+
 
 namespace {
 
@@ -1285,14 +1339,16 @@ void MainWindow::switchTableView(bool classic)
 
 void MainWindow::onClearData()
 {
-    auto btn = QMessageBox::warning(this,
-        T("Clear All Data", "\u0645\u0633\u062D \u062C\u0645\u064A\u0639 \u0627\u0644\u0628\u064A\u0627\u0646\u0627\u062A"),
-        T("⚠️  This will erase all entered data for all 12 months.\n\nAre you sure you want to continue?",
-          "\u26A0\uFE0F  \u0633\u064A\u062A\u0645 \u062D\u0630\u0641 \u062C\u0645\u064A\u0639 \u0627\u0644\u0628\u064A\u0627\u0646\u0627\u062A \u0627\u0644\u0645\u062F\u062E\u0644\u0629 \u0644\u0644\u0623\u0634\u0647\u0631 \u0627\u0644\u0627\u062B\u0646\u064A \u0639\u0634\u0631.\n\n\u0647\u0644 \u0623\u0646\u062A \u0645\u062A\u0623\u0643\u062F\u061F"),
-        QMessageBox::Yes | QMessageBox::No,
-        QMessageBox::No);
+    QMessageBox box(this);
+    box.setIcon(QMessageBox::Warning);
+    box.setWindowTitle(T("Clear All Data", "مسح جميع البيانات"));
+    box.setText(T("⚠️  This will erase all entered data for all 12 months.\n\nAre you sure you want to continue?",
+                  "⚠️  سيتم حذف جميع البيانات المدخلة للأشهر الاثني عشر.\n\nهل أنت متأكد؟"));
+    box.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+    box.setDefaultButton(QMessageBox::No);
+    box.setStyleSheet(g_lightMode ? kMessageBoxSSLight : kMessageBoxSSDark);
 
-    if (btn == QMessageBox::Yes) {
+    if (box.exec() == QMessageBox::Yes) {
         clearTableData();
         m_hasResults = false;
         if (m_results) m_results->clearResults();

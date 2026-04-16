@@ -306,8 +306,8 @@ void MonthCard::buildContent()
     auto* col3 = makeColumn(
         T("Inventory", "المخزون"),
         {
-            makeFieldRow(T("Opening Stock (First Period)", "المخزون الافتتاحي"), m_invFirst),
-            makeFieldRow(T("Closing Stock (Last Period)",  "المخزون الختامي"),  m_invLast)
+            makeFieldRow(T("Opening Stock (First Period)", "اول المدة"), m_invFirst),
+            makeFieldRow(T("Closing Stock (Last Period)",  "اخر المدة"),  m_invLast)
         }
     );
     cols->addWidget(col1);
@@ -530,8 +530,8 @@ void MonthCard::retranslate()
         fieldLbls[1]->setText(T("Sales Return",                "مردودات المبيعات"));
         fieldLbls[2]->setText(T("Supplier Purchases",          "مشتريات الموردين"));
         fieldLbls[3]->setText(T("Supplier Payments",           "مدفوعات الموردين"));
-        fieldLbls[4]->setText(T("Opening Stock (First Period)","المخزون الافتتاحي"));
-        fieldLbls[5]->setText(T("Closing Stock (Last Period)", "المخزون الختامي"));
+        fieldLbls[4]->setText(T("Opening Stock (First Period)","اول المدة"));
+        fieldLbls[5]->setText(T("Closing Stock (Last Period)", "اخر المدة"));
     }
 }
 

@@ -37,6 +37,6 @@ int main(int argc, char* argv[])
         }
     }
 
-    win.show();
+    win.showMaximized();
     return app.exec();
 }
