@@ -91,6 +91,7 @@ struct ChartRequest {
     ChartKind kind = ChartKind::Candle;
     MetricId metricA = M_SALES;
     MetricId metricB = M_SALES_RETURN;
+    QList<MetricId> compareMetrics;  // Optional ordered list for 3+ metric comparisons.
     QString title;
     QString seriesA;
     QString seriesB;
@@ -347,4 +348,17 @@ inline QList<double> metricSeriesValues(const AppData& d, MetricId id, QStringLi
 inline QString comparisonTitle(MetricId a, MetricId b)
 {
     return metricDisplayName(a) + QStringLiteral(" vs ") + metricDisplayName(b);
+}
+
+inline QString comparisonTitle(const QList<MetricId>& metrics)
+{
+    QStringList parts;
+    for (MetricId id : metrics) {
+        const QString name = metricDisplayName(id);
+        if (!parts.contains(name))
+            parts << name;
+    }
+    if (parts.isEmpty())
+        return QString();
+    return parts.join(QStringLiteral(", "));
 }

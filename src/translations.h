@@ -67,6 +67,7 @@ inline QString tr_cost_of_goods_sold_55196f() { return T("Cost of Goods Sold", "
 inline QString tr_cost_of_goods_sold_6e7684() { return T("Cost of Goods Sold", "تكلفة البضاعة"); }
 inline QString tr_currency_88f072() { return T("Currency", "\u0627\u0644\u0639\u0645\u0644\u0629"); }
 inline QString tr_custom_comparisons_63300f() { return T("Custom comparisons", "المقارنات المخصصة"); }
+inline QString tr_more_metrics_000000() { return T("More metrics", "المزيد من المقاييس"); }
 inline QString tr_data_breakdown_b66bb7() { return T("Data breakdown", "\u062A\u0641\u0627\u0635\u064A\u0644 \u0627\u0644\u0628\u064A\u0627\u0646\u0627\u062A"); }
 inline QString tr_data_entry_a353ce() { return T("  ⊞  Data Entry  ", "  ⊞  إدخال البيانات  "); }
 inline QString tr_data_entry_e7b5c0() { return T("Data Entry", "إدخال البيانات"); }

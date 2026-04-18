@@ -40,6 +40,10 @@ private:
         QCheckBox*   enabled{};
         QComboBox*   left{};
         QComboBox*   right{};
+        QToolButton* moreBtn{};
+        QMenu*       moreMenu{};
+        QVector<QAction*> moreActions;
+        QList<MetricId> moreMetrics;
         QComboBox*   type{};
         QToolButton* monthBtn{};
         QMenu*       monthMenu{};
@@ -60,4 +64,6 @@ private:
     void appendCompareRow(const ChartRequest* preset = nullptr);
     void removeCompareRow(int rowIndex);
     QList<int> selectedMonths(const CompareRow& row) const;
+    QList<MetricId> selectedCompareMetrics(const CompareRow& row) const;
+    void syncCompareMoreButton(CompareRow& row);
 };

@@ -75,6 +75,10 @@ private:
                                               const QList<double>& seriesB,
                                               const QString& nameA,
                                               const QString& nameB);
+    static QChartView* makeMultiCompareCandleChart(const QString& title,
+                                                   const QStringList& labels,
+                                                   const QList<QList<double>>& seriesList,
+                                                   const QStringList& names);
     static QChartView* makeRankedBarChart(const QString& title,
                                           const QStringList& labels,
                                           const QList<double>& values);
@@ -87,17 +91,28 @@ private:
                                            const QList<double>& seriesB,
                                            const QString& nameA,
                                            const QString& nameB);
+    static QChartView* makeMultiCompareBarChart(const QString& title,
+                                                const QStringList& labels,
+                                                const QList<QList<double>>& seriesList,
+                                                const QStringList& names);
     static QChartView* makeCompareLineChart(const QString& title,
                                             const QStringList& labels,
                                             const QList<double>& seriesA,
                                             const QList<double>& seriesB,
                                             const QString& nameA,
                                             const QString& nameB);
+    static QChartView* makeMultiCompareLineChart(const QString& title,
+                                                 const QStringList& labels,
+                                                 const QList<QList<double>>& seriesList,
+                                                 const QStringList& names);
     static QChartView* makeComparePieChart(const QString& title,
                                            const QString& nameA,
                                            const QString& nameB,
                                            double valueA,
                                            double valueB);
+    static QChartView* makeMultiComparePieChart(const QString& title,
+                                                const QStringList& names,
+                                                const QList<double>& values);
 
     static void applyChartTheme(QChart* chart, const QString& title);
 

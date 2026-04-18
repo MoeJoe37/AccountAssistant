@@ -1949,6 +1949,228 @@ QChartView* ResultsWidget::makeCompareLineChart(const QString& title,
     return view;
 }
 
+QChartView* ResultsWidget::makeMultiCompareBarChart(const QString& title,
+                                                   const QStringList& labels,
+                                                   const QList<QList<double>>& seriesList,
+                                                   const QStringList& names)
+{
+    auto* series = new QBarSeries;
+    double maxV = 0.0;
+    for (int i = 0; i < seriesList.size(); ++i) {
+        const auto& vals = seriesList[i];
+        auto* set = new QBarSet(names.value(i, QStringLiteral("Series %1").arg(i + 1)));
+        const QColor col = kPal[i % kPal.size()];
+        set->setColor(col);
+        set->setBorderColor(Qt::transparent);
+        for (double v : vals) {
+            *set << v;
+            maxV = qMax(maxV, qAbs(v));
+        }
+        series->append(set);
+    }
+    series->setBarWidth(0.72);
+
+    auto* chart = new QChart;
+    chart->addSeries(series);
+    applyThemeToChart(chart);
+    chart->setTitle(title);
+    chart->legend()->setVisible(true);
+
+    QColor axisCol = g_lightMode ? QColor("#5a6490") : QColor("#8892b8");
+    QColor gridCol = g_lightMode ? QColor("#e5e7eb") : QColor("#1e2445");
+    auto* axX = new QBarCategoryAxis;
+    axX->append(labels);
+    axX->setLabelsColor(axisCol);
+    axX->setLabelsAngle(-45);
+    axX->setGridLineColor(gridCol);
+    axX->setLabelsFont(QFont("Segoe UI", 8));
+    chart->addAxis(axX, Qt::AlignBottom);
+    series->attachAxis(axX);
+    auto* axY = new QValueAxis;
+    axY->setLabelsColor(axisCol);
+    axY->setGridLineColor(gridCol);
+    axY->setLabelsFont(QFont("Segoe UI", 8));
+    if (maxV < 0.001) maxV = 1.0;
+    axY->setRange(0.0, maxV * 1.1);
+    chart->addAxis(axY, Qt::AlignLeft);
+    series->attachAxis(axY);
+
+    auto* view = makeChartView(chart);
+    view->setStyleSheet(g_lightMode ? "background:#ffffff; border:none; border-radius:0 0 10px 10px;"
+                                    : "background:#151929; border:none; border-radius:0 0 10px 10px;");
+    view->setProperty("chartLabels", labels);
+    view->setProperty("chartType", "barcompare");
+    view->setProperty("chartTitle", title);
+    view->setProperty("chartSeriesNames", names);
+    QVariantList valuesProp;
+    for (const auto& vals : seriesList) {
+        QVariantList one; for (double x : vals) one << x;
+        valuesProp << one;
+    }
+    view->setProperty("chartValuesMulti", valuesProp);
+    return view;
+}
+
+QChartView* ResultsWidget::makeMultiCompareLineChart(const QString& title,
+                                                    const QStringList& labels,
+                                                    const QList<QList<double>>& seriesList,
+                                                    const QStringList& names)
+{
+    auto* chart = new QChart;
+    QColor axisCol = g_lightMode ? QColor("#5a6490") : QColor("#8892b8");
+    QColor gridCol = g_lightMode ? QColor("#e5e7eb") : QColor("#1e2445");
+    double maxV = 0.0;
+    for (int s = 0; s < seriesList.size(); ++s) {
+        const auto& vals = seriesList[s];
+        auto* line = new QLineSeries;
+        line->setName(names.value(s, QStringLiteral("Series %1").arg(s + 1)));
+        line->setColor(kPal[s % kPal.size()]);
+        const int n = vals.size();
+        for (int i = 0; i < n; ++i) {
+            line->append(i + 0.5, vals[i]);
+            maxV = qMax(maxV, qAbs(vals[i]));
+        }
+        chart->addSeries(line);
+    }
+    applyThemeToChart(chart);
+    chart->setTitle(title);
+    chart->legend()->setVisible(true);
+
+    auto* axisX = new QCategoryAxis;
+    for (int i = 0; i < labels.size(); ++i)
+        axisX->append(labels[i], i + 1);
+    axisX->setRange(0, qMax(1, labels.size()));
+    axisX->setLabelsFont(QFont("Segoe UI", 8));
+    axisX->setLabelsColor(axisCol);
+    axisX->setGridLineColor(gridCol);
+    chart->addAxis(axisX, Qt::AlignBottom);
+
+    auto* axisY = new QValueAxis;
+    axisY->setLabelsFont(QFont("Segoe UI", 8));
+    axisY->setLabelsColor(axisCol);
+    axisY->setGridLineColor(gridCol);
+    if (maxV < 0.001) maxV = 1.0;
+    axisY->setRange(0.0, maxV * 1.1);
+    chart->addAxis(axisY, Qt::AlignLeft);
+
+    for (auto* s : chart->series()) {
+        s->attachAxis(axisX);
+        s->attachAxis(axisY);
+    }
+
+    auto* view = makeChartView(chart);
+    view->setStyleSheet(g_lightMode ? "background:#ffffff; border:none; border-radius:0 0 10px 10px;"
+                                    : "background:#151929; border:none; border-radius:0 0 10px 10px;");
+    view->setProperty("chartLabels", labels);
+    view->setProperty("chartType", "linecompare");
+    view->setProperty("chartTitle", title);
+    view->setProperty("chartSeriesNames", names);
+    QVariantList valuesProp;
+    for (const auto& vals : seriesList) {
+        QVariantList one; for (double x : vals) one << x;
+        valuesProp << one;
+    }
+    view->setProperty("chartValuesMulti", valuesProp);
+    return view;
+}
+
+QChartView* ResultsWidget::makeMultiComparePieChart(const QString& title,
+                                                    const QStringList& names,
+                                                    const QList<double>& values)
+{
+    auto* series = new QPieSeries;
+    double total = 0.0;
+    for (double v : values) total += qAbs(v);
+    if (total < 0.0001) total = 1.0;
+    for (int i = 0; i < values.size(); ++i) {
+        auto* sl = series->append(names.value(i, QStringLiteral("Series %1").arg(i + 1)), qAbs(values.value(i)));
+        sl->setColor(kPal[i % kPal.size()]);
+        sl->setLabelVisible(true);
+        sl->setLabel(QStringLiteral("%1%").arg(qAbs(values.value(i)) / total * 100.0, 0, 'f', 1));
+        sl->setLabelPosition(QPieSlice::LabelOutside);
+        sl->setLabelArmLengthFactor(0.18);
+        sl->setLabelColor(g_lightMode ? QColor("#1e2340") : QColor("#ffffff"));
+    }
+    series->setPieSize(0.72);
+    auto* chart = new QChart;
+    chart->addSeries(series);
+    applyChartTheme(chart, title);
+    chart->legend()->setVisible(true);
+    auto* view = makeChartView(chart, false);
+    view->setProperty("legendLabels", names);
+    QStringList cols;
+    for (int i = 0; i < values.size(); ++i) cols << kPal[i % kPal.size()].name();
+    view->setProperty("legendColors", cols);
+    view->setProperty("chartType", "comparepie");
+    view->setProperty("chartTitle", title);
+    return view;
+}
+
+QChartView* ResultsWidget::makeMultiCompareCandleChart(const QString& title,
+                                                      const QStringList& labels,
+                                                      const QList<QList<double>>& seriesList,
+                                                      const QStringList& names)
+{
+    auto* chart = new QChart;
+    QColor axisCol = g_lightMode ? QColor("#5a6490") : QColor("#8892b8");
+    QColor gridCol = g_lightMode ? QColor("#e5e7eb") : QColor("#1e2445");
+    double maxV = 0.0;
+    for (int s = 0; s < seriesList.size(); ++s) {
+        const auto& vals = seriesList[s];
+        auto* series = new QCandlestickSeries;
+        series->setName(names.value(s, QStringLiteral("Series %1").arg(s + 1)));
+        const QColor col = kPal[s % kPal.size()];
+        series->setIncreasingColor(col);
+        series->setDecreasingColor(col.darker(120));
+        series->setBodyOutlineVisible(false);
+        const double offset = (s - (seriesList.size() - 1) / 2.0) * 0.18;
+        for (int i = 0; i < vals.size(); ++i) {
+            const double a = vals[i];
+            const double hi = qMax(0.0, a) * 1.02 + 0.01;
+            const double lo = qMin(0.0, a) * 0.98;
+            maxV = qMax(maxV, qAbs(a));
+            series->append(new QCandlestickSet(0.0, hi, lo, a, static_cast<qreal>(i) + offset));
+        }
+        chart->addSeries(series);
+    }
+    applyThemeToChart(chart);
+    chart->setTitle(title);
+    chart->legend()->setVisible(true);
+
+    auto* axX = new QBarCategoryAxis;
+    axX->append(labels);
+    axX->setLabelsColor(axisCol);
+    axX->setLabelsAngle(-45);
+    axX->setGridLineColor(gridCol);
+    axX->setLabelsFont(QFont("Segoe UI", 8));
+    chart->addAxis(axX, Qt::AlignBottom);
+    for (auto* s : chart->series()) s->attachAxis(axX);
+
+    auto* axY = new QValueAxis;
+    axY->setLabelsColor(axisCol);
+    axY->setGridLineColor(gridCol);
+    axY->setLabelsFont(QFont("Segoe UI", 8));
+    if (maxV < 0.001) maxV = 1.0;
+    axY->setRange(0.0, maxV * 1.1);
+    chart->addAxis(axY, Qt::AlignLeft);
+    for (auto* s : chart->series()) s->attachAxis(axY);
+
+    auto* view = makeChartView(chart);
+    view->setStyleSheet(g_lightMode ? "background:#ffffff; border:none; border-radius:0 0 10px 10px;"
+                                    : "background:#151929; border:none; border-radius:0 0 10px 10px;");
+    view->setProperty("chartLabels", labels);
+    view->setProperty("chartType", "comparecandle");
+    view->setProperty("chartTitle", title);
+    view->setProperty("chartSeriesNames", names);
+    QVariantList valuesProp;
+    for (const auto& vals : seriesList) {
+        QVariantList one; for (double x : vals) one << x;
+        valuesProp << one;
+    }
+    view->setProperty("chartValuesMulti", valuesProp);
+    return view;
+}
+
 QChartView* ResultsWidget::makeComparePieChart(const QString& title,
                                                const QString& nameA,
                                                const QString& nameB,
@@ -1996,6 +2218,39 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
     QList<double> a = metricSeriesValues(data, request.metricA, &labels, months, request.accountFilter);
     QList<double> b;
     QString title = request.title.isEmpty() ? metricDisplayName(request.metricA) : request.title;
+
+    QList<MetricId> compareMetrics = request.compareMetrics;
+    if (compareMetrics.size() < 2 && (request.kind == ChartKind::CompareBar || request.kind == ChartKind::CompareLine || request.kind == ChartKind::ComparePie || request.kind == ChartKind::Candle)) {
+        compareMetrics.clear();
+        compareMetrics << request.metricA << request.metricB;
+    }
+
+    if (compareMetrics.size() > 2 && (request.kind == ChartKind::CompareBar || request.kind == ChartKind::CompareLine || request.kind == ChartKind::ComparePie || request.kind == ChartKind::Candle)) {
+        QList<QList<double>> seriesList;
+        QStringList names;
+        for (MetricId id : compareMetrics) {
+            QStringList labelsForMetric;
+            const QList<double> values = metricSeriesValues(data, id, &labelsForMetric, months, request.accountFilter);
+            if (labels.isEmpty())
+                labels = labelsForMetric;
+            seriesList << values;
+            names << metricDisplayName(id);
+        }
+        if (request.kind == ChartKind::CompareLine)
+            return makeMultiCompareLineChart(title, labels, seriesList, names);
+        if (request.kind == ChartKind::ComparePie) {
+            QList<double> totals;
+            for (const auto& values : seriesList) {
+                double total = 0.0;
+                for (double v : values) total += qAbs(v);
+                totals << total;
+            }
+            return makeMultiComparePieChart(title, names, totals);
+        }
+        if (request.kind == ChartKind::Candle)
+            return makeMultiCompareCandleChart(title, labels, seriesList, names);
+        return makeMultiCompareBarChart(title, labels, seriesList, names);
+    }
 
     switch (request.kind) {
     case ChartKind::Pie:
