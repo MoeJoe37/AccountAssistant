@@ -1,5 +1,6 @@
 #include "Accountswidget.h"
 #include "translations.h"
+#include "themebox.h"
 
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -100,24 +101,6 @@ QScrollBar::handle:vertical { background:#c8d0ed; border-radius:4px; min-height:
 QScrollBar::handle:vertical:hover { background:#4f86f7; }
 )";
 
-static void showThemedMessageBox(QWidget* parent,
-                                 QMessageBox::Icon icon,
-                                 const QString& title,
-                                 const QString& text,
-                                 const QString& informative = QString())
-{
-    QMessageBox box(parent);
-    box.setIcon(icon);
-    box.setWindowTitle(title);
-    box.setText(text);
-    if (!informative.isEmpty())
-        box.setInformativeText(informative);
-    box.setTextFormat(Qt::PlainText);
-    box.setStyleSheet(g_lightMode
-        ? "QMessageBox{background:#f4f6fb; color:#1e2340;} QLabel{color:#1e2340;} QPushButton{background:#ffffff; color:#1e2340; border:1px solid #d9e0ef; border-radius:6px; padding:6px 14px; min-width:84px;} QPushButton:hover{background:#eef0fa;}"
-        : "QMessageBox{background:#111526; color:#c8d0ed;} QLabel{color:#c8d0ed;} QPushButton{background:#1a1f38; color:#c8d0ed; border:1px solid #252b52; border-radius:6px; padding:6px 14px; min-width:84px;} QPushButton:hover{background:#1e2445;}");
-    box.exec();
-}
 }
 
 Accountswidget::Accountswidget(QWidget* parent) : QWidget(parent)
@@ -495,8 +478,7 @@ void Accountswidget::onAddAccount()
     if (name.isEmpty() && qFuzzyIsNull(amount))
         return;
     if (!name.isEmpty() && hasDuplicateName(name)) {
-        showThemedMessageBox(this,
-            QMessageBox::Warning,
+        ThemeBox::warn(this,
             tr_duplicate_account_e404c5(),
             tr_an_account_with_this_name_alre_7f9103());
         return;
@@ -541,8 +523,7 @@ void Accountswidget::onNameEdited()
             QSignalBlocker blocker(edit);
             edit->setText(row.lastValidName);
             edit->setCursorPosition(edit->text().length());
-            showThemedMessageBox(this,
-                QMessageBox::Warning,
+            ThemeBox::warn(this,
                 tr_duplicate_account_e404c5(),
                 tr_an_account_with_this_name_alre_7f9103());
             return;

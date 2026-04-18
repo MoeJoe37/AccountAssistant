@@ -3,6 +3,7 @@
 #include "settingsdialog.h"
 #include "pdfexporter.h"
 #include "Accountswidget.h"
+#include "themebox.h"
 
 #include <QApplication>
 #include <QVBoxLayout>
@@ -186,61 +187,6 @@ QLineEdit, QDoubleSpinBox, QAbstractSpinBox {
 }
 QLineEdit:focus, QDoubleSpinBox:focus, QAbstractSpinBox:focus { border-color:#4f86f7; }
 )";
-
-static const char* kMessageBoxSSDark = R"(
-QMessageBox {
-    background:#12152a;
-}
-QMessageBox QLabel {
-    color:#e6ebff;
-}
-QMessageBox QPushButton {
-    background:#4f86f7;
-    color:white;
-    font-weight:700;
-    border:none;
-    border-radius:7px;
-    min-width:92px;
-    min-height:32px;
-    padding:0 18px;
-}
-QMessageBox QPushButton:hover { background:#6a9df9; }
-QMessageBox QPushButton:pressed { background:#3a6fe0; }
-QMessageBox QPushButton[text="No"],
-QMessageBox QPushButton[text="Cancel"] {
-    background:#1e2340;
-    color:#c8d0ed;
-    border:1px solid #2e3455;
-}
-)";
-
-static const char* kMessageBoxSSLight = R"(
-QMessageBox {
-    background:#f4f6fb;
-}
-QMessageBox QLabel {
-    color:#1e2340;
-}
-QMessageBox QPushButton {
-    background:#4f86f7;
-    color:white;
-    font-weight:700;
-    border:none;
-    border-radius:7px;
-    min-width:92px;
-    min-height:32px;
-    padding:0 18px;
-}
-QMessageBox QPushButton:hover { background:#6a9df9; }
-QMessageBox QPushButton:pressed { background:#3a6fe0; }
-QMessageBox QPushButton[text="No"],
-QMessageBox QPushButton[text="Cancel"] {
-    background:#eef0fa;
-    color:#5a6490;
-    border:1px solid #dde2f0;
-}
-)";
-
 
 namespace {
 
@@ -1205,13 +1151,13 @@ void MainWindow::onSaveData()
 
     const AppData data = collectAllData();
     if (!saveAppDataXlsx(path, data)) {
-        QMessageBox::critical(this,
+        ThemeBox::critical(this,
             tr_save_data_ee42b8(),
             tr_unable_to_write_the_xlsx_file_da2b9b());
         return;
     }
 
-    QMessageBox::information(this,
+    ThemeBox::info(this,
         tr_save_data_ee42b8(),
         tr_data_saved_successfully_f941c7());
 }
@@ -1227,7 +1173,7 @@ void MainWindow::onImportData()
 
     AppData imported;
     if (!loadAppDataXlsx(path, &imported)) {
-        QMessageBox::critical(this,
+        ThemeBox::critical(this,
             tr_import_data_8de4db(),
             tr_unable_to_read_the_xlsx_file_cd99e7());
         return;
@@ -1237,7 +1183,7 @@ void MainWindow::onImportData()
     setAccountData(imported.accounts);
     m_data = imported;
     m_hasResults = false;
-    QMessageBox::information(this,
+    ThemeBox::info(this,
         tr_import_data_8de4db(),
         tr_data_imported_successfully_c05a52());
 }
@@ -1245,7 +1191,7 @@ void MainWindow::onImportData()
 void MainWindow::onExportPdf()
 {
     if (!m_hasResults) {
-        QMessageBox::information(this,
+        ThemeBox::info(this,
             tr_export_pdf_2cc36e(),
             tr_please_calculate_first_then_ex_3d96fc());
         return;
@@ -1265,12 +1211,10 @@ void MainWindow::onExportPdf()
         box.setText(tr_the_pdf_report_was_exported_su_37f5d4());
         box.setInformativeText(QFileInfo(path).fileName());
         box.setTextFormat(Qt::PlainText);
-        box.setStyleSheet(g_lightMode
-            ? "QMessageBox{background:#f4f6fb; color:#1e2340;} QLabel{color:#1e2340;} QPushButton{background:#ffffff; color:#1e2340; border:1px solid #d9e0ef; border-radius:6px; padding:6px 14px; min-width:84px;} QPushButton:hover{background:#eef0fa;}"
-            : "QMessageBox{background:#111526; color:#c8d0ed;} QLabel{color:#c8d0ed;} QPushButton{background:#1a1f38; color:#c8d0ed; border:1px solid #252b52; border-radius:6px; padding:6px 14px; min-width:84px;} QPushButton:hover{background:#1e2445;}");
+        box.setStyleSheet(ThemeBox::style());
         box.exec();
     } else {
-        QMessageBox::critical(this,
+        ThemeBox::critical(this,
             tr_error_5a0bc4(),
             tr_failed_to_export_pdf_e10045());
     }
@@ -1338,15 +1282,10 @@ void MainWindow::switchTableView(bool classic)
 
 void MainWindow::onClearData()
 {
-    QMessageBox box(this);
-    box.setIcon(QMessageBox::Warning);
-    box.setWindowTitle(tr_clear_all_data_491f5d());
-    box.setText(tr_this_will_erase_all_entered_da_382bea());
-    box.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
-    box.setDefaultButton(QMessageBox::No);
-    box.setStyleSheet(g_lightMode ? kMessageBoxSSLight : kMessageBoxSSDark);
-
-    if (box.exec() == QMessageBox::Yes) {
+    if (ThemeBox::confirm(this,
+            tr_clear_all_data_491f5d(),
+            tr_this_will_erase_all_entered_da_382bea()) == QMessageBox::Yes)
+    {
         clearTableData();
         m_hasResults = false;
         if (m_results) m_results->clearResults();
@@ -1455,6 +1394,8 @@ void MainWindow::retranslate()
         tr_calculate_36f437());
     m_saveBtn->setText(
         tr_save_data_e6059e());
+    m_clearBtn->setText(
+        tr_clear_data_4fcd0d());
     m_importBtn->setText(
         tr_import_data_fbe7a5());
     m_exportBtn->setText(

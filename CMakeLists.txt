@@ -27,6 +27,7 @@ set(SOURCES
 set(HEADERS
     src/appdata.h
     src/translations.h
+    src/themebox.h
     src/mainwindow.h
     src/Datatablewidget.h
     src/ClassicDataTableWidget.h

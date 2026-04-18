@@ -224,6 +224,8 @@ inline QString tr_unusual_stock_increase_closing_97f885() { return T("Unusual st
 inline QString tr_us_dollar_105f33() { return T("US Dollar ($)", "\u062f\u0648\u0644\u0627\u0631 \u0623\u0645\u0631\u064a\u0643\u064a ($)"); }
 inline QString tr_value_dbccfd() { return T("Value", "\u0627\u0644\u0642\u064A\u0645\u0629"); }
 inline QString tr_warnings_5eb706() { return T("Warnings", "تحذيرات"); }
+inline QString tr_yes_abc123() { return T("Yes", "نعم"); }
+inline QString tr_no_def456() { return T("No", "لا"); }
 
 inline QStringList monthNames()
 {
