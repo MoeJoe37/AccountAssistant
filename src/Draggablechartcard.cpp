@@ -90,6 +90,7 @@ static void execCardMenu(DraggableChartCard* self, const QPoint& globalPos)
     QAction* editAct = menu.addAction(tr_edit_chart_9932e2());
     QAction* insertSep = menu.addAction(tr_add_page_separator_below_862284());
     QAction* hideAct = menu.addAction(tr_hide_chart_9ad941());
+    QAction* removeAct = menu.addAction(tr_remove_c3a712());
     QAction* chosen = menu.exec(globalPos);
     if (chosen == editAct) {
         self->editRequested(self->cardIndex());
@@ -97,6 +98,8 @@ static void execCardMenu(DraggableChartCard* self, const QPoint& globalPos)
         self->insertSeparatorRequested(self->flowIndex());
     } else if (chosen == hideAct) {
         self->hideRequested(self->cardIndex());
+    } else if (chosen == removeAct) {
+        self->removeRequested(self->cardIndex());
     }
 }
 

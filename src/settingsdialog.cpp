@@ -103,8 +103,8 @@ SettingsDialog::SettingsDialog(AppLanguage current, bool lightMode,
     auto* langGrp = new QGroupBox(tr_language_31ad2d());
     auto* gl  = new QVBoxLayout(langGrp);
     gl->setSpacing(12);
-    m_en = new QRadioButton("English");
-    m_ar = new QRadioButton("\u0639\u0631\u0628\u064a (Arabic)");
+    m_en = new QRadioButton(tr_english_7e4a3f());
+    m_ar = new QRadioButton(tr_arabic_41c9d8());
     if (current == AppLanguage::English) m_en->setChecked(true);
     else m_ar->setChecked(true);
     gl->addWidget(m_en);

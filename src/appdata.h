@@ -131,6 +131,7 @@ struct AppData {
 
     // Chosen charts for the Results tab and PDF export
     QList<ChartRequest> chartRequests;
+    QList<ChartRequest> hiddenChartRequests;
     QList<ResultFlowItem> resultFlowOrder;
 
     // Computed per-month
@@ -347,7 +348,7 @@ inline QList<double> metricSeriesValues(const AppData& d, MetricId id, QStringLi
 
 inline QString comparisonTitle(MetricId a, MetricId b)
 {
-    return metricDisplayName(a) + QStringLiteral(" vs ") + metricDisplayName(b);
+    return metricDisplayName(a) + tr_vs_6f0b2a() + metricDisplayName(b);
 }
 
 inline QString comparisonTitle(const QList<MetricId>& metrics)

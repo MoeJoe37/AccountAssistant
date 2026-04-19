@@ -30,6 +30,7 @@ public:
 
     QList<QChartView*> allChartViews() const;
     QList<ChartRequest> chartRequests() const;
+    QList<ChartRequest> hiddenChartRequests() const;
     QList<int> monthOrder() const;
     QList<ResultFlowItem> flowOrder() const;
     bool pageLandscape() const { return m_pageLandscape; }
@@ -38,12 +39,14 @@ public:
 
 signals:
     void editChartsRequested();
+    void resultsStateChanged();
 
 private slots:
     void onSwapFlowItems(int fromIdx, int toIdx);
     void onAddSeparatorAfter(int flowIndex);
     void onRemoveSeparator(int separatorId);
     void onHideCard(int cardIndex);
+    void onRemoveCard(int cardIndex);
     void onRestoreHidden(QAction* action);
 
 private:
@@ -57,6 +60,7 @@ private:
     void rebuildFlow();
     void rebuildHiddenMenu();
     void addCard(const ChartRequest& request, QChartView* view);
+    void addHiddenCard(const ChartRequest& request, QChartView* view);
     void ensureDefaultFlowOrder();
     void updatePageMode();
     void rebuildMonthSelectorMenu();
@@ -162,4 +166,5 @@ private:
     QVector<ResultFlowItem> m_flowOrder;
     QHash<int, PageSeparatorCard*> m_separatorCards;
     int m_nextSeparatorId{0};
+    int m_nextCardId{0};
 };

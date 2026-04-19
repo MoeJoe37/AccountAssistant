@@ -30,6 +30,7 @@ private slots:
     void onClearData();
     void onEditCharts();
     void onAccountGraphRequested(ChartKind kind, AccountTypeFilter accountFilter);
+    void syncResultsState();
 
 private:
     void buildUI();
@@ -72,5 +73,6 @@ private:
     AppData m_data;
     bool    m_hasResults{false};
     QList<ChartRequest>   m_lastChartRequests;
+    QList<ChartRequest>   m_lastHiddenChartRequests;
     QList<ResultFlowItem> m_lastFlowOrder;
 };

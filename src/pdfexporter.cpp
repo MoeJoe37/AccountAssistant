@@ -820,7 +820,7 @@ bool PdfExporter::exportToPdf(const QString& path, const AppData& data, const Re
     writer.setPageOrientation(landscape ? QPageLayout::Landscape : QPageLayout::Portrait);
     writer.setResolution(144);
     writer.setCreator(QStringLiteral("Account Assistant"));
-    writer.setTitle(QStringLiteral("Account Assistant Report"));
+    writer.setTitle(tr_account_assistant_report_4d9a7e());
 
     QPainter p;
     if (!p.begin(&writer)) return false;

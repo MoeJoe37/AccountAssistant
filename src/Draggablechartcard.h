@@ -30,6 +30,7 @@ public:
 signals:
     void swapRequested(int fromIdx, int toIdx);
     void hideRequested(int cardIndex);
+    void removeRequested(int cardIndex);
     void insertSeparatorRequested(int afterFlowIndex);
     void editRequested(int cardIndex);
 

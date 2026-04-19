@@ -1033,6 +1033,7 @@ void MainWindow::buildUI()
     {
         m_results = new ResultsWidget;
         connect(m_results, &ResultsWidget::editChartsRequested, this, &MainWindow::onEditCharts);
+        connect(m_results, &ResultsWidget::resultsStateChanged, this, &MainWindow::syncResultsState);
         m_tabs->addTab(m_results, "");
     }
 
@@ -1048,6 +1049,7 @@ void MainWindow::onCalculate()
     AppData working = collectAllData();
     working.calculate();
     working.chartRequests = m_lastChartRequests;
+    working.hiddenChartRequests = m_lastHiddenChartRequests;
     working.resultFlowOrder = m_lastFlowOrder;
 
     ChartSelectionDialog dlg(working, this);
@@ -1061,8 +1063,7 @@ void MainWindow::onCalculate()
 
     if (m_results) {
         m_results->buildResults(m_data);
-        m_lastChartRequests = m_results->chartRequests();
-        m_lastFlowOrder = m_results->flowOrder();
+        syncResultsState();
     }
     m_tabs->setCurrentIndex(2);
 }
@@ -1078,6 +1079,7 @@ void MainWindow::onEditCharts()
 
     AppData working = collectAllData();
     working.chartRequests = m_lastChartRequests;
+    working.hiddenChartRequests = m_lastHiddenChartRequests;
     working.resultFlowOrder = m_lastFlowOrder;
 
     ChartSelectionDialog dlg(working, this);
@@ -1090,8 +1092,7 @@ void MainWindow::onEditCharts()
 
     if (m_results) {
         m_results->buildResults(m_data);
-        m_lastChartRequests = m_results->chartRequests();
-        m_lastFlowOrder = m_results->flowOrder();
+        syncResultsState();
     }
     m_tabs->setCurrentIndex(2);
 }
@@ -1102,6 +1103,7 @@ void MainWindow::onAccountGraphRequested(ChartKind kind, AccountTypeFilter accou
     AppData working = collectAllData();
     working.calculate();
     working.chartRequests = m_lastChartRequests;
+    working.hiddenChartRequests = m_lastHiddenChartRequests;
     working.resultFlowOrder = m_lastFlowOrder;
     m_data = working;
     m_hasResults = true;
@@ -1133,11 +1135,20 @@ void MainWindow::onAccountGraphRequested(ChartKind kind, AccountTypeFilter accou
     }
 
     m_results->appendChart(m_data, req);
+    syncResultsState();
+    m_tabs->setCurrentIndex(2);
+}
+
+void MainWindow::syncResultsState()
+{
+    if (!m_results)
+        return;
     m_data.chartRequests = m_results->chartRequests();
+    m_data.hiddenChartRequests = m_results->hiddenChartRequests();
     m_data.resultFlowOrder = m_results->flowOrder();
     m_lastChartRequests = m_data.chartRequests;
+    m_lastHiddenChartRequests = m_data.hiddenChartRequests;
     m_lastFlowOrder = m_data.resultFlowOrder;
-    m_tabs->setCurrentIndex(2);
 }
 
 void MainWindow::onSaveData()
@@ -1145,7 +1156,7 @@ void MainWindow::onSaveData()
     const QString path = QFileDialog::getSaveFileName(
         this,
         tr_save_data_ee42b8(),
-        QString("AccountData_%1.xlsx").arg(QDateTime::currentDateTime().toString("yyyyMMdd_HHmm")),
+        tr_default_account_data_filename_0aa2f1().arg(QDateTime::currentDateTime().toString("yyyyMMdd_HHmm")),
         tr_excel_workbook_xlsx_all_files_aa27cc());
     if (path.isEmpty()) return;
 
@@ -1198,9 +1209,8 @@ void MainWindow::onExportPdf()
     }
     QString path = QFileDialog::getSaveFileName(this,
         tr_export_to_pdf_bc0791(),
-        QString("AccountReport_%1.pdf")
-            .arg(QDateTime::currentDateTime().toString("yyyyMMdd_HHmm")),
-        "PDF (*.pdf)");
+        tr_default_account_report_filename_6c5a9b().arg(QDateTime::currentDateTime().toString("yyyyMMdd_HHmm")),
+        tr_pdf_file_filter_8e3d1c());
     if (path.isEmpty()) return;
 
     bool ok = PdfExporter::exportToPdf(path, m_data, m_results, m_results->pageLandscape());

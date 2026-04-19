@@ -220,12 +220,18 @@ inline QString tr_total_a52764() { return T("Total", "\u0627\u0644\u0625\u062C\u
 inline QString tr_unable_to_read_the_xlsx_file_cd99e7() { return T("Unable to read the XLSX file.", "تعذر قراءة ملف XLSX."); }
 inline QString tr_unable_to_write_the_xlsx_file_da2b9b() { return T("Unable to write the XLSX file.", "تعذر كتابة ملف XLSX."); }
 inline QString tr_unknown_0240b2() { return T("Unknown", "\u063A\u064A\u0631 \u0645\u0639\u0631\u0648\u0641"); }
-inline QString tr_unusual_stock_increase_closing_97f885() { return T("Unusual stock increase: Closing inventory is greater than opening inventory + purchases.", "زيادة غير معتادة في المخزون: المخزون الختامي أكبر من المخزون الافتتاحي + المشتريات."); }
-inline QString tr_us_dollar_105f33() { return T("US Dollar ($)", "\u062f\u0648\u0644\u0627\u0631 \u0623\u0645\u0631\u064a\u0643\u064a ($)"); }
+inline QString tr_unusual_stock_increase_closing_97f885() { return T("Unusual stock increase: Closing inventory is greater than opening inventory + purchases.", "زيادة غير معتادة في المخزون: مخزون اخر المدة أكبر من مخزون اول المدة + المشتريات."); }inline QString tr_us_dollar_105f33() { return T("US Dollar ($)", "\u062f\u0648\u0644\u0627\u0631 \u0623\u0645\u0631\u064a\u0643\u064a ($)"); }
 inline QString tr_value_dbccfd() { return T("Value", "\u0627\u0644\u0642\u064A\u0645\u0629"); }
 inline QString tr_warnings_5eb706() { return T("Warnings", "تحذيرات"); }
 inline QString tr_yes_abc123() { return T("Yes", "نعم"); }
 inline QString tr_no_def456() { return T("No", "لا"); }
+inline QString tr_english_7e4a3f() { return T("English", "الإنجليزية"); }
+inline QString tr_arabic_41c9d8() { return T("Arabic", "العربية"); }
+inline QString tr_vs_6f0b2a() { return T(" vs ", " مقابل "); }
+inline QString tr_account_assistant_report_4d9a7e() { return T("Account Assistant Report", "تقرير مساعد الحسابات"); }
+inline QString tr_pdf_file_filter_8e3d1c() { return T("PDF (*.pdf)", "PDF (*.pdf)"); }
+inline QString tr_default_account_data_filename_0aa2f1() { return T("AccountData_%1.xlsx", "AccountData_%1.xlsx"); }
+inline QString tr_default_account_report_filename_6c5a9b() { return T("AccountReport_%1.pdf", "AccountReport_%1.pdf"); }
 
 inline QStringList monthNames()
 {

@@ -152,6 +152,41 @@ QTableWidget::item:selected { background:#eef0fa; }
 QLabel#emptyMsg { color:#8aa0c8; font-weight:700; }
 )";
 
+static QString themedPopupMenuStyle()
+{
+    return g_lightMode
+        ? QStringLiteral(
+              "QMenu{background:#ffffff;color:#1e2340;border:1px solid #d9e0ef;padding:4px;}"
+              "QMenu::item{padding:7px 22px;min-width:180px;}"
+              "QMenu::item:selected{background:#eef0fa;color:#1e2340;}"
+              "QMenu::separator{height:1px;background:#e5e8f2;margin:4px 6px;}")
+        : QStringLiteral(
+              "QMenu{background:#1a1f38;color:#e7ecff;border:1px solid #343c63;padding:4px;}"
+              "QMenu::item{padding:7px 22px;min-width:180px;}"
+              "QMenu::item:selected{background:#4f86f7;color:#ffffff;}"
+              "QMenu::separator{height:1px;background:#2b3257;margin:4px 6px;}");
+}
+
+static void applyPopupMenuStyle(QMenu* menu)
+{
+    if (!menu) return;
+    menu->setCursor(Qt::PointingHandCursor);
+    menu->setStyleSheet(themedPopupMenuStyle());
+}
+
+static bool sameChartRequest(const ChartRequest& a, const ChartRequest& b)
+{
+    return a.kind == b.kind
+        && a.metricA == b.metricA
+        && a.metricB == b.metricB
+        && a.compareMetrics == b.compareMetrics
+        && a.title == b.title
+        && a.seriesA == b.seriesA
+        && a.seriesB == b.seriesB
+        && a.months == b.months
+        && a.accountFilter == b.accountFilter;
+}
+
 static QString money(double v)
 {
     return QString("$%L1").arg(v, 0, 'f', 0);
@@ -496,6 +531,7 @@ protected:
     void contextMenuEvent(QContextMenuEvent* e) override
     {
         QMenu menu(this);
+        applyPopupMenuStyle(&menu);
         QAction* insertSep = menu.addAction(tr_add_page_separator_below_862284());
         if (menu.exec(e->globalPos()) == insertSep) {
             emit insertSeparatorRequested(m_flowIndex);
@@ -616,6 +652,7 @@ protected:
     void contextMenuEvent(QContextMenuEvent* e) override
     {
         QMenu menu(this);
+        applyPopupMenuStyle(&menu);
         QAction* removeAct = menu.addAction(tr_remove_page_separator_f78ac7());
         if (menu.exec(e->globalPos()) == removeAct) emit removeRequested(m_separatorId);
     }
@@ -742,6 +779,7 @@ void ResultsWidget::appendChart(const AppData& data, const ChartRequest& request
 
     rebuildFlow();
     rebuildHiddenMenu();
+    emit resultsStateChanged();
 }
 
 void ResultsWidget::clearResults()
@@ -887,6 +925,7 @@ void ResultsWidget::buildResults(const AppData& data)
     m_separatorCards.clear();
     m_flowOrder.clear();
     m_nextSeparatorId = 0;
+    m_nextCardId = 0;
 
     static const QColor kMonthAccents[] = {
         QColor("#4f86f7"), QColor("#f0a500"), QColor("#e05c6a"), QColor("#3ecf8e"),
@@ -905,6 +944,8 @@ void ResultsWidget::buildResults(const AppData& data)
     m_monthCards.last()->setCardIndex(0);
     m_monthCards.last()->setFlowIndex(0);
     m_monthCards.last()->setMonthIndex(-1);
+    connect(m_monthCards.last(), &MonthReportCard::swapRequested, this, &ResultsWidget::onSwapFlowItems);
+    connect(m_monthCards.last(), &MonthReportCard::insertSeparatorRequested, this, &ResultsWidget::onAddSeparatorAfter);
     m_monthOrder.append(0);
 
     const auto months = monthNames();
@@ -919,6 +960,8 @@ void ResultsWidget::buildResults(const AppData& data)
         card->setCardIndex(i + 1);
         card->setFlowIndex(i + 1);
         card->setMonthIndex(i);
+        connect(card, &MonthReportCard::swapRequested, this, &ResultsWidget::onSwapFlowItems);
+        connect(card, &MonthReportCard::insertSeparatorRequested, this, &ResultsWidget::onAddSeparatorAfter);
         m_monthCards.append(card);
         m_monthOrder.append(i + 1);
     }
@@ -937,11 +980,18 @@ void ResultsWidget::buildResults(const AppData& data)
         addCard(req, view);
     }
 
+    for (const auto& req : data.hiddenChartRequests) {
+        QChartView* view = createChartView(data, req);
+        if (!view) continue;
+        addHiddenCard(req, view);
+    }
+
     rebuildMonthSelectorMenu();
     ensureDefaultFlowOrder();
     updatePageMode();
     rebuildFlow();
     rebuildHiddenMenu();
+    emit resultsStateChanged();
 }
 
 
@@ -987,6 +1037,7 @@ QWidget* ResultsWidget::buildReportSection(const AppData& data)
         card->setCardIndex(i);
         card->setMonthIndex(i);
         connect(card, &MonthReportCard::swapRequested, this, &ResultsWidget::onSwapMonthCards);
+        connect(card, &MonthReportCard::insertSeparatorRequested, this, &ResultsWidget::onAddSeparatorAfter);
         m_monthCards.append(card);
     }
 
@@ -1174,8 +1225,10 @@ void ResultsWidget::ensureDefaultFlowOrder()
         seenMonths.insert(idx);
         m_flowOrder.append(ResultFlowItem{ResultFlowItemKind::MonthCard, idx, -1});
     }
-    for (int i = 0; i < m_cards.size(); ++i)
-        m_flowOrder.append(ResultFlowItem{ResultFlowItemKind::ChartCard, i, -1});
+    for (auto* card : m_cards) {
+        if (!card) continue;
+        m_flowOrder.append(ResultFlowItem{ResultFlowItemKind::ChartCard, card->cardIndex(), -1});
+    }
 }
 
 
@@ -1221,18 +1274,55 @@ void ResultsWidget::onSwapMonthCards(int fromIdx, int toIdx)
 void ResultsWidget::addCard(const ChartRequest& request, QChartView* view)
 {
     auto* card = new DraggableChartCard(request.title.isEmpty() ? metricDisplayName(request.metricA) : request.title, view, m_container);
-    card->setCardIndex(m_cards.size());
+    card->setCardIndex(m_nextCardId++);
     connect(card, &DraggableChartCard::swapRequested, this, &ResultsWidget::onSwapFlowItems);
     connect(card, &DraggableChartCard::insertSeparatorRequested, this, &ResultsWidget::onAddSeparatorAfter);
     connect(card, &DraggableChartCard::hideRequested, this, &ResultsWidget::onHideCard);
+    connect(card, &DraggableChartCard::removeRequested, this, &ResultsWidget::onRemoveCard);
     connect(card, &DraggableChartCard::editRequested, this, [this](int) { emit editChartsRequested(); });
     m_cards.append(card);
     m_cardRequests.append(request);
 }
 
+void ResultsWidget::addHiddenCard(const ChartRequest& request, QChartView* view)
+{
+    auto* card = new DraggableChartCard(request.title.isEmpty() ? metricDisplayName(request.metricA) : request.title, view, m_container);
+    card->setCardIndex(m_nextCardId++);
+    connect(card, &DraggableChartCard::swapRequested, this, &ResultsWidget::onSwapFlowItems);
+    connect(card, &DraggableChartCard::insertSeparatorRequested, this, &ResultsWidget::onAddSeparatorAfter);
+    connect(card, &DraggableChartCard::removeRequested, this, &ResultsWidget::onRemoveCard);
+    connect(card, &DraggableChartCard::editRequested, this, [this](int) { emit editChartsRequested(); });
+    card->hide();
+    m_hiddenCards.append(card);
+    m_hiddenRequests.append(request);
+}
+
+static void normalizeSeparatorRuns(QVector<ResultFlowItem>& flow)
+{
+    QVector<ResultFlowItem> cleaned;
+    cleaned.reserve(flow.size());
+
+    for (const auto& item : flow) {
+        if (item.kind == ResultFlowItemKind::PageSeparator) {
+            if (cleaned.isEmpty())
+                continue;
+            if (cleaned.last().kind == ResultFlowItemKind::PageSeparator)
+                continue;
+        }
+        cleaned.append(item);
+    }
+
+    while (!cleaned.isEmpty() && cleaned.last().kind == ResultFlowItemKind::PageSeparator)
+        cleaned.removeLast();
+
+    flow = cleaned;
+}
+
 void ResultsWidget::rebuildFlow()
 {
     if (!m_flowLayout) return;
+
+    normalizeSeparatorRuns(m_flowOrder);
 
     // Keep the saved flow clean so hidden month cards never reappear later.
     QList<ResultFlowItem> filteredFlow;
@@ -1320,7 +1410,6 @@ void ResultsWidget::rebuildGrid()
     }
     const int cols = 2;
     for (int i = 0; i < m_cards.size(); ++i) {
-        m_cards[i]->setCardIndex(i);
         m_cards[i]->setFixedSize(460, 360);
         m_cards[i]->show();
         m_grid->addWidget(m_cards[i], i / cols, i % cols);
@@ -1351,6 +1440,7 @@ void ResultsWidget::onSwapCards(int fromIdx, int toIdx)
     m_cards.swapItemsAt(fromIdx, toIdx);
     m_cardRequests.swapItemsAt(fromIdx, toIdx);
     rebuildGrid();
+    emit resultsStateChanged();
 }
 
 void ResultsWidget::onHideCard(int cardIndex)
@@ -1371,8 +1461,10 @@ void ResultsWidget::onHideCard(int cardIndex)
         }
     }
     card->hide();
+    rebuildGrid();
     rebuildFlow();
     rebuildHiddenMenu();
+    emit resultsStateChanged();
 }
 
 void ResultsWidget::onRestoreHidden(QAction* action)
@@ -1385,12 +1477,48 @@ void ResultsWidget::onRestoreHidden(QAction* action)
     m_cards.append(card);
     m_cardRequests.append(req);
     card->show();
+    rebuildGrid();
     ResultFlowItem item;
     item.kind = ResultFlowItemKind::ChartCard;
     item.index = card->cardIndex();
     m_flowOrder.append(item);
     rebuildFlow();
     rebuildHiddenMenu();
+    emit resultsStateChanged();
+}
+
+void ResultsWidget::onRemoveCard(int cardIndex)
+{
+    int pos = -1;
+    for (int i = 0; i < m_cards.size(); ++i) {
+        if (m_cards[i] && m_cards[i]->cardIndex() == cardIndex) { pos = i; break; }
+    }
+    if (pos >= 0 && pos < m_cards.size()) {
+        auto* card = m_cards.takeAt(pos);
+        m_cardRequests.removeAt(pos);
+        for (int i = 0; i < m_flowOrder.size(); ++i) {
+            if (m_flowOrder[i].kind == ResultFlowItemKind::ChartCard && m_flowOrder[i].index == cardIndex) {
+                m_flowOrder.removeAt(i);
+                break;
+            }
+        }
+        card->deleteLater();
+        rebuildFlow();
+        rebuildGrid();
+        rebuildHiddenMenu();
+        emit resultsStateChanged();
+        return;
+    }
+
+    for (int i = 0; i < m_hiddenCards.size(); ++i) {
+        if (!m_hiddenCards[i] || m_hiddenCards[i]->cardIndex() != cardIndex) continue;
+        auto* card = m_hiddenCards.takeAt(i);
+        m_hiddenRequests.removeAt(i);
+        card->deleteLater();
+        rebuildHiddenMenu();
+        emit resultsStateChanged();
+        return;
+    }
 }
 
 void ResultsWidget::onSwapFlowItems(int fromIdx, int toIdx)
@@ -1399,16 +1527,24 @@ void ResultsWidget::onSwapFlowItems(int fromIdx, int toIdx)
     if (toIdx < 0 || toIdx >= m_flowOrder.size()) return;
     m_flowOrder.swapItemsAt(fromIdx, toIdx);
     rebuildFlow();
+    emit resultsStateChanged();
 }
 
 void ResultsWidget::onAddSeparatorAfter(int flowIndex)
 {
     if (flowIndex < 0 || flowIndex >= m_flowOrder.size()) return;
+    if (m_flowOrder[flowIndex].kind == ResultFlowItemKind::PageSeparator) return;
+
+    const int insertPos = flowIndex + 1;
+    if (insertPos >= m_flowOrder.size()) return;
+    if (m_flowOrder[insertPos].kind == ResultFlowItemKind::PageSeparator) return;
+
     ResultFlowItem sep;
     sep.kind = ResultFlowItemKind::PageSeparator;
     sep.id = ++m_nextSeparatorId;
-    m_flowOrder.insert(flowIndex + 1, sep);
+    m_flowOrder.insert(insertPos, sep);
     rebuildFlow();
+    emit resultsStateChanged();
 }
 
 void ResultsWidget::onRemoveSeparator(int separatorId)
@@ -1424,6 +1560,7 @@ void ResultsWidget::onRemoveSeparator(int separatorId)
         if (w) w->deleteLater();
     }
     rebuildFlow();
+    emit resultsStateChanged();
 }
 
 QList<QChartView*> ResultsWidget::allChartViews() const
@@ -1435,17 +1572,12 @@ QList<QChartView*> ResultsWidget::allChartViews() const
 
 QList<ChartRequest> ResultsWidget::chartRequests() const
 {
-    QList<ChartRequest> list;
-    for (const auto& item : m_flowOrder) {
-        if (item.kind != ResultFlowItemKind::ChartCard || item.index < 0) continue;
-        for (int i = 0; i < m_cards.size() && i < m_cardRequests.size(); ++i) {
-            if (m_cards[i] && m_cards[i]->cardIndex() == item.index) {
-                list << m_cardRequests[i];
-                break;
-            }
-        }
-    }
-    return list;
+    return m_cardRequests;
+}
+
+QList<ChartRequest> ResultsWidget::hiddenChartRequests() const
+{
+    return m_hiddenRequests;
 }
 
 QImage ResultsWidget::renderFlowItemImage(const ResultFlowItem& item) const
