@@ -40,6 +40,147 @@ static const QColor kRowEven ("#f8f9ff");
 static const QColor kRowOdd  ("#ffffff");
 static const QColor kHdrBg   ("#eef0fa");
 
+static const QList<QColor> kPal = {
+    "#4f86f7", "#f0a500", "#e05c6a", "#3ecf8e",
+    "#9b6cf9", "#f06c6c", "#62c4e3", "#b0e96a",
+    "#ff9f43", "#fd79a8", "#00cec9", "#fdcb6e"
+};
+
+static QList<double> normalizePercentValues(const QList<double>& raw)
+{
+    QList<double> out;
+    if (raw.isEmpty()) return out;
+
+    QVector<double> weights;
+    weights.reserve(raw.size());
+    double sum = 0.0;
+    for (double v : raw) {
+        const double w = qAbs(v);
+        weights << w;
+        sum += w;
+    }
+
+    if (sum < 0.0001) {
+        double running = 0.0;
+        const double base = 100.0 / raw.size();
+        for (int i = 0; i < raw.size(); ++i) {
+            const double pct = (i == raw.size() - 1) ? (100.0 - running) : base;
+            out << pct;
+            running += pct;
+        }
+        return out;
+    }
+
+    double running = 0.0;
+    for (int i = 0; i < weights.size(); ++i) {
+        double pct = (weights[i] / sum) * 100.0;
+        if (i == weights.size() - 1)
+            pct = 100.0 - running;
+        out << pct;
+        running += pct;
+    }
+    return out;
+}
+
+static QList<double> displayPercentValues(const QList<double>& exact)
+{
+    QList<double> out;
+    if (exact.isEmpty()) return out;
+
+    QVector<double> remainders;
+    remainders.reserve(exact.size());
+    QVector<int> order(exact.size());
+    int allocated = 0;
+    for (int i = 0; i < exact.size(); ++i) {
+        const double scaled = qMax(0.0, exact[i]) * 10.0;
+        const int base = int(std::floor(scaled + 1e-9));
+        out << (base / 10.0);
+        remainders << (scaled - base);
+        order[i] = i;
+        allocated += base;
+    }
+
+    int remaining = qMax(0, 1000 - allocated);
+    std::stable_sort(order.begin(), order.end(), [&](int a, int b) {
+        if (qFuzzyCompare(remainders[a] + 1.0, remainders[b] + 1.0))
+            return a < b;
+        return remainders[a] > remainders[b];
+    });
+    for (int i = 0; i < remaining; ++i) {
+        const int idx = order[i % order.size()];
+        out[idx] += 0.1;
+    }
+    return out;
+}
+
+static void buildComparePieSlices(const QStringList& names,
+                                  const QList<double>& totals,
+                                  int baseIdx,
+                                  QStringList& outLabels,
+                                  QList<double>& outValues)
+{
+    outLabels.clear();
+    outValues.clear();
+
+    const auto appendTotalMode = [&]() {
+        const QList<double> normalized = normalizePercentValues(totals);
+        for (int i = 0; i < normalized.size(); ++i) {
+            outLabels << names.value(i, QStringLiteral("Series %1").arg(i + 1));
+            outValues << normalized.value(i);
+        }
+    };
+
+    if (totals.isEmpty())
+        return;
+
+    if (baseIdx < 0 || baseIdx >= totals.size()) {
+        appendTotalMode();
+        return;
+    }
+
+    const double baseValue = qAbs(totals.value(baseIdx));
+    QList<double> components;
+    QStringList componentLabels;
+    for (int i = 0; i < totals.size(); ++i) {
+        if (i == baseIdx)
+            continue;
+        components << qAbs(totals.value(i));
+        componentLabels << names.value(i, QStringLiteral("Series %1").arg(i + 1));
+    }
+
+    if (components.isEmpty() || baseValue < 0.0001) {
+        appendTotalMode();
+        return;
+    }
+
+    double sumComponents = 0.0;
+    for (double v : components) sumComponents += v;
+
+    QList<double> percentValues;
+    percentValues.reserve(components.size() + 1);
+    QStringList labels;
+
+    if (sumComponents <= baseValue + 0.0001) {
+        double running = 0.0;
+        for (double v : components) {
+            const double pct = (v / baseValue) * 100.0;
+            percentValues << pct;
+            running += pct;
+        }
+        labels = componentLabels;
+        labels << names.value(baseIdx, QStringLiteral("Series %1").arg(baseIdx + 1));
+        percentValues << qMax(0.0, 100.0 - running);
+    } else {
+        labels = componentLabels;
+        labels << names.value(baseIdx, QStringLiteral("Series %1").arg(baseIdx + 1));
+        percentValues = normalizePercentValues(components);
+        percentValues << 0.0;
+    }
+
+    outLabels = labels;
+    outValues = normalizePercentValues(percentValues);
+}
+
 struct ChartMeta {
     QString title;
     QString type;
@@ -47,6 +188,9 @@ struct ChartMeta {
     QList<double> values;
     QStringList labels2;
     QList<double> values2;
+    QStringList seriesNames;
+    QList<QList<double>> valuesMulti;
+    double referenceValue = 0.0;
     QString nameA;
     QString nameB;
 };
@@ -97,7 +241,8 @@ static ChartMeta metaForRequest(const AppData& d, const ChartRequest& req)
     switch (req.kind) {
     case ChartKind::Pie:
         m.type = "pie";
-        m.values = seriesForMetric(d, req.metricA, &m.labels, months, req.accountFilter);
+        m.values = normalizePercentValues(seriesForMetric(d, req.metricA, &m.labels, months, req.accountFilter));
+        m.referenceValue = 100.0;
         break;
     case ChartKind::Candle:
         if (!req.seriesB.isEmpty()) {
@@ -122,20 +267,50 @@ static ChartMeta metaForRequest(const AppData& d, const ChartRequest& req)
         break;
     case ChartKind::CompareLine:
         m.type = "compareline";
-        m.values = seriesForMetric(d, req.metricA, &m.labels, months, req.accountFilter);
-        m.values2 = seriesForMetric(d, req.metricB, &m.labels2, months, req.accountFilter);
-        if (m.labels2.isEmpty()) m.labels2 = m.labels;
+        if (req.compareMetrics.size() > 2) {
+            for (MetricId id : req.compareMetrics) {
+                QStringList labelsForMetric;
+                const QList<double> values = seriesForMetric(d, id, &labelsForMetric, months, req.accountFilter);
+                if (m.labels.isEmpty()) m.labels = labelsForMetric;
+                m.valuesMulti << values;
+                m.seriesNames << metricDisplayName(id);
+            }
+        } else {
+            m.values = seriesForMetric(d, req.metricA, &m.labels, months, req.accountFilter);
+            m.values2 = seriesForMetric(d, req.metricB, &m.labels2, months, req.accountFilter);
+            if (m.labels2.isEmpty()) m.labels2 = m.labels;
+        }
         break;
     case ChartKind::ComparePie: {
         m.type = "comparepie";
-        const QList<double> a = seriesForMetric(d, req.metricA, &m.labels, months, req.accountFilter);
-        const QList<double> b = seriesForMetric(d, req.metricB, &m.labels2, months, req.accountFilter);
-        double ta = 0.0, tb = 0.0;
-        for (double v : a) ta += qAbs(v);
-        for (double v : b) tb += qAbs(v);
-        m.labels = QStringList{m.nameA, m.nameB};
-        m.values = QList<double>{ta, tb};
-        m.values2.clear();
+        if (req.compareMetrics.size() > 2) {
+            QList<double> totals;
+            QStringList names;
+            for (int i = 0; i < req.compareMetrics.size(); ++i) {
+                const MetricId id = req.compareMetrics[i];
+                QStringList labelsForMetric;
+                const QList<double> values = seriesForMetric(d, id, &labelsForMetric, months, req.accountFilter);
+                double total = 0.0;
+                for (double v : values) total += qAbs(v);
+                names << metricDisplayName(id);
+                totals << total;
+            }
+            const int baseIdx = req.compareMetrics.indexOf(req.comparePieBaseMetric);
+            buildComparePieSlices(names, totals, req.comparePieBaseMetric == M_COUNT ? -1 : baseIdx, m.labels, m.values);
+            m.referenceValue = 100.0;
+        } else {
+            const QList<double> a = seriesForMetric(d, req.metricA, &m.labels, months, req.accountFilter);
+            const QList<double> b = seriesForMetric(d, req.metricB, &m.labels2, months, req.accountFilter);
+            double ta = 0.0, tb = 0.0;
+            for (double v : a) ta += qAbs(v);
+            for (double v : b) tb += qAbs(v);
+            const QStringList names{m.nameA, m.nameB};
+            const QList<double> totals{ta, tb};
+            const int baseIdx = (req.comparePieBaseMetric == req.metricA) ? 0 : (req.comparePieBaseMetric == req.metricB ? 1 : -1);
+            buildComparePieSlices(names, totals, baseIdx, m.labels, m.values);
+            m.referenceValue = 100.0;
+            m.values2.clear();
+        }
         break;
     }
     }
@@ -224,8 +399,10 @@ static QImage renderPieChartPreview(const ChartMeta& meta, const QSize& size)
     double total = 0.0;
     for (double v : meta.values) total += qAbs(v);
     if (total < 0.001) total = 1.0;
+    const QList<double> display = displayPercentValues(meta.values);
 
     QVector<QColor> colors;
+    QStringList legendLabels;
     for (int i = 0; i < meta.labels.size() && i < meta.values.size(); ++i) {
         const double v = qAbs(meta.values[i]);
         if (v < 0.001) continue;
@@ -235,10 +412,11 @@ static QImage renderPieChartPreview(const ChartMeta& meta, const QSize& size)
         sl->setColor(col);
         sl->setBorderColor(kBg);
         sl->setLabelVisible(true);
-        sl->setLabel(QString("%1%").arg(v / total * 100.0, 0, 'f', 1));
         sl->setLabelPosition(QPieSlice::LabelOutside);
         sl->setLabelArmLengthFactor(0.22);
         sl->setLabelColor(kText);
+        sl->setLabel(QString::number(display.value(i), 'f', 1) + QStringLiteral("%"));
+        legendLabels << (meta.labels[i] + QStringLiteral(": ") + QString::number(display.value(i), 'f', 1) + QStringLiteral("%"));
     }
     series->setPieSize(0.74);
 
@@ -264,8 +442,8 @@ static QImage renderPieChartPreview(const ChartMeta& meta, const QSize& size)
     int x = 10;
     painter.setPen(kText);
     painter.setFont(QFont("Segoe UI", 8));
-    for (int i = 0; i < meta.labels.size() && i < colors.size(); ++i) {
-        const QString label = meta.labels[i];
+    for (int i = 0; i < legendLabels.size() && i < colors.size(); ++i) {
+        const QString label = legendLabels[i];
         const int itemW = 12 + painter.fontMetrics().horizontalAdvance(label) + 18;
         if (x + itemW > size.width() - 10)
             break;
@@ -496,17 +674,26 @@ static void drawCandles(QPainter& p, const QRect& rect, const ChartMeta& meta)
 
 static void drawLineCompare(QPainter& p, const QRect& rect, const ChartMeta& meta)
 {
-    if (meta.values.isEmpty() || meta.values2.isEmpty()) return;
+    QList<QList<double>> seriesList = meta.valuesMulti;
+    if (seriesList.isEmpty()) {
+        if (meta.values.isEmpty() || meta.values2.isEmpty()) return;
+        seriesList << meta.values << meta.values2;
+    }
     double maxV = 0.0;
-    for (double v : meta.values) maxV = qMax(maxV, qAbs(v));
-    for (double v : meta.values2) maxV = qMax(maxV, qAbs(v));
+    int maxLen = 0;
+    for (const auto& vals : seriesList) {
+        maxLen = qMax(maxLen, vals.size());
+        for (double v : vals) maxV = qMax(maxV, qAbs(v));
+    }
     if (maxV < 0.001) maxV = 1.0;
     QRect chart = rect.adjusted(16, 16, -16, -16);
     QRect plot(chart.left() + 48, chart.top() + 12, chart.width() - 58, chart.height() - 40);
     p.setPen(QPen(kBorder, 1));
     p.drawRect(plot);
 
-    auto drawSeries = [&](const QList<double>& vals, const QColor& col) {
+    QList<QPair<QString, QColor>> legendItems;
+    auto drawSeries = [&](const QList<double>& vals, const QColor& col, const QString& name) {
+        if (vals.isEmpty()) return;
         QPolygonF poly;
         const int n = vals.size();
         const double step = double(plot.width()) / qMax(1, n - 1);
@@ -520,18 +707,26 @@ static void drawLineCompare(QPainter& p, const QRect& rect, const ChartMeta& met
         p.setBrush(col);
         for (const auto& pt : poly)
             p.drawEllipse(pt, 3, 3);
+        legendItems << qMakePair(name, col);
     };
 
-    drawSeries(meta.values, kAmber);
-    drawSeries(meta.values2, kGreen);
+    if (seriesList.size() > 2) {
+        for (int i = 0; i < seriesList.size(); ++i)
+            drawSeries(seriesList[i], kPal[i % kPal.size()], meta.seriesNames.value(i, QStringLiteral("Series %1").arg(i + 1)));
+    } else {
+        drawSeries(seriesList.value(0), kAmber, meta.nameA.isEmpty() ? tr_series_a_2b8d21() : meta.nameA);
+        drawSeries(seriesList.value(1), kGreen, meta.nameB.isEmpty() ? tr_series_b_b63de0() : meta.nameB);
+    }
+
     p.setPen(kMuted);
     p.setFont(QFont("Segoe UI", 8));
     const int n = qMin(meta.labels.size(), 12);
-    const double step = double(plot.width()) / qMax(1, meta.values.size() - 1);
+    const double step = double(plot.width()) / qMax(1, maxLen - 1);
     for (int i = 0; i < n; ++i) {
         const int x = plot.left() + int(i * step) - 30;
         p.drawText(QRect(x, plot.bottom() + 4, 60, 18), Qt::AlignHCenter, meta.labels.value(i));
     }
+    drawLegendRow(p, QRect(plot.left(), plot.top() - 16, plot.width(), 14), legendItems);
 }
 
 static void drawChartPreview(QPainter& p, const QRect& chartArea, const ChartMeta& meta)

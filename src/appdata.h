@@ -92,6 +92,7 @@ struct ChartRequest {
     MetricId metricA = M_SALES;
     MetricId metricB = M_SALES_RETURN;
     QList<MetricId> compareMetrics;  // Optional ordered list for 3+ metric comparisons.
+    MetricId comparePieBaseMetric = M_COUNT;  // Optional base metric for ComparePie (100%).
     QString title;
     QString seriesA;
     QString seriesB;

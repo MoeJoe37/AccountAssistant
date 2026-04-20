@@ -42,6 +42,7 @@
 #include <QSet>
 #include <QTableWidgetItem>
 #include <algorithm>
+#include <cmath>
 
 using namespace Qt::StringLiterals;
 
@@ -71,6 +72,143 @@ static const QList<QColor> kPal = {
     "#9b6cf9", "#f06c6c", "#62c4e3", "#b0e96a",
     "#ff9f43", "#fd79a8", "#00cec9", "#fdcb6e"
 };
+
+static QList<double> normalizePercentValues(const QList<double>& raw)
+{
+    QList<double> out;
+    if (raw.isEmpty()) return out;
+
+    QVector<double> weights;
+    weights.reserve(raw.size());
+    double sum = 0.0;
+    for (double v : raw) {
+        const double w = qAbs(v);
+        weights << w;
+        sum += w;
+    }
+
+    if (sum < 0.0001) {
+        double running = 0.0;
+        const double base = 100.0 / raw.size();
+        for (int i = 0; i < raw.size(); ++i) {
+            const double pct = (i == raw.size() - 1) ? (100.0 - running) : base;
+            out << pct;
+            running += pct;
+        }
+        return out;
+    }
+
+    double running = 0.0;
+    for (int i = 0; i < weights.size(); ++i) {
+        double pct = (weights[i] / sum) * 100.0;
+        if (i == weights.size() - 1)
+            pct = 100.0 - running;
+        out << pct;
+        running += pct;
+    }
+    return out;
+}
+
+static QList<double> displayPercentValues(const QList<double>& exact)
+{
+    QList<double> out;
+    if (exact.isEmpty()) return out;
+
+    QVector<double> remainders;
+    remainders.reserve(exact.size());
+    QVector<int> order(exact.size());
+    int allocated = 0;
+    for (int i = 0; i < exact.size(); ++i) {
+        const double scaled = qMax(0.0, exact[i]) * 10.0;
+        const int base = int(std::floor(scaled + 1e-9));
+        out << (base / 10.0);
+        remainders << (scaled - base);
+        order[i] = i;
+        allocated += base;
+    }
+
+    int remaining = qMax(0, 1000 - allocated);
+    std::stable_sort(order.begin(), order.end(), [&](int a, int b) {
+        if (qFuzzyCompare(remainders[a] + 1.0, remainders[b] + 1.0))
+            return a < b;
+        return remainders[a] > remainders[b];
+    });
+    for (int i = 0; i < remaining; ++i) {
+        const int idx = order[i % order.size()];
+        out[idx] += 0.1;
+    }
+    return out;
+}
+
+static void buildComparePieSlices(const QStringList& names,
+                                  const QList<double>& totals,
+                                  int baseIdx,
+                                  QStringList& outLabels,
+                                  QList<double>& outValues)
+{
+    outLabels.clear();
+    outValues.clear();
+
+    const auto appendTotalMode = [&]() {
+        const QList<double> normalized = normalizePercentValues(totals);
+        for (int i = 0; i < normalized.size(); ++i) {
+            outLabels << names.value(i, QStringLiteral("Series %1").arg(i + 1));
+            outValues << normalized.value(i);
+        }
+    };
+
+    if (totals.isEmpty())
+        return;
+
+    if (baseIdx < 0 || baseIdx >= totals.size()) {
+        appendTotalMode();
+        return;
+    }
+
+    const double baseValue = qAbs(totals.value(baseIdx));
+    QList<double> components;
+    QStringList componentLabels;
+    for (int i = 0; i < totals.size(); ++i) {
+        if (i == baseIdx)
+            continue;
+        components << qAbs(totals.value(i));
+        componentLabels << names.value(i, QStringLiteral("Series %1").arg(i + 1));
+    }
+
+    if (components.isEmpty() || baseValue < 0.0001) {
+        appendTotalMode();
+        return;
+    }
+
+    double sumComponents = 0.0;
+    for (double v : components) sumComponents += v;
+
+    QList<double> percentValues;
+    percentValues.reserve(components.size() + 1);
+    QStringList labels;
+
+    if (sumComponents <= baseValue + 0.0001) {
+        double running = 0.0;
+        for (double v : components) {
+            const double pct = (v / baseValue) * 100.0;
+            percentValues << pct;
+            running += pct;
+        }
+        labels = componentLabels;
+        labels << names.value(baseIdx, QStringLiteral("Series %1").arg(baseIdx + 1));
+        percentValues << qMax(0.0, 100.0 - running);
+    } else {
+        // The selected non-base metrics exceed the chosen base.
+        // Keep the full set on the chart and normalize the slices to 100%.
+        labels = componentLabels;
+        labels << names.value(baseIdx, QStringLiteral("Series %1").arg(baseIdx + 1));
+        percentValues = normalizePercentValues(components);
+        percentValues << 0.0;
+    }
+
+    outLabels = labels;
+    outValues = normalizePercentValues(percentValues);
+}
 
 static const char* kResultsSSDark = R"(
 QWidget#resultsRoot { background:#0d1020; }
@@ -180,6 +318,7 @@ static bool sameChartRequest(const ChartRequest& a, const ChartRequest& b)
         && a.metricA == b.metricA
         && a.metricB == b.metricB
         && a.compareMetrics == b.compareMetrics
+        && a.comparePieBaseMetric == b.comparePieBaseMetric
         && a.title == b.title
         && a.seriesA == b.seriesA
         && a.seriesB == b.seriesB
@@ -1663,41 +1802,43 @@ QChartView* ResultsWidget::makePieChart(const QString& title,
                                         const QList<double>& values)
 {
     auto* series = new QPieSeries;
-    double total = 0;
-    for (double v : values) total += qAbs(v);
-    if (total < 0.001) total = 1;
+    const QList<double> normalized = normalizePercentValues(values);
+    const QList<double> display = displayPercentValues(normalized);
 
     QColor borderCol = g_lightMode ? QColor("#f4f6fb") : QColor("#0d1020");
-    QList<QColor> sliceColors;
-    for (int i = 0; i < labels.size() && i < values.size(); ++i) {
-        const double v = qAbs(values[i]);
-        if (v < 0.001) continue;
+    QStringList legendLabels;
+    QStringList legendColors;
+    for (int i = 0; i < labels.size() && i < normalized.size(); ++i) {
+        const double v = normalized[i];
+        if (v < 0.001)
+            continue;
         const QColor c = kPal[i % kPal.size()];
         auto* sl = series->append(labels[i], v);
         sl->setColor(c);
         sl->setBorderColor(borderCol);
         sl->setLabelVisible(true);
-        sl->setLabel(QString("%1%").arg(v / total * 100.0, 0, 'f', 1));
         sl->setLabelPosition(QPieSlice::LabelOutside);
-        sl->setLabelArmLengthFactor(0.18);
+        sl->setLabelArmLengthFactor(0.26);
         sl->setLabelColor(g_lightMode ? QColor("#1e2340") : QColor("#ffffff"));
-        sliceColors << c;
+        sl->setLabel(QString::number(display.value(i), 'f', 1) + QStringLiteral("%"));
+        legendLabels << (labels[i] + QStringLiteral(": ") + QString::number(display.value(i), 'f', 1) + QStringLiteral("%"));
+        legendColors << c.name();
         QObject::connect(sl, &QPieSlice::hovered, sl, [sl](bool on) {
             sl->setExploded(on);
         });
     }
 
-    series->setPieSize(0.72);
+    series->setPieSize(0.66);
     auto* chart = new QChart;
     chart->addSeries(series);
     chart->legend()->setVisible(false);
+    chart->setMargins(QMargins(18, 18, 18, 18));
     applyThemeToChart(chart);
     chart->setTitle(title);
 
     auto* view = makeChartView(chart, false);
-    view->setProperty("legendLabels", labels);
-    QStringList colors; for (const auto& c : sliceColors) colors << c.name();
-    view->setProperty("legendColors", colors);
+    view->setProperty("legendLabels", legendLabels);
+    view->setProperty("legendColors", legendColors);
     return view;
 }
 
@@ -2208,31 +2349,39 @@ QChartView* ResultsWidget::makeMultiCompareLineChart(const QString& title,
 
 QChartView* ResultsWidget::makeMultiComparePieChart(const QString& title,
                                                     const QStringList& names,
-                                                    const QList<double>& values)
+                                                    const QList<double>& values,
+                                                    double referenceValue)
 {
+    Q_UNUSED(referenceValue);
     auto* series = new QPieSeries;
-    double total = 0.0;
-    for (double v : values) total += qAbs(v);
-    if (total < 0.0001) total = 1.0;
-    for (int i = 0; i < values.size(); ++i) {
-        auto* sl = series->append(names.value(i, QStringLiteral("Series %1").arg(i + 1)), qAbs(values.value(i)));
-        sl->setColor(kPal[i % kPal.size()]);
+    const QList<double> normalized = normalizePercentValues(values);
+    const QList<double> display = displayPercentValues(normalized);
+    QStringList legendLabels;
+    QStringList legendColors;
+    for (int i = 0; i < normalized.size(); ++i) {
+        const double sliceValue = qAbs(normalized.value(i));
+        if (sliceValue < 0.001)
+            continue;
+        const QColor color = (names.value(i) == tr_remaining_1f3b2a()) ? QColor("#8f97b4") : kPal[i % kPal.size()];
+        auto* sl = series->append(names.value(i, QStringLiteral("Series %1").arg(i + 1)), sliceValue);
+        sl->setColor(color);
         sl->setLabelVisible(true);
-        sl->setLabel(QStringLiteral("%1%").arg(qAbs(values.value(i)) / total * 100.0, 0, 'f', 1));
         sl->setLabelPosition(QPieSlice::LabelOutside);
-        sl->setLabelArmLengthFactor(0.18);
+        sl->setLabelArmLengthFactor(0.28);
         sl->setLabelColor(g_lightMode ? QColor("#1e2340") : QColor("#ffffff"));
+        sl->setLabel(QString::number(display.value(i), 'f', 1) + QStringLiteral("%"));
+        legendLabels << (names.value(i, QStringLiteral("Series %1").arg(i + 1)) + QStringLiteral(": ") + QString::number(display.value(i), 'f', 1) + QStringLiteral("%"));
+        legendColors << color.name();
     }
-    series->setPieSize(0.72);
+    series->setPieSize(0.64);
     auto* chart = new QChart;
     chart->addSeries(series);
+    chart->setMargins(QMargins(18, 18, 18, 18));
     applyChartTheme(chart, title);
-    chart->legend()->setVisible(true);
+    chart->legend()->setVisible(false);
     auto* view = makeChartView(chart, false);
-    view->setProperty("legendLabels", names);
-    QStringList cols;
-    for (int i = 0; i < values.size(); ++i) cols << kPal[i % kPal.size()].name();
-    view->setProperty("legendColors", cols);
+    view->setProperty("legendLabels", legendLabels);
+    view->setProperty("legendColors", legendColors);
     view->setProperty("chartType", "comparepie");
     view->setProperty("chartTitle", title);
     return view;
@@ -2307,7 +2456,8 @@ QChartView* ResultsWidget::makeComparePieChart(const QString& title,
                                                const QString& nameA,
                                                const QString& nameB,
                                                double valueA,
-                                               double valueB)
+                                               double valueB,
+                                               double referenceValue)
 {
     auto* series = new QPieSeries;
     if (valueA == 0 && valueB == 0) {
@@ -2315,18 +2465,20 @@ QChartView* ResultsWidget::makeComparePieChart(const QString& title,
         valueB = 1;
     }
     const double total = qMax(0.0001, qAbs(valueA) + qAbs(valueB));
+    const double reference = referenceValue > 0.0001 ? referenceValue : total;
     auto* a = series->append(nameA, qMax(0.0, valueA));
     auto* b = series->append(nameB, qMax(0.0, valueB));
+    const QList<double> display = normalizePercentValues(QList<double>{qAbs(valueA), qAbs(valueB)});
     a->setLabelVisible(true);
     b->setLabelVisible(true);
-    a->setLabel(QString("%1%").arg(qAbs(valueA) / total * 100.0, 0, 'f', 1));
-    b->setLabel(QString("%1%").arg(qAbs(valueB) / total * 100.0, 0, 'f', 1));
     a->setLabelPosition(QPieSlice::LabelOutside);
     b->setLabelPosition(QPieSlice::LabelOutside);
     a->setLabelArmLengthFactor(0.18);
     b->setLabelArmLengthFactor(0.18);
     a->setLabelColor(g_lightMode ? QColor("#1e2340") : QColor("#ffffff"));
     b->setLabelColor(g_lightMode ? QColor("#1e2340") : QColor("#ffffff"));
+    a->setLabel(QString::number(display.value(0), 'f', 1) + QStringLiteral("%"));
+    b->setLabel(QString::number(display.value(1), 'f', 1) + QStringLiteral("%"));
     const QColor colA = kPal[0];
     const QColor colB = kPal[1];
     a->setColor(colA);
@@ -2372,12 +2524,16 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
             return makeMultiCompareLineChart(title, labels, seriesList, names);
         if (request.kind == ChartKind::ComparePie) {
             QList<double> totals;
-            for (const auto& values : seriesList) {
+            for (int i = 0; i < seriesList.size(); ++i) {
+                const auto& values = seriesList[i];
                 double total = 0.0;
                 for (double v : values) total += qAbs(v);
                 totals << total;
             }
-            return makeMultiComparePieChart(title, names, totals);
+            QStringList pieLabels;
+            QList<double> pieValues;
+            buildComparePieSlices(names, totals, request.comparePieBaseMetric == M_COUNT ? -1 : compareMetrics.indexOf(request.comparePieBaseMetric), pieLabels, pieValues);
+            return makeMultiComparePieChart(title, pieLabels, pieValues, 100.0);
         }
         if (request.kind == ChartKind::Candle)
             return makeMultiCompareCandleChart(title, labels, seriesList, names);
@@ -2409,18 +2565,26 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
                                    request.seriesB.isEmpty() ? metricDisplayName(request.metricB) : request.seriesB);
     case ChartKind::CompareLine:
         b = metricSeriesValues(data, request.metricB, &labels, months, request.accountFilter);
-        return makeCompareLineChart(title, labels, a, b,
-                                    request.seriesA.isEmpty() ? metricDisplayName(request.metricA) : request.seriesA,
-                                    request.seriesB.isEmpty() ? metricDisplayName(request.metricB) : request.seriesB);
+        return makeMultiCompareLineChart(title, labels, QList<QList<double>>{a, b},
+                                         QStringList{
+                                             request.seriesA.isEmpty() ? metricDisplayName(request.metricA) : request.seriesA,
+                                             request.seriesB.isEmpty() ? metricDisplayName(request.metricB) : request.seriesB
+                                         });
     case ChartKind::ComparePie: {
         b = metricSeriesValues(data, request.metricB, &labels, months, request.accountFilter);
         double va = 0.0, vb = 0.0;
         for (double x : a) va += qAbs(x);
         for (double x : b) vb += qAbs(x);
-        return makeComparePieChart(title,
-                                   request.seriesA.isEmpty() ? metricDisplayName(request.metricA) : request.seriesA,
-                                   request.seriesB.isEmpty() ? metricDisplayName(request.metricB) : request.seriesB,
-                                   va, vb);
+        QStringList pieLabels;
+        QList<double> pieValues;
+        const QStringList names{
+            request.seriesA.isEmpty() ? metricDisplayName(request.metricA) : request.seriesA,
+            request.seriesB.isEmpty() ? metricDisplayName(request.metricB) : request.seriesB
+        };
+        const QList<double> totals{va, vb};
+        const int baseIdx = (request.comparePieBaseMetric == request.metricA) ? 0 : (request.comparePieBaseMetric == request.metricB ? 1 : -1);
+        buildComparePieSlices(names, totals, baseIdx, pieLabels, pieValues);
+        return makeMultiComparePieChart(title, pieLabels, pieValues, 100.0);
     }
     }
     return nullptr;

@@ -1,5 +1,6 @@
 #pragma once
 #include <QDialog>
+#include <QEvent>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QFrame>
@@ -13,6 +14,7 @@
 #include "appdata.h"
 
 class QAction;
+class QLabel;
 class ChartSelectionDialog : public QDialog
 {
     Q_OBJECT
@@ -44,6 +46,8 @@ private:
         QMenu*       moreMenu{};
         QVector<QAction*> moreActions;
         QList<MetricId> moreMetrics;
+        QComboBox*   countAs100{};
+        MetricId     comparePieBase{M_COUNT};
         QComboBox*   type{};
         QToolButton* monthBtn{};
         QMenu*       monthMenu{};
@@ -55,15 +59,20 @@ private:
     QVector<CompareRow>   m_compareRows;
     QVBoxLayout*          m_metricLayout{};
     QVBoxLayout*          m_compareLayout{};
+    QLabel*               m_comparePieBaseHdr{};
 
     void buildUI(const AppData& data);
     void appendMetricRow(MetricId id, ChartKind kind, const QList<int>& months = {}, int insertAt = -1);
     void removeMetricRow(int rowIndex);
     void syncMonthButton(MetricRow& row);
     QList<int> selectedMonths(const MetricRow& row) const;
-    void appendCompareRow(const ChartRequest* preset = nullptr);
+    void appendCompareRow(const ChartRequest* preset = nullptr, int insertAt = -1);
     void removeCompareRow(int rowIndex);
+    void duplicateCompareRow(int rowIndex);
     QList<int> selectedMonths(const CompareRow& row) const;
     QList<MetricId> selectedCompareMetrics(const CompareRow& row) const;
+    bool eventFilter(QObject* watched, QEvent* event) override;
     void syncCompareMoreButton(CompareRow& row);
+    void syncComparePieBaseControls(CompareRow& row);
+    void syncComparePieBaseVisibility();
 };

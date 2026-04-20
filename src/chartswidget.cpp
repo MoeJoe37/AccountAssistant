@@ -341,10 +341,10 @@ QChartView* ChartsWidget::makePie(const QString& title,
         slice->setColor(c);
         sliceColors << c;
         slice->setLabelVisible(true);
-        slice->setLabel(QString("%1%").arg(val / total * 100.0, 0, 'f', 1));
         slice->setLabelPosition(QPieSlice::LabelOutside);
         slice->setLabelArmLengthFactor(0.18);
         slice->setLabelColor(Qt::white);
+        slice->setLabel(QString::number((val / total) * 100.0, 'f', 1) + QStringLiteral("%"));
     }
 
     series->setPieSize(0.72);

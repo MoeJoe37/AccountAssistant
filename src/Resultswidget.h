@@ -113,10 +113,12 @@ private:
                                            const QString& nameA,
                                            const QString& nameB,
                                            double valueA,
-                                           double valueB);
+                                           double valueB,
+                                           double referenceValue = 0.0);
     static QChartView* makeMultiComparePieChart(const QString& title,
                                                 const QStringList& names,
-                                                const QList<double>& values);
+                                                const QList<double>& values,
+                                                double referenceValue = 0.0);
 
     static void applyChartTheme(QChart* chart, const QString& title);
 

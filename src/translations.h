@@ -68,6 +68,7 @@ inline QString tr_cost_of_goods_sold_6e7684() { return T("Cost of Goods Sold", "
 inline QString tr_currency_88f072() { return T("Currency", "\u0627\u0644\u0639\u0645\u0644\u0629"); }
 inline QString tr_custom_comparisons_63300f() { return T("Custom comparisons", "المقارنات المخصصة"); }
 inline QString tr_more_metrics_000000() { return T("More metrics", "المزيد من المقاييس"); }
+inline QString tr_count_as_100_percent_4b3a11() { return T("Count as 100%", "احتسابها 100%"); }
 inline QString tr_data_breakdown_b66bb7() { return T("Data breakdown", "\u062A\u0641\u0627\u0635\u064A\u0644 \u0627\u0644\u0628\u064A\u0627\u0646\u0627\u062A"); }
 inline QString tr_data_entry_a353ce() { return T("  ⊞  Data Entry  ", "  ⊞  إدخال البيانات  "); }
 inline QString tr_data_entry_e7b5c0() { return T("Data Entry", "إدخال البيانات"); }
@@ -217,6 +218,7 @@ inline QString tr_timeline_22644f() { return T("Timeline", "الزمن"); }
 inline QString tr_timeline_7ab9a0() { return T("Timeline", "\u0627\u0644\u0632\u0645\u0646"); }
 inline QString tr_title_c1c427() { return T("Title", "العنوان"); }
 inline QString tr_total_a52764() { return T("Total", "\u0627\u0644\u0625\u062C\u0645\u0627\u0644\u064A"); }
+inline QString tr_remaining_1f3b2a() { return T("Remaining", "\u0627\u0644\u0645\u062A\u0628\u0642\u064A"); }
 inline QString tr_unable_to_read_the_xlsx_file_cd99e7() { return T("Unable to read the XLSX file.", "تعذر قراءة ملف XLSX."); }
 inline QString tr_unable_to_write_the_xlsx_file_da2b9b() { return T("Unable to write the XLSX file.", "تعذر كتابة ملف XLSX."); }
 inline QString tr_unknown_0240b2() { return T("Unknown", "\u063A\u064A\u0631 \u0645\u0639\u0631\u0648\u0641"); }
