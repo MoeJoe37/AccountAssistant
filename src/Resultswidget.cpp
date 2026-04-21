@@ -40,7 +40,6 @@
 #include <QAbstractItemView>
 #include <QSizePolicy>
 #include <QSet>
-#include <QMap>
 #include <QTableWidgetItem>
 #include <algorithm>
 #include <cmath>
@@ -209,70 +208,6 @@ static void buildComparePieSlices(const QStringList& names,
 
     outLabels = labels;
     outValues = normalizePercentValues(percentValues);
-}
-
-static bool isSupplierCompareMetric(MetricId id)
-{
-    return id == M_SUPPLIER_NAME || id == M_PURCHASES || id == M_SUPPLIER_PAYMENTS;
-}
-
-static bool usesSupplierComparisonSeries(const ChartRequest& request)
-{
-    if (!(request.kind == ChartKind::CompareBar || request.kind == ChartKind::CompareLine
-          || request.kind == ChartKind::ComparePie || request.kind == ChartKind::Candle))
-        return false;
-
-    QList<MetricId> metrics = request.compareMetrics;
-    if (metrics.size() < 2) {
-        metrics << request.metricA << request.metricB;
-    }
-    if (metrics.isEmpty())
-        return false;
-    for (MetricId id : metrics) {
-        if (!isSupplierCompareMetric(id))
-            return false;
-    }
-    return true;
-}
-
-static QList<double> supplierComparisonSeriesValues(const AppData& data, MetricId id, QStringList* labels)
-{
-    if (labels)
-        labels->clear();
-
-    QStringList order;
-    QMap<QString, double> purchasesBySupplier;
-    QMap<QString, double> paymentsBySupplier;
-    for (int i = 0; i < 12; ++i) {
-        QString supplier = data.suppliers[i].supplierName.trimmed();
-        double purchases = data.suppliers[i].purchases;
-        double payments = data.suppliers[i].payments;
-        if (supplier.isEmpty()) {
-            supplier = data.months[i].supplierName.trimmed();
-            purchases = data.months[i].supplierPurchases;
-            payments = data.months[i].supplierPayments;
-        }
-        if (supplier.isEmpty())
-            continue;
-        if (!order.contains(supplier))
-            order << supplier;
-        purchasesBySupplier[supplier] += purchases;
-        paymentsBySupplier[supplier] += payments;
-    }
-
-    QList<double> values;
-    for (const QString& supplier : order) {
-        if (id == M_PURCHASES) {
-            values << purchasesBySupplier.value(supplier);
-        } else if (id == M_SUPPLIER_PAYMENTS) {
-            values << paymentsBySupplier.value(supplier);
-        } else {
-            values << (purchasesBySupplier.value(supplier) + paymentsBySupplier.value(supplier));
-        }
-    }
-    if (labels)
-        *labels = order;
-    return values;
 }
 
 static const char* kResultsSSDark = R"(
@@ -592,7 +527,7 @@ public:
         setAcceptDrops(true);
         setCursor(Qt::OpenHandCursor);
         setStyleSheet(g_lightMode ? kMonthCardSSLight : kMonthCardSSDark);
-        setFixedHeight(mode == InventoryMode::Ongoing ? 120 : 168);
+        setFixedHeight(168);
         hide();
         
         auto* root = new QVBoxLayout(this);
@@ -647,25 +582,16 @@ public:
             grid->addWidget(box, row, col);
         };
 
-        if (mode == InventoryMode::Ongoing) {
-            // Ongoing mode: 1 row — Profit Margin | Net Sales
-            makeMetric(m_profitLabel, 0, 0, tr_profit_margin_ec3b22(), money(profit),
-                       profit >= 0 ? QColor("#3ecf8e") : QColor("#e05c6a"));
-            makeMetric(m_netLabel, 0, 1, tr_net_sales_23a2f1(), money(netSales),
-                       netSales >= 0 ? QColor("#3ecf8e") : QColor("#e05c6a"));
-        } else {
-            // Periodic mode: 2 rows — Net Sales | COGS / Profit | spacer
-            makeMetric(m_netLabel, 0, 0, tr_net_sales_23a2f1(), money(netSales),
-                       netSales >= 0 ? QColor("#3ecf8e") : QColor("#e05c6a"));
-            makeMetric(m_cogsLabel, 0, 1, tr_cogs_d716f1(), money(cogs), QColor("#f0a500"));
-            makeMetric(m_profitLabel, 1, 0, tr_profit_margin_ec3b22(), money(profit),
-                       profit >= 0 ? QColor("#3ecf8e") : QColor("#e05c6a"));
-            auto* spacer = new QFrame;
-            spacer->setObjectName("metricBox");
-            spacer->setAttribute(Qt::WA_TransparentForMouseEvents, true);
-            spacer->setStyleSheet("background:transparent;border:none;");
-            grid->addWidget(spacer, 1, 1);
-        }
+        makeMetric(m_netLabel, 0, 0, tr_net_sales_23a2f1(), money(netSales),
+                   netSales >= 0 ? QColor("#3ecf8e") : QColor("#e05c6a"));
+        makeMetric(m_cogsLabel, 0, 1, tr_cogs_d716f1(), money(cogs), QColor("#f0a500"));
+        makeMetric(m_profitLabel, 1, 0, tr_profit_margin_ec3b22(), money(profit),
+                   profit >= 0 ? QColor("#3ecf8e") : QColor("#e05c6a"));
+        auto* spacer = new QFrame;
+        spacer->setObjectName("metricBox");
+        spacer->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+        spacer->setStyleSheet("background:transparent;border:none;");
+        grid->addWidget(spacer, 1, 1);
 
         root->addLayout(grid);
 
@@ -690,7 +616,7 @@ public:
             }
         }
         if (m_netLabel)    m_netLabel->setText(tr_net_sales_23a2f1());
-        if (m_cogsLabel && m_mode == InventoryMode::Periodic)
+        if (m_cogsLabel)
             m_cogsLabel->setText(tr_cogs_d716f1());
         if (m_profitLabel) m_profitLabel->setText(tr_profit_margin_ec3b22());
     }
@@ -1104,7 +1030,7 @@ void ResultsWidget::retranslate()
     if (m_sumNetSalesTitle) m_sumNetSalesTitle->setText(tr_net_sales_e81e65());
     if (m_sumCOGSTitle)     m_sumCOGSTitle->setText(tr_cogs_d716f1());
     if (m_sumProfitTitle)   m_sumProfitTitle->setText(tr_profit_margin_dafda2());
-    if (m_sumCOGSCard)      m_sumCOGSCard->setVisible(m_lastMode == InventoryMode::Periodic);
+    if (m_sumCOGSCard)      m_sumCOGSCard->setVisible(true);
 
     if (m_hiddenBtn) m_hiddenBtn->setText(tr_hidden_charts_7e1497());
 
@@ -1153,7 +1079,7 @@ void ResultsWidget::buildResults(const AppData& data)
     setStyleSheet(g_lightMode ? kResultsSSLight : kResultsSSDark);
     m_lastMode = data.inventoryMode;
     if (m_modeLabel) m_modeLabel->setText(m_lastMode == InventoryMode::Ongoing ? tr_ongoing_inventory_4f9f2c() : tr_periodic_inventory_8a4f19());
-    if (m_sumCOGSCard) m_sumCOGSCard->setVisible(m_lastMode == InventoryMode::Periodic);
+    if (m_sumCOGSCard) m_sumCOGSCard->setVisible(true);
     if (m_hiddenBtn) m_hiddenBtn->setEnabled(false);
 
     clearResults();
@@ -2624,19 +2550,28 @@ QChartView* ResultsWidget::makeComparePieChart(const QString& title,
     return view;
 }
 
+static void appendSummaryLabel(QStringList& labels)
+{
+    labels << T("Summary", "الملخص");
+}
+
+static void appendSummaryValue(QList<double>& values)
+{
+    if (values.isEmpty())
+        return;
+    double total = 0.0;
+    for (double v : values) total += v;
+    values << total;
+}
+
 QChartView* ResultsWidget::createChartView(const AppData& data, const ChartRequest& request)
 {
-    const auto seriesValues = [&](MetricId id, QStringList* outLabels) {
-        if (usesSupplierComparisonSeries(request))
-            return supplierComparisonSeriesValues(data, id, outLabels);
-        const QList<int>* monthsFilter = request.months.isEmpty() ? nullptr : &request.months;
-        return metricSeriesValues(data, id, outLabels, monthsFilter, request.accountFilter);
-    };
-
     QStringList labels;
-    QList<double> a = seriesValues(request.metricA, &labels);
+    const QList<int>* months = request.months.isEmpty() ? nullptr : &request.months;
+    QList<double> a = metricSeriesValues(data, request.metricA, &labels, months, request.accountFilter);
     QList<double> b;
     QString title = request.title.isEmpty() ? metricDisplayName(request.metricA) : request.title;
+    const bool includeSummaryPoint = request.includeSummaryPoint && request.kind != ChartKind::Pie && request.kind != ChartKind::ComparePie;
 
     QList<MetricId> compareMetrics = request.compareMetrics;
     if (compareMetrics.size() < 2 && (request.kind == ChartKind::CompareBar || request.kind == ChartKind::CompareLine || request.kind == ChartKind::ComparePie || request.kind == ChartKind::Candle)) {
@@ -2649,18 +2584,22 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
         QStringList names;
         for (MetricId id : compareMetrics) {
             QStringList labelsForMetric;
-            const QList<double> values = seriesValues(id, &labelsForMetric);
+            QList<double> values = metricSeriesValues(data, id, &labelsForMetric, months, request.accountFilter);
             if (labels.isEmpty())
                 labels = labelsForMetric;
             seriesList << values;
             names << metricDisplayName(id);
         }
+        if (includeSummaryPoint) {
+            appendSummaryLabel(labels);
+            for (auto& values : seriesList)
+                appendSummaryValue(values);
+        }
         if (request.kind == ChartKind::CompareLine)
             return makeMultiCompareLineChart(title, labels, seriesList, names);
         if (request.kind == ChartKind::ComparePie) {
             QList<double> totals;
-            for (int i = 0; i < seriesList.size(); ++i) {
-                const auto& values = seriesList[i];
+            for (const auto& values : seriesList) {
                 double total = 0.0;
                 for (double v : values) total += qAbs(v);
                 totals << total;
@@ -2680,33 +2619,66 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
         return makePieChart(title, labels, a);
     case ChartKind::Candle:
         if (!request.seriesB.isEmpty()) {
-            b = seriesValues(request.metricB, &labels);
+            QStringList labelsB;
+            b = metricSeriesValues(data, request.metricB, &labelsB, months, request.accountFilter);
+            if (includeSummaryPoint) {
+                appendSummaryLabel(labels);
+                appendSummaryValue(a);
+                appendSummaryValue(b);
+            }
             return makeCompareCandleChart(title, labels, a, b,
                                           request.seriesA.isEmpty() ? metricDisplayName(request.metricA) : request.seriesA,
                                           request.seriesB.isEmpty() ? metricDisplayName(request.metricB) : request.seriesB);
+        }
+        if (includeSummaryPoint) {
+            appendSummaryLabel(labels);
+            appendSummaryValue(a);
         }
         if (request.metricA == M_EXPENSES)
             return makeRankedBarChart(title, labels, a);
         return makeCandleChart(title, labels, a);
     case ChartKind::RankedBar:
     case ChartKind::MetricBar:
+        if (includeSummaryPoint) {
+            appendSummaryLabel(labels);
+            appendSummaryValue(a);
+        }
         return makeRankedBarChart(title, labels, a);
     case ChartKind::MetricLine:
+        if (includeSummaryPoint) {
+            appendSummaryLabel(labels);
+            appendSummaryValue(a);
+        }
         return makeSingleLineChart(title, labels, a);
-    case ChartKind::CompareBar:
-        b = seriesValues(request.metricB, &labels);
+    case ChartKind::CompareBar: {
+        QStringList labelsB;
+        b = metricSeriesValues(data, request.metricB, &labelsB, months, request.accountFilter);
+        if (includeSummaryPoint) {
+            appendSummaryLabel(labels);
+            appendSummaryValue(a);
+            appendSummaryValue(b);
+        }
         return makeCompareBarChart(title, labels, a, b,
                                    request.seriesA.isEmpty() ? metricDisplayName(request.metricA) : request.seriesA,
                                    request.seriesB.isEmpty() ? metricDisplayName(request.metricB) : request.seriesB);
-    case ChartKind::CompareLine:
-        b = seriesValues(request.metricB, &labels);
+    }
+    case ChartKind::CompareLine: {
+        QStringList labelsB;
+        b = metricSeriesValues(data, request.metricB, &labelsB, months, request.accountFilter);
+        if (includeSummaryPoint) {
+            appendSummaryLabel(labels);
+            appendSummaryValue(a);
+            appendSummaryValue(b);
+        }
         return makeMultiCompareLineChart(title, labels, QList<QList<double>>{a, b},
                                          QStringList{
                                              request.seriesA.isEmpty() ? metricDisplayName(request.metricA) : request.seriesA,
                                              request.seriesB.isEmpty() ? metricDisplayName(request.metricB) : request.seriesB
                                          });
+    }
     case ChartKind::ComparePie: {
-        b = seriesValues(request.metricB, &labels);
+        QStringList labelsB;
+        b = metricSeriesValues(data, request.metricB, &labelsB, months, request.accountFilter);
         double va = 0.0, vb = 0.0;
         for (double x : a) va += qAbs(x);
         for (double x : b) vb += qAbs(x);
@@ -2724,6 +2696,7 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
     }
     return nullptr;
 }
+
 
 
 #include "Resultswidget.moc"

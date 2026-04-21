@@ -32,6 +32,7 @@ private:
         QToolButton* monthsBtn{};
         QMenu*     monthsMenu{};
         QVector<QAction*> monthActions;
+        QCheckBox* summaryCheck{};
         QPushButton* duplicateBtn{};
         QPushButton* removeBtn{};
     };
@@ -39,7 +40,6 @@ private:
     struct CompareRow {
         QFrame*      frame{};
         QVBoxLayout* layout{};
-        CompareGroup group{CompareGroup::General};
         QCheckBox*   enabled{};
         QComboBox*   left{};
         QComboBox*   right{};
@@ -53,6 +53,7 @@ private:
         QToolButton* monthBtn{};
         QMenu*       monthMenu{};
         QVector<QAction*> monthActions;
+        QCheckBox*   summaryCheck{};
         QLineEdit*   title{};
     };
 

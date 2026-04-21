@@ -656,6 +656,25 @@ static QList<AccountItem> parseAccountsSheet(const QByteArray& sheet)
     return accounts;
 }
 
+
+static bool appDataHasUserEntries(const AppData& d)
+{
+    for (const auto& m : d.months) {
+        if (m.sales != 0.0 || m.salesReturn != 0.0 || m.supplierPurchases != 0.0 || m.supplierPayments != 0.0
+            || m.expenseAmount != 0.0 || m.inventoryFirst != 0.0 || m.inventoryLast != 0.0 || m.cogsInput != 0.0
+            || !m.supplierName.trimmed().isEmpty() || !m.expenseAccount.trimmed().isEmpty())
+            return true;
+    }
+    for (const auto& s : d.suppliers) {
+        if (s.purchases != 0.0 || s.payments != 0.0 || !s.supplierName.trimmed().isEmpty())
+            return true;
+    }
+    for (const auto& a : d.accounts) {
+        if (a.amount != 0.0 || !a.name.trimmed().isEmpty())
+            return true;
+    }
+    return false;
+}
 static bool loadAppDataXlsx(const QString& path, AppData* data)
 {
     if (!data) return false;
@@ -1225,24 +1244,66 @@ void MainWindow::syncResultsState()
 void MainWindow::onInventoryModeChanged(int index)
 {
     const InventoryMode mode = index == 1 ? InventoryMode::Ongoing : InventoryMode::Periodic;
-    if (m_table)
-        m_table->setInventoryMode(mode);
+    const AppData current = collectAllData();
+    if (current.inventoryMode == mode)
+        return;
 
-    AppData d = collectAllData();
+    if (appDataHasUserEntries(current)) {
+        QMessageBox box(QMessageBox::Warning,
+                        T("Switch inventory mode", "تبديل وضع الجرد"),
+                        T("Switching the inventory mode will clear the current data.", "تبديل وضع الجرد سيؤدي إلى مسح البيانات الحالية."),
+                        QMessageBox::NoButton,
+                        this);
+        box.setInformativeText(T("Choose how to continue.", "اختر كيف تريد المتابعة."));
+        QPushButton* clearBtn = box.addButton(T("Clear them", "مسحها"), QMessageBox::DestructiveRole);
+        QPushButton* saveClearBtn = box.addButton(T("Save data and clear", "حفظ البيانات ومسحها"), QMessageBox::AcceptRole);
+        QPushButton* cancelBtn = box.addButton(T("Cancel", "إلغاء"), QMessageBox::RejectRole);
+        box.setDefaultButton(cancelBtn);
+        box.setStyleSheet(ThemeBox::style());
+        box.exec();
+
+        if (box.clickedButton() == cancelBtn || !box.clickedButton()) {
+            if (m_inventoryModeCombo) {
+                QSignalBlocker blocker(m_inventoryModeCombo);
+                m_inventoryModeCombo->setCurrentIndex(int(current.inventoryMode));
+            }
+            return;
+        }
+
+        if (box.clickedButton() == saveClearBtn) {
+            const QString path = QFileDialog::getSaveFileName(
+                this,
+                tr_save_data_ee42b8(),
+                tr_default_account_data_filename_0aa2f1().arg(QDateTime::currentDateTime().toString("yyyyMMdd_HHmm")),
+                tr_excel_workbook_xlsx_all_files_aa27cc());
+            if (path.isEmpty()) {
+                if (m_inventoryModeCombo) {
+                    QSignalBlocker blocker(m_inventoryModeCombo);
+                    m_inventoryModeCombo->setCurrentIndex(int(current.inventoryMode));
+                }
+                return;
+            }
+            if (!saveAppDataXlsx(path, current)) {
+                ThemeBox::critical(this, tr_save_data_ee42b8(), tr_unable_to_write_the_xlsx_file_da2b9b());
+                if (m_inventoryModeCombo) {
+                    QSignalBlocker blocker(m_inventoryModeCombo);
+                    m_inventoryModeCombo->setCurrentIndex(int(current.inventoryMode));
+                }
+                return;
+            }
+        }
+
+        clearTableData();
+        m_hasResults = false;
+        if (m_results)
+            m_results->clearResults();
+    }
+
+    AppData d;
     d.inventoryMode = mode;
     d.calculate();
     setTableData(d);
-
     m_data = d;
-    if (m_hasResults) {
-        // Preserve the selected charts and visible flow when refreshing the mode.
-        m_data.chartRequests = m_results ? m_results->chartRequests() : m_data.chartRequests;
-        m_data.hiddenChartRequests = m_results ? m_results->hiddenChartRequests() : m_data.hiddenChartRequests;
-        m_data.resultFlowOrder = m_results ? m_results->flowOrder() : m_data.resultFlowOrder;
-    }
-
-    if (m_results)
-        m_results->buildResults(m_data);
 }
 
 void MainWindow::onSaveData()

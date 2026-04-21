@@ -85,8 +85,6 @@ void SupplierMonthCard::buildHeader()
 SupplierSpinBox* SupplierMonthCard::makeSpin()
 {
     auto* s = new SupplierSpinBox;
-    s->setMinimumWidth(220);
-    s->updatePrefix();
     s->setStyleSheet(g_lightMode ? kSpinLt : kSpinDk);
     return s;
 }
@@ -129,7 +127,6 @@ void SupplierMonthCard::buildContent()
     vl->setSpacing(12);
 
     m_nameEdit = new QLineEdit;
-    m_nameEdit->setMinimumWidth(280);
     m_purchases = makeSpin();
     m_payments = makeSpin();
 
@@ -141,11 +138,11 @@ void SupplierMonthCard::buildContent()
     cols->setSpacing(12);
     cols->addWidget(makeColumn(tr_suppliers_7beff3(), {
         makeFieldRow(tr_supplier_name_5c7e41(), m_nameEdit)
-    }), 3);
+    }));
     cols->addWidget(makeColumn(tr_suppliers_7beff3(), {
         makeFieldRow(tr_supplier_purchases_f5a1cd(), m_purchases),
         makeFieldRow(tr_supplier_payments_eeef31(), m_payments)
-    }), 4);
+    }));
     vl->addLayout(cols);
 }
 
@@ -213,7 +210,6 @@ void SupplierMonthCard::retranslate()
 {
     const QStringList names = monthNames();
     m_monthLabel->setText(names.value(m_monthIndex));
-    updateCurrencyPrefix();
 
     const QList<QLabel*> titles = m_content->findChildren<QLabel*>("sectionTitle");
     if (titles.size() >= 2) {
@@ -264,7 +260,6 @@ SuppliersWidget::SuppliersWidget(QWidget* parent) : QWidget(parent)
     }
     vl->addStretch();
     m_scroll->setWidget(container);
-    updateCurrencyPrefix();
     root->addWidget(m_scroll);
     applyTheme();
     retranslate();
