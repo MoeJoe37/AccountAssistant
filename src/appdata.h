@@ -100,6 +100,12 @@ enum class InventoryMode {
     Ongoing = 1
 };
 
+enum class CompareGroup {
+    General = 0,
+    Accounts = 1,
+    Suppliers = 2
+};
+
 struct ChartRequest {
     ChartKind kind = ChartKind::Candle;
     MetricId metricA = M_SALES;

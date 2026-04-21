@@ -38,6 +38,7 @@ private:
 
     struct CompareRow {
         QFrame*      frame{};
+        QVBoxLayout* layout{};
         QCheckBox*   enabled{};
         QComboBox*   left{};
         QComboBox*   right{};
@@ -54,11 +55,15 @@ private:
         QLineEdit*   title{};
     };
 
-    QVector<MetricRow>   m_metricRows;
+    QVector<MetricRow>    m_metricRows;
     QVector<CompareRow>   m_compareRows;
     QVBoxLayout*          m_metricLayout{};
     QVBoxLayout*          m_compareLayout{};
+    QVBoxLayout*          m_compareGeneralLayout{};
+    QVBoxLayout*          m_compareAccountsLayout{};
+    QVBoxLayout*          m_compareSuppliersLayout{};
     QLabel*               m_comparePieBaseHdr{};
+    CompareGroup          m_nextCompareGroup{CompareGroup::General};
 
     void buildUI(const AppData& data);
     void appendMetricRow(MetricId id, ChartKind kind, const QList<int>& months = {}, int insertAt = -1);

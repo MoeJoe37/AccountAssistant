@@ -185,6 +185,13 @@ QPushButton#addBtn {
     border-radius:8px; min-height:36px; padding:0 20px;
 }
 QPushButton#addBtn:hover { background:#141829; border-color:#4f86f7; }
+QPushButton#sectionAddBtn {
+    background:#252d4a; color:#c8d0ed;
+    border:1px solid #3a4470; border-radius:6px;
+    padding:5px 10px; min-height:26px;
+    font-weight:700;
+}
+QPushButton#sectionAddBtn:hover { border-color:#4f86f7; background:#293252; }
 QPushButton#metricSelBtn {
     background:#252d4a; color:#c8d0ed;
     border:1px solid #3a4470; border-radius:6px;
@@ -292,6 +299,13 @@ QPushButton#addBtn {
     border-radius:8px; min-height:36px; padding:0 20px;
 }
 QPushButton#addBtn:hover { background:#eef1fb; border-color:#4f86f7; }
+QPushButton#sectionAddBtn {
+    background:#ffffff; color:#1e2340;
+    border:1px solid #cfd7ea; border-radius:6px;
+    padding:5px 10px; min-height:26px;
+    font-weight:700;
+}
+QPushButton#sectionAddBtn:hover { border-color:#4f86f7; background:#eef1fb; }
 QPushButton#metricSelBtn {
     background:#ffffff; color:#1e2340;
     border:1px solid #cfd7ea; border-radius:6px;
@@ -420,6 +434,50 @@ static bool isSupplierMetric(MetricId id)
     return id == M_PURCHASES || id == M_SUPPLIER_PAYMENTS;
 }
 
+static bool isAccountMetric(MetricId id)
+{
+    return id == M_EXPENSES || id == M_EXPENSE_AMOUNT || id == M_INVENTORY_OPENING || id == M_INVENTORY_CLOSING;
+}
+
+static CompareGroup compareGroupForMetric(MetricId id)
+{
+    if (isSupplierMetric(id))
+        return CompareGroup::Suppliers;
+    if (isAccountMetric(id))
+        return CompareGroup::Accounts;
+    return CompareGroup::General;
+}
+
+static CompareGroup compareGroupForMetrics(const QList<MetricId>& metrics)
+{
+    bool hasSupplier = false;
+    bool hasAccount = false;
+    for (MetricId id : metrics) {
+        const CompareGroup g = compareGroupForMetric(id);
+        if (g == CompareGroup::Suppliers)
+            hasSupplier = true;
+        else if (g == CompareGroup::Accounts)
+            hasAccount = true;
+    }
+    if (hasSupplier)
+        return CompareGroup::Suppliers;
+    if (hasAccount)
+        return CompareGroup::Accounts;
+    return CompareGroup::General;
+}
+
+static CompareGroup compareGroupForPreset(const ChartRequest* preset)
+{
+    if (!preset)
+        return CompareGroup::General;
+    QList<MetricId> metrics = preset->compareMetrics;
+    if (metrics.size() < 2) {
+        if (preset->metricA >= M_SALES && preset->metricA < M_COUNT) metrics << preset->metricA;
+        if (preset->metricB >= M_SALES && preset->metricB < M_COUNT) metrics << preset->metricB;
+    }
+    return compareGroupForMetrics(metrics);
+}
+
 ChartSelectionDialog::ChartSelectionDialog(const AppData& data, QWidget* parent)
     : QDialog(parent)
 {
@@ -511,14 +569,60 @@ void ChartSelectionDialog::buildUI(const AppData& data)
             if (row.enabled) row.enabled->setChecked(false);
     });
 
-    auto* sec2 = new QLabel(tr_custom_comparisons_63300f());
-    sec2->setObjectName("section");
-    vl->addWidget(sec2);
 
     auto* compareHost = new QWidget;
     m_compareLayout = new QVBoxLayout(compareHost);
     m_compareLayout->setContentsMargins(0, 0, 0, 0);
-    m_compareLayout->setSpacing(8);
+    m_compareLayout->setSpacing(10);
+
+    auto addCompareSection = [&](const QString& txt, QVBoxLayout*& outLayout, CompareGroup group) {
+        auto* header = new QHBoxLayout;
+        header->setContentsMargins(0, 0, 0, 0);
+        header->setSpacing(8);
+        auto* lbl = new QLabel(txt);
+        lbl->setObjectName("section");
+        auto* addBtn = new QPushButton(tr_add_comparison_1c963e());
+        addBtn->setObjectName("sectionAddBtn");
+        addBtn->setCursor(Qt::PointingHandCursor);
+        header->addWidget(lbl);
+        header->addStretch();
+        header->addWidget(addBtn);
+        m_compareLayout->addLayout(header);
+        outLayout = new QVBoxLayout;
+        outLayout->setContentsMargins(0, 0, 0, 0);
+        outLayout->setSpacing(8);
+        m_compareLayout->addLayout(outLayout);
+        QObject::connect(addBtn, &QPushButton::clicked, this, [this, group]() {
+            m_nextCompareGroup = group;
+            appendCompareRow(nullptr);
+            m_nextCompareGroup = CompareGroup::General;
+        });
+    };
+
+    addCompareSection(tr_accounts_08f9e5(), m_compareAccountsLayout, CompareGroup::Accounts);
+    addCompareSection(tr_suppliers_7beff3(), m_compareSuppliersLayout, CompareGroup::Suppliers);
+
+    auto* generalHeader = new QHBoxLayout;
+    generalHeader->setContentsMargins(0, 0, 0, 0);
+    generalHeader->setSpacing(8);
+    auto* generalLbl = new QLabel(tr_custom_comparisons_63300f());
+    generalLbl->setObjectName("section");
+    auto* generalAddBtn = new QPushButton(tr_add_comparison_1c963e());
+    generalAddBtn->setObjectName("sectionAddBtn");
+    generalAddBtn->setCursor(Qt::PointingHandCursor);
+    generalHeader->addWidget(generalLbl);
+    generalHeader->addStretch();
+    generalHeader->addWidget(generalAddBtn);
+    m_compareLayout->addLayout(generalHeader);
+    m_compareGeneralLayout = new QVBoxLayout;
+    m_compareGeneralLayout->setContentsMargins(0, 0, 0, 0);
+    m_compareGeneralLayout->setSpacing(8);
+    m_compareLayout->addLayout(m_compareGeneralLayout);
+    QObject::connect(generalAddBtn, &QPushButton::clicked, this, [this]() {
+        m_nextCompareGroup = CompareGroup::General;
+        appendCompareRow(nullptr);
+    });
+
     vl->addWidget(compareHost);
 
     const QList<ChartRequest> previous = data.chartRequests;
@@ -957,8 +1061,26 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset)
     grid->setColumnStretch(6, 1);
     grid->setColumnStretch(7, 0);
 
+    QVBoxLayout* targetLayout = m_compareGeneralLayout ? m_compareGeneralLayout : m_compareLayout;
+    const CompareGroup forcedGroup = m_nextCompareGroup;
+    m_nextCompareGroup = CompareGroup::General;
+    if (preset) {
+        const CompareGroup group = compareGroupForPreset(preset);
+        if (group == CompareGroup::Accounts && m_compareAccountsLayout)
+            targetLayout = m_compareAccountsLayout;
+        else if (group == CompareGroup::Suppliers && m_compareSuppliersLayout)
+            targetLayout = m_compareSuppliersLayout;
+    } else if (forcedGroup == CompareGroup::Accounts && m_compareAccountsLayout) {
+        targetLayout = m_compareAccountsLayout;
+    } else if (forcedGroup == CompareGroup::Suppliers && m_compareSuppliersLayout) {
+        targetLayout = m_compareSuppliersLayout;
+    }
+    if (targetLayout)
+        targetLayout->addWidget(row);
+
     CompareRow item;
     item.frame = row;
+    item.layout = targetLayout;
     item.left = left;
     item.right = right;
     item.moreBtn = moreBtn;
@@ -977,7 +1099,6 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset)
     syncCompareMoreButton(m_compareRows.last());
     syncComparePieBaseControls(m_compareRows.last());
     syncComparePieBaseVisibility();
-    m_compareLayout->addWidget(row);
 
     connect(left, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this, row]() {
         for (auto& r : m_compareRows) {
@@ -1025,11 +1146,13 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset)
 void ChartSelectionDialog::removeCompareRow(int rowIndex)
 {
     if (rowIndex < 0 || rowIndex >= m_compareRows.size()) return;
-    QFrame* frame = m_compareRows[rowIndex].frame;
-    m_compareRows.remove(rowIndex);
-    if (frame) {
-        m_compareLayout->removeWidget(frame);
-        frame->deleteLater();
+    auto row = m_compareRows.takeAt(rowIndex);
+    if (row.frame) {
+        if (row.layout)
+            row.layout->removeWidget(row.frame);
+        else if (m_compareLayout)
+            m_compareLayout->removeWidget(row.frame);
+        row.frame->deleteLater();
     }
     syncComparePieBaseVisibility();
 }

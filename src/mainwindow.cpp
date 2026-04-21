@@ -1227,16 +1227,22 @@ void MainWindow::onInventoryModeChanged(int index)
     const InventoryMode mode = index == 1 ? InventoryMode::Ongoing : InventoryMode::Periodic;
     if (m_table)
         m_table->setInventoryMode(mode);
+
     AppData d = collectAllData();
     d.inventoryMode = mode;
+    d.calculate();
     setTableData(d);
+
+    m_data = d;
     if (m_hasResults) {
-        m_data = collectAllData();
-        m_data.inventoryMode = mode;
-        m_data.calculate();
-        if (m_results)
-            m_results->buildResults(m_data);
+        // Preserve the selected charts and visible flow when refreshing the mode.
+        m_data.chartRequests = m_results ? m_results->chartRequests() : m_data.chartRequests;
+        m_data.hiddenChartRequests = m_results ? m_results->hiddenChartRequests() : m_data.hiddenChartRequests;
+        m_data.resultFlowOrder = m_results ? m_results->flowOrder() : m_data.resultFlowOrder;
     }
+
+    if (m_results)
+        m_results->buildResults(m_data);
 }
 
 void MainWindow::onSaveData()

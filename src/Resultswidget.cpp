@@ -216,6 +216,13 @@ QWidget#summaryBar {
     background:qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 #131729, stop:1 #0d1020);
     border-bottom:1px solid #1e2445;
 }
+QWidget#modeBanner {
+    background:#171c33;
+    border-bottom:1px solid #252b52;
+}
+QLabel#modeText {
+    color:#c8d0ed; font-weight:800; letter-spacing:1px; background:transparent;
+}
 QWidget#sumCard {
     background:#1a1f38;
     border-radius:10px;
@@ -256,6 +263,13 @@ QWidget#resultsRoot { background:#f4f6fb; }
 QWidget#summaryBar {
     background:qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 #ffffff, stop:1 #f4f6fb);
     border-bottom:1px solid #dde2f0;
+}
+QWidget#modeBanner {
+    background:#ffffff;
+    border-bottom:1px solid #dde2f0;
+}
+QLabel#modeText {
+    color:#1e2340; font-weight:800; letter-spacing:1px; background:transparent;
 }
 QWidget#sumCard {
     background:#ffffff; border-radius:10px; border:1px solid #dde2f0;
@@ -505,14 +519,15 @@ public:
                     double cogs,
                     double profit,
                     const QColor& accent,
+                    InventoryMode mode = InventoryMode::Periodic,
                     QWidget* parent = nullptr)
-        : QFrame(parent), m_month(month)
+        : QFrame(parent), m_month(month), m_mode(mode)
     {
         setObjectName("monthCard");
         setAcceptDrops(true);
         setCursor(Qt::OpenHandCursor);
         setStyleSheet(g_lightMode ? kMonthCardSSLight : kMonthCardSSDark);
-        setFixedHeight(168);
+        setFixedHeight(mode == InventoryMode::Ongoing ? 120 : 168);
         hide();
         
         auto* root = new QVBoxLayout(this);
@@ -567,18 +582,25 @@ public:
             grid->addWidget(box, row, col);
         };
 
-        makeMetric(m_netLabel, 0, 0, tr_net_sales_23a2f1(), money(netSales),
-                   netSales >= 0 ? QColor("#3ecf8e") : QColor("#e05c6a"));
-        makeMetric(m_cogsLabel, 0, 1, tr_cogs_d716f1(), money(cogs), QColor("#f0a500"));
-        makeMetric(m_profitLabel, 1, 0, tr_profit_margin_ec3b22(), money(profit),
-                   profit >= 0 ? QColor("#3ecf8e") : QColor("#e05c6a"));
-
-        // Spacer box to balance grid
-        auto* spacer = new QFrame;
-        spacer->setObjectName("metricBox");
-        spacer->setAttribute(Qt::WA_TransparentForMouseEvents, true);
-        spacer->setStyleSheet("background:transparent;border:none;");
-        grid->addWidget(spacer, 1, 1);
+        if (mode == InventoryMode::Ongoing) {
+            // Ongoing mode: 1 row — Profit Margin | Net Sales
+            makeMetric(m_profitLabel, 0, 0, tr_profit_margin_ec3b22(), money(profit),
+                       profit >= 0 ? QColor("#3ecf8e") : QColor("#e05c6a"));
+            makeMetric(m_netLabel, 0, 1, tr_net_sales_23a2f1(), money(netSales),
+                       netSales >= 0 ? QColor("#3ecf8e") : QColor("#e05c6a"));
+        } else {
+            // Periodic mode: 2 rows — Net Sales | COGS / Profit | spacer
+            makeMetric(m_netLabel, 0, 0, tr_net_sales_23a2f1(), money(netSales),
+                       netSales >= 0 ? QColor("#3ecf8e") : QColor("#e05c6a"));
+            makeMetric(m_cogsLabel, 0, 1, tr_cogs_d716f1(), money(cogs), QColor("#f0a500"));
+            makeMetric(m_profitLabel, 1, 0, tr_profit_margin_ec3b22(), money(profit),
+                       profit >= 0 ? QColor("#3ecf8e") : QColor("#e05c6a"));
+            auto* spacer = new QFrame;
+            spacer->setObjectName("metricBox");
+            spacer->setAttribute(Qt::WA_TransparentForMouseEvents, true);
+            spacer->setStyleSheet("background:transparent;border:none;");
+            grid->addWidget(spacer, 1, 1);
+        }
 
         root->addLayout(grid);
 
@@ -603,7 +625,8 @@ public:
             }
         }
         if (m_netLabel)    m_netLabel->setText(tr_net_sales_23a2f1());
-        if (m_cogsLabel)   m_cogsLabel->setText(tr_cogs_d716f1());
+        if (m_cogsLabel && m_mode == InventoryMode::Periodic)
+            m_cogsLabel->setText(tr_cogs_d716f1());
         if (m_profitLabel) m_profitLabel->setText(tr_profit_margin_ec3b22());
     }
 
@@ -688,6 +711,7 @@ private:
     QLabel* m_netLabel{nullptr};
     QLabel* m_cogsLabel{nullptr};
     QLabel* m_profitLabel{nullptr};
+    InventoryMode m_mode{InventoryMode::Periodic};
 };
 
 class PageSeparatorCard : public QFrame
@@ -837,7 +861,24 @@ ResultsWidget::ResultsWidget(QWidget* parent) : QWidget(parent)
     };
 
     makeCard(m_sumNetSalesTitle, m_sumNetSales, tr_net_sales_e81e65(), QColor("#3ecf8e"));
-    makeCard(m_sumCOGSTitle, m_sumCOGS, tr_cogs_d716f1(), QColor("#f0a500"));
+    {
+        // Create the COGS card and remember its container widget so we can
+        // hide it in Ongoing inventory mode.
+        auto* cogsCard = new QWidget;
+        cogsCard->setObjectName("sumCard");
+        auto* cl = new QVBoxLayout(cogsCard);
+        cl->setContentsMargins(14, 10, 14, 10);
+        cl->setSpacing(4);
+        m_sumCOGSTitle = new QLabel(tr_cogs_d716f1());
+        m_sumCOGSTitle->setObjectName("sumTitle");
+        m_sumCOGS = new QLabel("—");
+        m_sumCOGS->setObjectName("sumValue");
+        m_sumCOGS->setStyleSheet(QString("color:%1;background:transparent;").arg(QColor("#f0a500").name()));
+        cl->addWidget(m_sumCOGSTitle);
+        cl->addWidget(m_sumCOGS);
+        bl->addWidget(cogsCard, 1);
+        m_sumCOGSCard = cogsCard;
+    }
     makeCard(m_sumProfitTitle, m_sumProfit, tr_profit_margin_dafda2(), QColor("#4f86f7"));
 
 
@@ -878,6 +919,17 @@ ResultsWidget::ResultsWidget(QWidget* parent) : QWidget(parent)
     bl->addWidget(m_orientBtn, 0, Qt::AlignVCenter);
 
     root->addWidget(m_summaryBar);
+
+    m_modeBanner = new QWidget;
+    m_modeBanner->setObjectName("modeBanner");
+    m_modeBanner->setFixedHeight(40);
+    auto* mb = new QHBoxLayout(m_modeBanner);
+    mb->setContentsMargins(24, 0, 24, 0);
+    m_modeLabel = new QLabel;
+    m_modeLabel->setObjectName("modeText");
+    mb->addWidget(m_modeLabel);
+    mb->addStretch();
+    root->addWidget(m_modeBanner);
 
     m_scroll = new QScrollArea;
     m_scroll->setWidgetResizable(true);
@@ -987,6 +1039,7 @@ void ResultsWidget::retranslate()
     if (m_sumNetSalesTitle) m_sumNetSalesTitle->setText(tr_net_sales_e81e65());
     if (m_sumCOGSTitle)     m_sumCOGSTitle->setText(tr_cogs_d716f1());
     if (m_sumProfitTitle)   m_sumProfitTitle->setText(tr_profit_margin_dafda2());
+    if (m_sumCOGSCard)      m_sumCOGSCard->setVisible(m_lastMode == InventoryMode::Periodic);
 
     if (m_hiddenBtn) m_hiddenBtn->setText(tr_hidden_charts_7e1497());
 
@@ -1005,12 +1058,17 @@ void ResultsWidget::retranslate()
     }
 
     if (m_reportTitle) m_reportTitle->setText(tr_monthly_report_18dfcd());
-    if (m_reportSub) m_reportSub->setText(tr_each_month_appears_as_a_dragga_9d0352());
+    if (m_reportSub) m_reportSub->setText(m_lastMode == InventoryMode::Ongoing
+                                           ? tr_ongoing_inventory_4f9f2c() + QStringLiteral(" — ") + tr_each_month_appears_as_a_dragga_9d0352()
+                                           : tr_each_month_appears_as_a_dragga_9d0352());
     if (m_pageBreakLabel) m_pageBreakLabel->setText(tr_page_break_0e9502());
     if (m_chartsTitle) m_chartsTitle->setText(tr_charts_ced4c1());
     if (m_chartsSub) m_chartsSub->setText(tr_drag_to_reorder_right_click_a__b70e11());
+    if (m_modeLabel) m_modeLabel->setText(m_lastMode == InventoryMode::Ongoing ? tr_ongoing_inventory_4f9f2c() : tr_periodic_inventory_8a4f19());
     if (m_flowTitle) m_flowTitle->setText(tr_results_page_3159bf());
-    if (m_flowSub) m_flowSub->setText(tr_choose_one_or_more_month_cards_18cee3());
+    if (m_flowSub) m_flowSub->setText(m_lastMode == InventoryMode::Ongoing
+                                       ? tr_ongoing_inventory_4f9f2c() + QStringLiteral(" — ") + tr_choose_one_or_more_month_cards_18cee3()
+                                       : tr_choose_one_or_more_month_cards_18cee3());
     if (m_monthEmpty) m_monthEmpty->setText(tr_no_months_available_9220b0());
     if (m_emptyState) m_emptyState->setText(tr_no_charts_selected_7a4c8f());
     if (m_flowEmpty) m_flowEmpty->setText(tr_no_results_available_669e79());
@@ -1028,6 +1086,9 @@ void ResultsWidget::retranslate()
 void ResultsWidget::buildResults(const AppData& data)
 {
     setStyleSheet(g_lightMode ? kResultsSSLight : kResultsSSDark);
+    m_lastMode = data.inventoryMode;
+    if (m_modeLabel) m_modeLabel->setText(m_lastMode == InventoryMode::Ongoing ? tr_ongoing_inventory_4f9f2c() : tr_periodic_inventory_8a4f19());
+    if (m_sumCOGSCard) m_sumCOGSCard->setVisible(m_lastMode == InventoryMode::Periodic);
     if (m_hiddenBtn) m_hiddenBtn->setEnabled(false);
 
     clearResults();
@@ -1046,7 +1107,7 @@ void ResultsWidget::buildResults(const AppData& data)
 
     m_flowTitle = new QLabel(tr_results_page_3159bf());
     m_flowTitle->setObjectName("sectionTitle");
-    m_flowSub = new QLabel(tr_choose_one_or_more_month_cards_18cee3());
+    m_flowSub = new QLabel(m_lastMode == InventoryMode::Ongoing ? tr_ongoing_inventory_4f9f2c() + QStringLiteral(" — ") + tr_choose_one_or_more_month_cards_18cee3() : tr_choose_one_or_more_month_cards_18cee3());
     m_flowSub->setObjectName("sectionSub");
     vl->addWidget(m_flowTitle);
     vl->addWidget(m_flowSub);
@@ -1079,6 +1140,7 @@ void ResultsWidget::buildResults(const AppData& data)
         data.totalCOGS,
         data.totalProfit,
         kMonthAccents[0],
+        m_lastMode,
         m_container));
     m_monthCards.last()->setCardIndex(0);
     m_monthCards.last()->setFlowIndex(0);
@@ -1095,6 +1157,7 @@ void ResultsWidget::buildResults(const AppData& data)
             data.cogs[i],
             data.profitMargin[i],
             kMonthAccents[(i + 1) % 13],
+            m_lastMode,
             m_container);
         card->setCardIndex(i + 1);
         card->setFlowIndex(i + 1);
@@ -1144,7 +1207,7 @@ QWidget* ResultsWidget::buildReportSection(const AppData& data)
 
     m_reportTitle = new QLabel(tr_monthly_report_18dfcd());
     m_reportTitle->setObjectName("sectionTitle");
-    m_reportSub = new QLabel(tr_each_month_appears_as_a_dragga_9d0352());
+    m_reportSub = new QLabel(m_lastMode == InventoryMode::Ongoing ? tr_ongoing_inventory_4f9f2c() + QStringLiteral(" — ") + tr_each_month_appears_as_a_dragga_9d0352() : tr_each_month_appears_as_a_dragga_9d0352());
     m_reportSub->setObjectName("sectionSub");
     vl->addWidget(m_reportTitle);
     vl->addWidget(m_reportSub);
@@ -1172,6 +1235,7 @@ QWidget* ResultsWidget::buildReportSection(const AppData& data)
             data.cogs[i],
             data.profitMargin[i],
             kMonthAccents[i % 12],
+            m_lastMode,
             m_container);
         card->setCardIndex(i);
         card->setMonthIndex(i);

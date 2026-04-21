@@ -127,6 +127,7 @@ private:
     QLabel* m_sumNetSales{};
     QLabel* m_sumCOGSTitle{};
     QLabel* m_sumCOGS{};
+    QWidget* m_sumCOGSCard{};
     QLabel* m_sumProfitTitle{};
     QLabel* m_sumProfit{};
     QToolButton* m_hiddenBtn{};
@@ -142,6 +143,9 @@ private:
     QLabel* m_chartsSub{};
     QLabel* m_flowTitle{};
     QLabel* m_flowSub{};
+    QWidget* m_modeBanner{};
+    QLabel* m_modeLabel{};
+    InventoryMode m_lastMode{InventoryMode::Periodic};
 
     QScrollArea* m_scroll{};
     QWidget* m_container{};

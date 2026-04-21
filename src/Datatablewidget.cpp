@@ -224,7 +224,6 @@ void MonthCard::buildContent()
     cols->addWidget(m_supplierCol);
     cols->addWidget(m_inventoryCol);
     cols->addWidget(m_ongoingCol);
-    cols->addWidget(m_resultsCol);
     vl->addLayout(cols);
 
     m_warnFrame = new QFrame;
