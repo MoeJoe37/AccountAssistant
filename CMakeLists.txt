@@ -19,6 +19,7 @@ set(SOURCES
     src/Draggablechartcard.cpp
     src/Resultswidget.cpp
     src/Accountswidget.cpp
+    src/Supplierswidget.cpp
     src/chartswidget.cpp
     src/pdfexporter.cpp
     src/settingsdialog.cpp
@@ -35,6 +36,7 @@ set(HEADERS
     src/Draggablechartcard.h
     src/Resultswidget.h
     src/Accountswidget.h
+    src/Supplierswidget.h
     src/chartswidget.h
     src/pdfexporter.h
     src/settingsdialog.h

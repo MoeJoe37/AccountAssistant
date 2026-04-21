@@ -15,10 +15,18 @@ struct MonthData {
     double salesReturn       = 0.0;
     double supplierPurchases = 0.0;
     double supplierPayments  = 0.0;
+    QString supplierName;
     QString expenseAccount;
     double expenseAmount     = 0.0;
     double inventoryFirst    = 0.0;
     double inventoryLast     = 0.0;
+    double cogsInput         = 0.0;
+};
+
+struct SupplierMonthData {
+    QString supplierName;
+    double  purchases = 0.0;
+    double  payments  = 0.0;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -87,6 +95,11 @@ enum class ChartKind {
     MetricLine
 };
 
+enum class InventoryMode {
+    Periodic = 0,
+    Ongoing = 1
+};
+
 struct ChartRequest {
     ChartKind kind = ChartKind::Candle;
     MetricId metricA = M_SALES;
@@ -129,6 +142,8 @@ struct AppData {
     std::array<MonthData, 12> months{};
     std::array<ChartSel, M_COUNT> sel{};
     QList<AccountItem> accounts;
+    std::array<SupplierMonthData, 12> suppliers{};
+    InventoryMode inventoryMode = InventoryMode::Periodic;
 
     // Chosen charts for the Results tab and PDF export
     QList<ChartRequest> chartRequests;
@@ -154,7 +169,9 @@ struct AppData {
         for (int i = 0; i < 12; ++i) {
             auto& m = months[i];
             netSales[i]     = m.sales - m.salesReturn;
-            cogs[i]         = m.inventoryFirst + m.supplierPurchases - m.inventoryLast;
+            cogs[i]         = (inventoryMode == InventoryMode::Ongoing)
+                                ? m.cogsInput
+                                : (m.inventoryFirst + m.supplierPurchases - m.inventoryLast);
             profitMargin[i] = netSales[i] - cogs[i];
 
             totalNetSales += netSales[i];
@@ -252,7 +269,10 @@ inline QList<double> metricSeriesValues(const AppData& d, MetricId id, QStringLi
         }
         break;
     case M_PURCHASES:
-        for (int i = 0; i < 12; ++i) if (includeMonth(i)) values << d.months[i].supplierPurchases;
+        for (int i = 0; i < 12; ++i) if (includeMonth(i)) {
+            const double fromSuppliers = d.suppliers[i].purchases;
+            values << (fromSuppliers != 0.0 || !d.suppliers[i].supplierName.isEmpty() ? fromSuppliers : d.months[i].supplierPurchases);
+        }
         if (labels) {
             const auto months = monthNames();
             for (int i = 0; i < 12; ++i) if (includeMonth(i)) *labels << months.value(i);
@@ -313,7 +333,10 @@ inline QList<double> metricSeriesValues(const AppData& d, MetricId id, QStringLi
         }
         break;
     case M_SUPPLIER_PAYMENTS:
-        for (int i = 0; i < 12; ++i) if (includeMonth(i)) values << d.months[i].supplierPayments;
+        for (int i = 0; i < 12; ++i) if (includeMonth(i)) {
+            const double fromSuppliers = d.suppliers[i].payments;
+            values << (fromSuppliers != 0.0 || !d.suppliers[i].supplierName.isEmpty() ? fromSuppliers : d.months[i].supplierPayments);
+        }
         if (labels) {
             const auto months = monthNames();
             for (int i = 0; i < 12; ++i) if (includeMonth(i)) *labels << months.value(i);

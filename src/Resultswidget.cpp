@@ -807,7 +807,7 @@ private:
 ResultsWidget::ResultsWidget(QWidget* parent) : QWidget(parent)
 {
     setObjectName("resultsRoot");
-    setStyleSheet(kResultsSSDark);
+    setStyleSheet(g_lightMode ? kResultsSSLight : kResultsSSDark);
 
     auto* root = new QVBoxLayout(this);
     root->setContentsMargins(0, 0, 0, 0);

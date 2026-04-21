@@ -3,6 +3,7 @@
 #include "settingsdialog.h"
 #include "pdfexporter.h"
 #include "Accountswidget.h"
+#include "Supplierswidget.h"
 #include "themebox.h"
 
 #include <QApplication>
@@ -24,6 +25,8 @@
 #include <QXmlStreamReader>
 #include <QXmlStreamWriter>
 #include <QDataStream>
+#include <QComboBox>
+#include <QSignalBlocker>
 #include <QByteArray>
 #include <QBuffer>
 #include <QSettings>
@@ -34,6 +37,7 @@ static const char* kGlobalSS = R"(
 * { font-family:"Segoe UI", Tahoma, Arial, sans-serif; color:#c8d0ed; }
 
 QMainWindow, QWidget#centralWidget { background:#0d1020; }
+QWidget#dataTab, QWidget#dataTableRoot, QWidget#suppliersRoot { background:#0d1020; }
 
 /* ── Top header ── */
 QWidget#header {
@@ -113,6 +117,7 @@ static const char* kGlobalSSLight = R"(
 * { font-family:"Segoe UI", Tahoma, Arial, sans-serif; color:#1e2340; }
 
 QMainWindow, QWidget#centralWidget { background:#f4f6fb; }
+QWidget#dataTab, QWidget#dataTableRoot, QWidget#suppliersRoot { background:#f4f6fb; }
 
 /* ── Top header ── */
 QWidget#header {
@@ -245,7 +250,8 @@ static QByteArray makeWorksheetXml(const AppData& data)
 
     const QStringList headers = {
         "Month", "Sales", "Sales Return", "Supplier Purchases", "Supplier Payments",
-        "Expense Account", "Expense Amount", "Inventory First", "Inventory Last"
+        "Expense Account", "Expense Amount", "Inventory First", "Inventory Last",
+        "Supplier Name", "COGS Input"
     };
 
     auto writeTextCell = [&](const QString& ref, const QString& text) {
@@ -289,6 +295,8 @@ static QByteArray makeWorksheetXml(const AppData& data)
         writeNumCell(QString("G%1").arg(row), m.expenseAmount);
         writeNumCell(QString("H%1").arg(row), m.inventoryFirst);
         writeNumCell(QString("I%1").arg(row), m.inventoryLast);
+        writeTextCell(QString("J%1").arg(row), m.supplierName);
+        writeNumCell(QString("K%1").arg(row), m.cogsInput);
         w.writeEndElement();
     }
 
@@ -690,7 +698,8 @@ static bool loadAppDataXlsx(const QString& path, AppData* data)
             return rowCells.value(col).trimmed().toDouble();
         };
         // Col A(0)=Month name, B(1)=Sales, C(2)=SalesReturn, D(3)=SupPurch,
-        // E(4)=SupPayments, F(5)=ExpAccount, G(6)=ExpAmount, H(7)=InvFirst, I(8)=InvLast
+        // E(4)=SupPayments, F(5)=ExpAccount, G(6)=ExpAmount, H(7)=InvFirst, I(8)=InvLast,
+        // J(9)=SupplierName, K(10)=COGSInput
         m.sales             = toDouble(1);
         m.salesReturn       = toDouble(2);
         m.supplierPurchases = toDouble(3);
@@ -699,6 +708,8 @@ static bool loadAppDataXlsx(const QString& path, AppData* data)
         m.expenseAmount     = toDouble(6);
         m.inventoryFirst    = toDouble(7);
         m.inventoryLast     = toDouble(8);
+        m.supplierName      = rowCells.value(9);
+        m.cogsInput         = toDouble(10);
         rowCells.clear();
     };
 
@@ -731,7 +742,7 @@ static bool loadAppDataXlsx(const QString& path, AppData* data)
                     }
                 }
             }
-            if (colIdx >= 0 && colIdx <= 8)
+            if (colIdx >= 0 && colIdx <= 10)
                 rowCells[colIdx] = val;
         } else if (xr.isEndElement() && xr.name() == QLatin1String("row")) {
             flushRow();
@@ -819,6 +830,7 @@ void MainWindow::saveTableDataLocally()
     QSettings s(QStringLiteral("AccountAssistant"), QStringLiteral("AccountAssistant"));
     s.beginGroup(QStringLiteral("tableData"));
     s.setValue(QStringLiteral("hasData"), true);
+    s.setValue(QStringLiteral("inventoryMode"), int(data.inventoryMode));
     for (int i = 0; i < 12; ++i) {
         const auto& m = data.months[i];
         s.beginGroup(QString::number(i));
@@ -826,10 +838,12 @@ void MainWindow::saveTableDataLocally()
         s.setValue(QStringLiteral("salesReturn"),       m.salesReturn);
         s.setValue(QStringLiteral("supplierPurchases"), m.supplierPurchases);
         s.setValue(QStringLiteral("supplierPayments"),  m.supplierPayments);
+        s.setValue(QStringLiteral("supplierName"),      m.supplierName);
         s.setValue(QStringLiteral("expenseAccount"),    m.expenseAccount);
         s.setValue(QStringLiteral("expenseAmount"),     m.expenseAmount);
         s.setValue(QStringLiteral("inventoryFirst"),    m.inventoryFirst);
         s.setValue(QStringLiteral("inventoryLast"),     m.inventoryLast);
+        s.setValue(QStringLiteral("cogsInput"),         m.cogsInput);
         s.endGroup();
     }
     s.endGroup();
@@ -846,6 +860,18 @@ void MainWindow::saveTableDataLocally()
         s.endGroup();
     }
     s.endGroup();
+
+    s.beginGroup(QStringLiteral("suppliersData"));
+    s.setValue(QStringLiteral("hasData"), m_suppliers != nullptr);
+    for (int i = 0; i < 12; ++i) {
+        const auto& sm = data.suppliers[i];
+        s.beginGroup(QString::number(i));
+        s.setValue(QStringLiteral("supplierName"), sm.supplierName);
+        s.setValue(QStringLiteral("purchases"), sm.purchases);
+        s.setValue(QStringLiteral("payments"), sm.payments);
+        s.endGroup();
+    }
+    s.endGroup();
     s.sync();
 }
 
@@ -857,6 +883,7 @@ void MainWindow::loadTableDataLocally()
 
     AppData data;
     if (hasData) {
+        data.inventoryMode = static_cast<InventoryMode>(s.value(QStringLiteral("inventoryMode"), 0).toInt());
         for (int i = 0; i < 12; ++i) {
             auto& m = data.months[i];
             s.beginGroup(QString::number(i));
@@ -864,10 +891,12 @@ void MainWindow::loadTableDataLocally()
             m.salesReturn       = s.value(QStringLiteral("salesReturn"),       0.0).toDouble();
             m.supplierPurchases = s.value(QStringLiteral("supplierPurchases"), 0.0).toDouble();
             m.supplierPayments  = s.value(QStringLiteral("supplierPayments"),  0.0).toDouble();
+            m.supplierName      = s.value(QStringLiteral("supplierName"),      QString()).toString();
             m.expenseAccount    = s.value(QStringLiteral("expenseAccount"),    QString()).toString();
             m.expenseAmount     = s.value(QStringLiteral("expenseAmount"),     0.0).toDouble();
             m.inventoryFirst    = s.value(QStringLiteral("inventoryFirst"),    0.0).toDouble();
             m.inventoryLast     = s.value(QStringLiteral("inventoryLast"),     0.0).toDouble();
+            m.cogsInput         = s.value(QStringLiteral("cogsInput"),         0.0).toDouble();
             s.endGroup();
         }
         setTableData(data);
@@ -890,7 +919,22 @@ void MainWindow::loadTableDataLocally()
         }
     }
     s.endGroup();
+
+    AppData supData;
+    s.beginGroup(QStringLiteral("suppliersData"));
+    if (s.value(QStringLiteral("hasData"), false).toBool()) {
+        for (int i = 0; i < 12; ++i) {
+            s.beginGroup(QString::number(i));
+            supData.suppliers[i].supplierName = s.value(QStringLiteral("supplierName"), QString()).toString();
+            supData.suppliers[i].purchases    = s.value(QStringLiteral("purchases"), 0.0).toDouble();
+            supData.suppliers[i].payments     = s.value(QStringLiteral("payments"), 0.0).toDouble();
+            s.endGroup();
+        }
+    }
+    s.endGroup();
+
     if (m_accounts) { AppData accData; accData.accounts = accounts; m_accounts->setData(accData); }
+    if (m_suppliers) { m_suppliers->setData(supData); }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -995,18 +1039,39 @@ void MainWindow::buildUI()
         subHdr->setFixedHeight(44);
         auto* shl = new QHBoxLayout(subHdr);
         shl->setContentsMargins(24, 0, 20, 0);
-        shl->setSpacing(0);
+        shl->setSpacing(10);
         shl->addStretch();
+
+        m_inventoryModeCombo = new QComboBox;
+        m_inventoryModeCombo->addItem(tr_periodic_inventory_8a4f19());
+        m_inventoryModeCombo->addItem(tr_ongoing_inventory_4f9f2c());
+        m_inventoryModeCombo->setCursor(Qt::PointingHandCursor);
+        m_inventoryModeCombo->setMinimumWidth(180);
+        m_inventoryModeCombo->setFixedHeight(30);
+        m_inventoryModeCombo->setStyleSheet(g_lightMode
+            ? "QComboBox{background:#ffffff;color:#1e2340;border:1px solid #cfd7ea;border-radius:6px;padding:0 10px;font-weight:700;}"
+              " QComboBox::drop-down{border:none;width:24px;}"
+              " QComboBox QAbstractItemView{background:#ffffff;color:#1e2340;selection-background-color:#eef0fa;}"
+            : "QComboBox{background:#1a1f38;color:#c8d0ed;border:1px solid #252b52;border-radius:6px;padding:0 10px;font-weight:700;}"
+              " QComboBox::drop-down{border:none;width:24px;}"
+              " QComboBox QAbstractItemView{background:#111526;color:#c8d0ed;selection-background-color:#1e2445;}"
+        );
+        connect(m_inventoryModeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MainWindow::onInventoryModeChanged);
 
         m_clearBtn = new QPushButton(tr_clear_data_4fcd0d());
         m_clearBtn->setCursor(Qt::PointingHandCursor);
         m_clearBtn->setFixedHeight(30);
-        m_clearBtn->setStyleSheet(
-            "QPushButton{border:1px solid #c0392b; border-radius:6px; font-weight:700;"
-            " padding:0 16px; background:#1e1010; color:#e74c3c;}"
-            "QPushButton:hover{background:#2c1515; color:#ff6b6b;}"
-            "QPushButton:pressed{background:#3a1a1a;}");
+        m_clearBtn->setStyleSheet(g_lightMode
+            ? "QPushButton{border:1px solid #e74c3c; border-radius:6px; font-weight:700;"
+              " padding:0 16px; background:#fff5f5; color:#c0392b;}"
+              "QPushButton:hover{background:#fde8e8; color:#e74c3c;}"
+              "QPushButton:pressed{background:#f5d0d0;}"
+            : "QPushButton{border:1px solid #c0392b; border-radius:6px; font-weight:700;"
+              " padding:0 16px; background:#1e1010; color:#e74c3c;}"
+              "QPushButton:hover{background:#2c1515; color:#ff6b6b;}"
+              "QPushButton:pressed{background:#3a1a1a;}");
         connect(m_clearBtn, &QPushButton::clicked, this, &MainWindow::onClearData);
+        shl->addWidget(m_inventoryModeCombo);
         shl->addWidget(m_clearBtn);
 
         vl->addWidget(subHdr);
@@ -1022,14 +1087,20 @@ void MainWindow::buildUI()
         m_tabs->addTab(dataTab, "");
     }
 
-    // Tab 1: Accounts
+    // Tab 1: Expenses
     {
         m_accounts = new Accountswidget;
         connect(m_accounts, &Accountswidget::graphRequested, this, &MainWindow::onAccountGraphRequested);
         m_tabs->addTab(m_accounts, "");
     }
 
-    // Tab 2: Results
+    // Tab 2: Suppliers
+    {
+        m_suppliers = new SuppliersWidget;
+        m_tabs->addTab(m_suppliers, "");
+    }
+
+    // Tab 3: Results
     {
         m_results = new ResultsWidget;
         connect(m_results, &ResultsWidget::editChartsRequested, this, &MainWindow::onEditCharts);
@@ -1065,7 +1136,7 @@ void MainWindow::onCalculate()
         m_results->buildResults(m_data);
         syncResultsState();
     }
-    m_tabs->setCurrentIndex(2);
+    m_tabs->setCurrentIndex(3);
 }
 
 
@@ -1094,7 +1165,7 @@ void MainWindow::onEditCharts()
         m_results->buildResults(m_data);
         syncResultsState();
     }
-    m_tabs->setCurrentIndex(2);
+    m_tabs->setCurrentIndex(3);
 }
 
 
@@ -1136,7 +1207,7 @@ void MainWindow::onAccountGraphRequested(ChartKind kind, AccountTypeFilter accou
 
     m_results->appendChart(m_data, req);
     syncResultsState();
-    m_tabs->setCurrentIndex(2);
+    m_tabs->setCurrentIndex(3);
 }
 
 void MainWindow::syncResultsState()
@@ -1149,6 +1220,23 @@ void MainWindow::syncResultsState()
     m_lastChartRequests = m_data.chartRequests;
     m_lastHiddenChartRequests = m_data.hiddenChartRequests;
     m_lastFlowOrder = m_data.resultFlowOrder;
+}
+
+void MainWindow::onInventoryModeChanged(int index)
+{
+    const InventoryMode mode = index == 1 ? InventoryMode::Ongoing : InventoryMode::Periodic;
+    if (m_table)
+        m_table->setInventoryMode(mode);
+    AppData d = collectAllData();
+    d.inventoryMode = mode;
+    setTableData(d);
+    if (m_hasResults) {
+        m_data = collectAllData();
+        m_data.inventoryMode = mode;
+        m_data.calculate();
+        if (m_results)
+            m_results->buildResults(m_data);
+    }
 }
 
 void MainWindow::onSaveData()
@@ -1235,13 +1323,26 @@ void MainWindow::onExportPdf()
 // ─────────────────────────────────────────────────────────────────────────────
 AppData MainWindow::collectTableData() const
 {
-    if (g_classicView && m_classicTable) return m_classicTable->collectData();
+    if (g_classicView && m_classicTable) {
+        AppData d = m_classicTable->collectData();
+        if (m_table)
+            d.inventoryMode = m_table->inventoryMode();
+        return d;
+    }
     return m_table ? m_table->collectData() : AppData{};
 }
 void MainWindow::setTableData(const AppData& d)
 {
-    if (m_table)        m_table->setData(d);
+    if (m_table) {
+        m_table->setData(d);
+        m_table->setInventoryMode(d.inventoryMode);
+    }
     if (m_classicTable) m_classicTable->setData(d);
+    if (m_suppliers)    m_suppliers->setData(d);
+    if (m_inventoryModeCombo) {
+        QSignalBlocker blocker(m_inventoryModeCombo);
+        m_inventoryModeCombo->setCurrentIndex(int(d.inventoryMode));
+    }
 }
 
 void MainWindow::setAccountData(const QList<AccountItem>& accounts)
@@ -1253,6 +1354,8 @@ void MainWindow::setAccountData(const QList<AccountItem>& accounts)
 AppData MainWindow::collectAllData() const
 {
     AppData d = collectTableData();
+    if (m_suppliers)
+        d.suppliers = m_suppliers->collectData().suppliers;
     if (m_accounts) {
         AppData acc = m_accounts->collectData();
         d.accounts = acc.accounts;
@@ -1264,24 +1367,28 @@ void MainWindow::clearTableData()
 {
     if (m_table)        m_table->clearData();
     if (m_classicTable) m_classicTable->clearData();
+    if (m_suppliers)    m_suppliers->clearData();
     if (m_accounts)     m_accounts->clearData();
 }
 void MainWindow::updateTableCurrency()
 {
     if (m_table)        m_table->updateCurrency();
     if (m_classicTable) m_classicTable->updateCurrency();
+    if (m_suppliers)    m_suppliers->updateCurrencyPrefix();
     if (m_accounts)     m_accounts->retranslate();
 }
 void MainWindow::applyTableTheme()
 {
     if (m_table)        m_table->applyTheme();
     if (m_classicTable) m_classicTable->applyTheme();
+    if (m_suppliers)    m_suppliers->applyTheme();
     if (m_accounts)     m_accounts->applyTheme();
 }
 void MainWindow::retranslateTable()
 {
     if (m_table)        m_table->retranslate();
     if (m_classicTable) m_classicTable->retranslate();
+    if (m_suppliers)    m_suppliers->retranslate();
     if (m_accounts)     m_accounts->retranslate();
 }
 void MainWindow::switchTableView(bool classic)
@@ -1315,7 +1422,7 @@ void MainWindow::onSettings()
         g_fontSize  = dlg.selectedFontSize();
 
         if (classicViewChanged) {
-            AppData current = collectTableData();
+            AppData current = collectAllData();
             g_classicView = dlg.isClassicView();
             switchTableView(g_classicView);
             setTableData(current);
@@ -1376,6 +1483,15 @@ void MainWindow::applyTheme()
               "QPushButton:hover{background:#2c1515; color:#ff6b6b;}"
               "QPushButton:pressed{background:#3a1a1a;}");
     }
+    if (m_inventoryModeCombo) {
+        m_inventoryModeCombo->setStyleSheet(g_lightMode
+            ? "QComboBox{background:#ffffff;color:#1e2340;border:1px solid #cfd7ea;border-radius:6px;padding:0 10px;font-weight:700;}"
+              " QComboBox::drop-down{border:none;width:24px;}"
+              " QComboBox QAbstractItemView{background:#ffffff;color:#1e2340;selection-background-color:#eef0fa;}"
+            : "QComboBox{background:#1a1f38;color:#c8d0ed;border:1px solid #252b52;border-radius:6px;padding:0 10px;font-weight:700;}"
+              " QComboBox::drop-down{border:none;width:24px;}"
+              " QComboBox QAbstractItemView{background:#111526;color:#c8d0ed;selection-background-color:#1e2445;}");
+    }
 
     applyTableTheme();
     if (m_accounts) m_accounts->applyTheme();
@@ -1413,11 +1529,18 @@ void MainWindow::retranslate()
     m_settingsBtn->setText(
         tr_settings_b7a402());
 
+    if (m_inventoryModeCombo) {
+        QSignalBlocker blocker(m_inventoryModeCombo);
+        m_inventoryModeCombo->setItemText(0, tr_periodic_inventory_8a4f19());
+        m_inventoryModeCombo->setItemText(1, tr_ongoing_inventory_4f9f2c());
+    }
     m_tabs->setTabText(0,
         tr_data_entry_a353ce());
     m_tabs->setTabText(1,
-        tr_accounts_9c0541());
+        tr_expenses_13597e());
     m_tabs->setTabText(2,
+        tr_suppliers_7beff3());
+    m_tabs->setTabText(3,
         tr_results_87ae7f());
     if (m_results) m_results->retranslate();
 }

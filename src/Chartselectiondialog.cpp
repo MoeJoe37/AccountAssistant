@@ -14,7 +14,6 @@
 #include <QAbstractItemView>
 #include <QAction>
 #include <QMouseEvent>
-#include <QContextMenuEvent>
 #include <QSizePolicy>
 #include <QSignalBlocker>
 #include <algorithm>
@@ -53,23 +52,6 @@ static void rebuildCompareMenuLabels(const QList<MetricId>& selected, QVector<QA
         act->setChecked(pos >= 0);
         act->setText(pos >= 0 ? QString::number(pos + 1) + QStringLiteral(". ") + name : name);
     }
-}
-
-
-static void applyComparePopupMenuStyle(QMenu* menu)
-{
-    if (!menu) return;
-    menu->setCursor(Qt::PointingHandCursor);
-    menu->setLayoutDirection(qApp ? qApp->layoutDirection() : Qt::LeftToRight);
-    menu->setStyleSheet(g_lightMode
-        ? "QMenu{background:#ffffff;color:#1e2340;border:1px solid #dde2f0;padding:4px;}"
-          "QMenu::item{padding:7px 22px;min-width:180px;}"
-          "QMenu::item:selected{background:#eef0fa;color:#1e2340;}"
-          "QMenu::separator{height:1px;background:#dde2f0;margin:4px 6px;}"
-        : "QMenu{background:#1a1f38;color:#c8d0ed;border:1px solid #252b52;padding:4px;}"
-          "QMenu::item{padding:7px 22px;min-width:180px;}"
-          "QMenu::item:selected{background:#4f86f7;color:#ffffff;}"
-          "QMenu::separator{height:1px;background:#252b52;margin:4px 6px;}");
 }
 
 static StayOpenMenu* makeMonthMenu(QToolButton* btn, const QList<int>& preChecked,
@@ -433,6 +415,11 @@ static bool requestIsCompareKind(ChartKind kind)
     return kind == ChartKind::CompareBar || kind == ChartKind::CompareLine || kind == ChartKind::ComparePie;
 }
 
+static bool isSupplierMetric(MetricId id)
+{
+    return id == M_PURCHASES || id == M_SUPPLIER_PAYMENTS;
+}
+
 ChartSelectionDialog::ChartSelectionDialog(const AppData& data, QWidget* parent)
     : QDialog(parent)
 {
@@ -503,6 +490,13 @@ void ChartSelectionDialog::buildUI(const AppData& data)
     m_metricLayout->setSpacing(8);
     metricHostLayout->addLayout(m_metricLayout);
 
+    auto addSectionLabel = [&](const QString& txt) {
+        auto* lbl = new QLabel(txt);
+        lbl->setObjectName("section");
+        m_metricLayout->addWidget(lbl);
+        return lbl;
+    };
+
     vl->addWidget(metricHost);
     connect(metricToggle, &QToolButton::toggled, this, [metricHost, metricToggle](bool on) {
         metricHost->setVisible(on);
@@ -529,8 +523,39 @@ void ChartSelectionDialog::buildUI(const AppData& data)
 
     const QList<ChartRequest> previous = data.chartRequests;
 
-    // One row per metric type so the user can always edit the standard charts.
+    // One row per metric type, grouped by accounts and suppliers.
+    addSectionLabel(tr_accounts_08f9e5());
     for (const auto& def : kMetricDefs) {
+        if (isSupplierMetric(def.id))
+            continue;
+
+        ChartKind kind = ChartKind::Candle;
+        QList<int> months;
+        bool enabled = false;
+
+        for (const auto& req : previous) {
+            if (requestIsCompareKind(req.kind))
+                continue;
+            if (req.metricA != def.id)
+                continue;
+            kind = req.kind;
+            months = req.months;
+            enabled = true;
+            break;
+        }
+
+        if (kind != ChartKind::Pie && kind != ChartKind::Candle && kind != ChartKind::MetricBar && kind != ChartKind::MetricLine)
+            kind = ChartKind::Candle;
+        appendMetricRow(def.id, kind, months);
+        if (!m_metricRows.isEmpty() && m_metricRows.last().enabled)
+            m_metricRows.last().enabled->setChecked(enabled);
+    }
+
+    addSectionLabel(tr_suppliers_7beff3());
+    for (const auto& def : kMetricDefs) {
+        if (!isSupplierMetric(def.id))
+            continue;
+
         ChartKind kind = ChartKind::Candle;
         QList<int> months;
         bool enabled = false;
@@ -747,7 +772,7 @@ QList<int> ChartSelectionDialog::selectedMonths(const MetricRow& row) const
 
 
 
-void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset, int insertAt)
+void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset)
 {
     auto* row = new QFrame;
     row->setObjectName("row");
@@ -857,6 +882,13 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset, int inse
     if (!presetTitle.isEmpty())
         title->setText(presetTitle);
 
+    auto* removeBtn = new QPushButton(QStringLiteral("X"));
+    removeBtn->setObjectName("removeBtn");
+    removeBtn->setCursor(Qt::PointingHandCursor);
+    removeBtn->setFixedSize(28, 28);
+    removeBtn->setFont(QFont("Segoe UI", 11, QFont::Bold));
+    removeBtn->setToolTip(tr_remove_c3a712());
+
     auto* selAll = moreMenu->addAction(tr_select_all_7812c3());
     auto* deselAll = moreMenu->addAction(tr_deselect_all_474bc1());
     moreMenu->addSeparator();
@@ -920,22 +952,10 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset, int inse
     grid->addWidget(type,         1, 3);
     grid->addWidget(countAs100,   1, 4);
     grid->addWidget(monthBtn,     1, 5);
-    grid->addWidget(title,        1, 6, 1, 2);
+    grid->addWidget(title,        1, 6);
+    grid->addWidget(removeBtn,    0, 7, 2, 1, Qt::AlignVCenter);
     grid->setColumnStretch(6, 1);
     grid->setColumnStretch(7, 0);
-
-    auto installCompareContextMenuFilter = [this, row](QWidget* w) {
-        if (!w) return;
-        w->installEventFilter(this);
-    };
-    installCompareContextMenuFilter(row);
-    installCompareContextMenuFilter(left);
-    installCompareContextMenuFilter(right);
-    installCompareContextMenuFilter(moreBtn);
-    installCompareContextMenuFilter(type);
-    installCompareContextMenuFilter(countAs100);
-    installCompareContextMenuFilter(monthBtn);
-    installCompareContextMenuFilter(title);
 
     CompareRow item;
     item.frame = row;
@@ -952,16 +972,12 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset, int inse
     item.monthMenu = monthMenu;
     item.monthActions = cmpMonthActs;
     item.title = title;
-    const int pos = (insertAt < 0 || insertAt > m_compareRows.size()) ? m_compareRows.size() : insertAt;
-    m_compareRows.insert(pos, item);
+    m_compareRows.push_back(item);
 
-    syncCompareMoreButton(m_compareRows[pos]);
-    syncComparePieBaseControls(m_compareRows[pos]);
+    syncCompareMoreButton(m_compareRows.last());
+    syncComparePieBaseControls(m_compareRows.last());
     syncComparePieBaseVisibility();
-    if (pos >= m_compareLayout->count())
-        m_compareLayout->addWidget(row);
-    else
-        m_compareLayout->insertWidget(pos, row);
+    m_compareLayout->addWidget(row);
 
     connect(left, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this, row]() {
         for (auto& r : m_compareRows) {
@@ -997,6 +1013,14 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset, int inse
     });
 
     syncComparePieBaseControls(m_compareRows.last());
+    connect(removeBtn, &QPushButton::clicked, this, [this, row]() {
+        for (int i = 0; i < m_compareRows.size(); ++i) {
+            if (m_compareRows[i].frame == row) {
+                removeCompareRow(i);
+                return;
+            }
+        }
+    });
 }
 void ChartSelectionDialog::removeCompareRow(int rowIndex)
 {
@@ -1008,50 +1032,6 @@ void ChartSelectionDialog::removeCompareRow(int rowIndex)
         frame->deleteLater();
     }
     syncComparePieBaseVisibility();
-}
-
-void ChartSelectionDialog::duplicateCompareRow(int rowIndex)
-{
-    if (rowIndex < 0 || rowIndex >= m_compareRows.size()) return;
-    const CompareRow& src = m_compareRows[rowIndex];
-
-    ChartRequest req;
-    req.kind = src.type ? static_cast<ChartKind>(src.type->currentData().toInt()) : ChartKind::CompareBar;
-    if (req.kind != ChartKind::CompareLine && req.kind != ChartKind::ComparePie && req.kind != ChartKind::Candle)
-        req.kind = ChartKind::CompareBar;
-    req.metricA = src.left ? MetricId(src.left->currentData().toInt()) : M_SALES;
-    req.metricB = src.right ? MetricId(src.right->currentData().toInt()) : M_COGS;
-    req.compareMetrics = selectedCompareMetrics(src);
-    req.comparePieBaseMetric = src.comparePieBase;
-    req.months = selectedMonths(src);
-    req.title = src.title ? src.title->text().trimmed() : QString();
-    appendCompareRow(&req, rowIndex + 1);
-}
-
-
-bool ChartSelectionDialog::eventFilter(QObject* watched, QEvent* event)
-{
-    if (event && event->type() == QEvent::ContextMenu) {
-        QWidget* w = qobject_cast<QWidget*>(watched);
-        if (!w) return QDialog::eventFilter(watched, event);
-
-        for (int i = 0; i < m_compareRows.size(); ++i) {
-            const auto& row = m_compareRows[i];
-            if (!row.frame) continue;
-            if (w != row.frame && !row.frame->isAncestorOf(w)) continue;
-
-            auto* ce = static_cast<QContextMenuEvent*>(event);
-            QMenu menu(w);
-            applyComparePopupMenuStyle(&menu);
-            QAction* duplicateAct = menu.addAction(tr_duplicate_47648b());
-            QAction* removeAct = menu.addAction(tr_remove_c3a712());
-            QAction* chosen = menu.exec(ce->globalPos());
-            if (chosen == duplicateAct) duplicateCompareRow(i);
-            else if (chosen == removeAct) removeCompareRow(i);
-            return true;
-        }
-    }
-    return QDialog::eventFilter(watched, event);
 }
 
 QList<int> ChartSelectionDialog::selectedMonths(const CompareRow& row) const
@@ -1124,8 +1104,11 @@ void ChartSelectionDialog::syncComparePieBaseControls(CompareRow& row)
 
 void ChartSelectionDialog::syncComparePieBaseVisibility()
 {
+    const bool show = std::any_of(m_compareRows.cbegin(), m_compareRows.cend(), [](const CompareRow& r) {
+        return r.type && ChartKind(r.type->currentData().toInt()) == ChartKind::ComparePie;
+    });
     if (m_comparePieBaseHdr)
-        m_comparePieBaseHdr->setVisible(false);
+        m_comparePieBaseHdr->setVisible(show);
 }
 
 std::array<ChartSel, M_COUNT> ChartSelectionDialog::selections() const

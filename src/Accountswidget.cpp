@@ -257,7 +257,7 @@ void Accountswidget::applyTheme()
 
 void Accountswidget::retranslate()
 {
-    m_title->setText(tr_accounts_08f9e5());
+    m_title->setText(tr_expenses_13597e());
     if (m_sortLabel) m_sortLabel->setText(tr_sort_0f56a7());
     if (m_groupLabel) m_groupLabel->setText(tr_group_by_835ff3());
     m_subtitle->setText(tr_add_expense_accounts_here_thes_d000bc());

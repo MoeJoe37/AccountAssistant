@@ -209,6 +209,12 @@ inline QString tr_supplier_payments_bb713e() { return T("Supplier Payments", "\u
 inline QString tr_supplier_payments_eeef31() { return T("Supplier Payments", "مدفوعات الموردين"); }
 inline QString tr_supplier_purchases_f5a1cd() { return T("Supplier Purchases", "مشتريات الموردين"); }
 inline QString tr_suppliers_7beff3() { return T("Suppliers", "الموردون"); }
+inline QString tr_supplier_name_5c7e41() { return T("Supplier Name", "اسم المورد"); }
+inline QString tr_periodic_inventory_8a4f19() { return T("Periodic Inventory", "الجرد الدوري"); }
+inline QString tr_ongoing_inventory_4f9f2c() { return T("Ongoing Inventory", "الجرد المستمر"); }
+inline QString tr_cogs_input_2a1b7e() { return T("COGS", "تكلفة البضاعة"); }
+inline QString tr_net_sales_ongoing_b63f87() { return T("Net Sales", "صافي المبيعات"); }
+inline QString tr_profit_margin_ongoing_fdb18a() { return T("Profit Margin", "هامش الربح"); }
 inline QString tr_switch_between_the_card_based__d92db3() { return T("Switch between the card-based input view (default) and the classic spreadsheet table.", "\u0627\u0644\u062a\u0628\u062f\u064a\u0644 \u0628\u064a\u0646 \u0639\u0631\u0636 \u0627\u0644\u0628\u0637\u0627\u0642\u0627\u062a \u0648\u0627\u0644\u062c\u062f\u0648\u0644 \u0627\u0644\u0643\u0644\u0627\u0633\u064a\u0643\u064a."); }
 inline QString tr_text_size_5b8d4f() { return T("Text Size:", "\u062d\u062c\u0645 \u0627\u0644\u062e\u0637:"); }
 inline QString tr_the_pdf_report_was_exported_su_37f5d4() { return T("The PDF report was exported successfully.", "تم تصدير تقرير PDF بنجاح."); }

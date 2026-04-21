@@ -10,6 +10,8 @@
 #include "ClassicDataTableWidget.h"
 #include "resultswidget.h"
 #include "Accountswidget.h"
+#include "Supplierswidget.h"
+#include <QComboBox>
 #include "translations.h"
 
 class MainWindow : public QMainWindow
@@ -30,6 +32,7 @@ private slots:
     void onClearData();
     void onEditCharts();
     void onAccountGraphRequested(ChartKind kind, AccountTypeFilter accountFilter);
+    void onInventoryModeChanged(int index);
     void syncResultsState();
 
 private:
@@ -60,6 +63,7 @@ private:
     DataTableWidget*       m_table{};        // card view (v3)
     ClassicDataTableWidget* m_classicTable{}; // spreadsheet view
     Accountswidget*        m_accounts{};
+    SuppliersWidget*       m_suppliers{};
     ResultsWidget*         m_results{};
 
     QPushButton* m_calcBtn{};
@@ -68,6 +72,7 @@ private:
     QPushButton* m_exportBtn{};
     QPushButton* m_settingsBtn{};
     QPushButton* m_clearBtn{};
+    QComboBox*   m_inventoryModeCombo{};
     QLabel*      m_titleLabel{};
 
     AppData m_data;
