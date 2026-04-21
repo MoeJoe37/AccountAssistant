@@ -40,6 +40,7 @@
 #include <QAbstractItemView>
 #include <QSizePolicy>
 #include <QSet>
+#include <QMap>
 #include <QTableWidgetItem>
 #include <algorithm>
 #include <cmath>
@@ -208,6 +209,70 @@ static void buildComparePieSlices(const QStringList& names,
 
     outLabels = labels;
     outValues = normalizePercentValues(percentValues);
+}
+
+static bool isSupplierCompareMetric(MetricId id)
+{
+    return id == M_SUPPLIER_NAME || id == M_PURCHASES || id == M_SUPPLIER_PAYMENTS;
+}
+
+static bool usesSupplierComparisonSeries(const ChartRequest& request)
+{
+    if (!(request.kind == ChartKind::CompareBar || request.kind == ChartKind::CompareLine
+          || request.kind == ChartKind::ComparePie || request.kind == ChartKind::Candle))
+        return false;
+
+    QList<MetricId> metrics = request.compareMetrics;
+    if (metrics.size() < 2) {
+        metrics << request.metricA << request.metricB;
+    }
+    if (metrics.isEmpty())
+        return false;
+    for (MetricId id : metrics) {
+        if (!isSupplierCompareMetric(id))
+            return false;
+    }
+    return true;
+}
+
+static QList<double> supplierComparisonSeriesValues(const AppData& data, MetricId id, QStringList* labels)
+{
+    if (labels)
+        labels->clear();
+
+    QStringList order;
+    QMap<QString, double> purchasesBySupplier;
+    QMap<QString, double> paymentsBySupplier;
+    for (int i = 0; i < 12; ++i) {
+        QString supplier = data.suppliers[i].supplierName.trimmed();
+        double purchases = data.suppliers[i].purchases;
+        double payments = data.suppliers[i].payments;
+        if (supplier.isEmpty()) {
+            supplier = data.months[i].supplierName.trimmed();
+            purchases = data.months[i].supplierPurchases;
+            payments = data.months[i].supplierPayments;
+        }
+        if (supplier.isEmpty())
+            continue;
+        if (!order.contains(supplier))
+            order << supplier;
+        purchasesBySupplier[supplier] += purchases;
+        paymentsBySupplier[supplier] += payments;
+    }
+
+    QList<double> values;
+    for (const QString& supplier : order) {
+        if (id == M_PURCHASES) {
+            values << purchasesBySupplier.value(supplier);
+        } else if (id == M_SUPPLIER_PAYMENTS) {
+            values << paymentsBySupplier.value(supplier);
+        } else {
+            values << (purchasesBySupplier.value(supplier) + paymentsBySupplier.value(supplier));
+        }
+    }
+    if (labels)
+        *labels = order;
+    return values;
 }
 
 static const char* kResultsSSDark = R"(
@@ -2561,9 +2626,15 @@ QChartView* ResultsWidget::makeComparePieChart(const QString& title,
 
 QChartView* ResultsWidget::createChartView(const AppData& data, const ChartRequest& request)
 {
+    const auto seriesValues = [&](MetricId id, QStringList* outLabels) {
+        if (usesSupplierComparisonSeries(request))
+            return supplierComparisonSeriesValues(data, id, outLabels);
+        const QList<int>* monthsFilter = request.months.isEmpty() ? nullptr : &request.months;
+        return metricSeriesValues(data, id, outLabels, monthsFilter, request.accountFilter);
+    };
+
     QStringList labels;
-    const QList<int>* months = request.months.isEmpty() ? nullptr : &request.months;
-    QList<double> a = metricSeriesValues(data, request.metricA, &labels, months, request.accountFilter);
+    QList<double> a = seriesValues(request.metricA, &labels);
     QList<double> b;
     QString title = request.title.isEmpty() ? metricDisplayName(request.metricA) : request.title;
 
@@ -2578,7 +2649,7 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
         QStringList names;
         for (MetricId id : compareMetrics) {
             QStringList labelsForMetric;
-            const QList<double> values = metricSeriesValues(data, id, &labelsForMetric, months, request.accountFilter);
+            const QList<double> values = seriesValues(id, &labelsForMetric);
             if (labels.isEmpty())
                 labels = labelsForMetric;
             seriesList << values;
@@ -2609,7 +2680,7 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
         return makePieChart(title, labels, a);
     case ChartKind::Candle:
         if (!request.seriesB.isEmpty()) {
-            b = metricSeriesValues(data, request.metricB, &labels, months, request.accountFilter);
+            b = seriesValues(request.metricB, &labels);
             return makeCompareCandleChart(title, labels, a, b,
                                           request.seriesA.isEmpty() ? metricDisplayName(request.metricA) : request.seriesA,
                                           request.seriesB.isEmpty() ? metricDisplayName(request.metricB) : request.seriesB);
@@ -2623,19 +2694,19 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
     case ChartKind::MetricLine:
         return makeSingleLineChart(title, labels, a);
     case ChartKind::CompareBar:
-        b = metricSeriesValues(data, request.metricB, &labels, months, request.accountFilter);
+        b = seriesValues(request.metricB, &labels);
         return makeCompareBarChart(title, labels, a, b,
                                    request.seriesA.isEmpty() ? metricDisplayName(request.metricA) : request.seriesA,
                                    request.seriesB.isEmpty() ? metricDisplayName(request.metricB) : request.seriesB);
     case ChartKind::CompareLine:
-        b = metricSeriesValues(data, request.metricB, &labels, months, request.accountFilter);
+        b = seriesValues(request.metricB, &labels);
         return makeMultiCompareLineChart(title, labels, QList<QList<double>>{a, b},
                                          QStringList{
                                              request.seriesA.isEmpty() ? metricDisplayName(request.metricA) : request.seriesA,
                                              request.seriesB.isEmpty() ? metricDisplayName(request.metricB) : request.seriesB
                                          });
     case ChartKind::ComparePie: {
-        b = metricSeriesValues(data, request.metricB, &labels, months, request.accountFilter);
+        b = seriesValues(request.metricB, &labels);
         double va = 0.0, vb = 0.0;
         for (double x : a) va += qAbs(x);
         for (double x : b) vb += qAbs(x);

@@ -39,6 +39,7 @@ private:
     struct CompareRow {
         QFrame*      frame{};
         QVBoxLayout* layout{};
+        CompareGroup group{CompareGroup::General};
         QCheckBox*   enabled{};
         QComboBox*   left{};
         QComboBox*   right{};

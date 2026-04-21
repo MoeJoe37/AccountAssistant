@@ -76,7 +76,9 @@ enum MetricId {
     M_NET_SALES,
     M_COGS,
     M_PROFIT_MARGIN,
+    M_SUPPLIER_NAME,
     M_SUPPLIER_PAYMENTS,
+    M_EXPENSE_TYPE,
     M_EXPENSE_AMOUNT,
     M_INVENTORY_OPENING,
     M_INVENTORY_CLOSING,
@@ -229,13 +231,15 @@ inline QString metricDisplayName(MetricId id)
     case M_SALES:            return tr_sales_8fb4a6();
     case M_SALES_RETURN:     return tr_sales_return_08f992();
     case M_PURCHASES:        return tr_purchases_513aec();
-    case M_EXPENSES:         return tr_expenses_13597e();
+    case M_EXPENSES:         return tr_account_name_metric_7ac4b1();
     case M_INVENTORY:        return tr_inventory_f1213f();
     case M_NET_SALES:        return tr_net_sales_90f56d();
     case M_COGS:             return tr_cost_of_goods_sold_55196f();
     case M_PROFIT_MARGIN:    return tr_profit_margin_56b595();
+    case M_SUPPLIER_NAME:    return tr_supplier_name_5c7e41();
     case M_SUPPLIER_PAYMENTS:return tr_supplier_payments_bb713e();
-    case M_EXPENSE_AMOUNT:   return tr_expense_amount_1ad3d5();
+    case M_EXPENSE_TYPE:     return tr_account_type_metric_1f3a92();
+    case M_EXPENSE_AMOUNT:   return tr_amount_metric_8c9d10();
     case M_INVENTORY_OPENING:return tr_inventory_opening_ccde20();
     case M_INVENTORY_CLOSING:return tr_inventory_closing_d69943();
     case M_COGS_VS_PROFIT:   return tr_cogs_vs_profit_margin_fd48e9();
@@ -246,7 +250,7 @@ inline QString metricDisplayName(MetricId id)
 
 inline bool metricUsesMonthlySeries(MetricId id)
 {
-    return id != M_EXPENSES && id != M_COGS_VS_PROFIT;
+    return id != M_EXPENSES && id != M_SUPPLIER_NAME && id != M_EXPENSE_TYPE && id != M_EXPENSE_AMOUNT && id != M_COGS_VS_PROFIT;
 }
 
 inline QList<double> metricSeriesValues(const AppData& d, MetricId id, QStringList* labels = nullptr, const QList<int>* monthFilter = nullptr, AccountTypeFilter accountFilter = AccountTypeFilter::All)
@@ -312,6 +316,23 @@ inline QList<double> metricSeriesValues(const AppData& d, MetricId id, QStringLi
             for (int i = 0; i < 12; ++i) if (includeMonth(i)) *labels << months.value(i);
         }
         break;
+    case M_SUPPLIER_NAME: {
+        QStringList supplierOrder;
+        QMap<QString, double> totals;
+        for (int i = 0; i < 12; ++i) {
+            const QString supplier = d.suppliers[i].supplierName.trimmed();
+            if (supplier.isEmpty())
+                continue;
+            if (!supplierOrder.contains(supplier))
+                supplierOrder << supplier;
+            totals[supplier] += d.suppliers[i].purchases + d.suppliers[i].payments;
+        }
+        for (const QString& supplier : supplierOrder)
+            values << totals.value(supplier);
+        if (labels)
+            *labels = supplierOrder;
+        break;
+    }
     case M_EXPENSES:
         if (!d.accounts.isEmpty()) {
             for (const auto& a : d.accounts) {
@@ -338,6 +359,31 @@ inline QList<double> metricSeriesValues(const AppData& d, MetricId id, QStringLi
             }
         }
         break;
+    case M_EXPENSE_TYPE: {
+        double payable = 0.0;
+        double receivable = 0.0;
+        if (!d.accounts.isEmpty()) {
+            for (const auto& a : d.accounts) {
+                if (accountFilter == AccountTypeFilter::Payable && a.type != AccountType::Payable)
+                    continue;
+                if (accountFilter == AccountTypeFilter::Receivable && a.type != AccountType::Receivable)
+                    continue;
+                if (a.type == AccountType::Payable)
+                    payable += a.amount;
+                else
+                    receivable += a.amount;
+            }
+        }
+        if (accountFilter != AccountTypeFilter::Receivable) {
+            values << payable;
+            if (labels) *labels << accountTypeDisplayName(AccountType::Payable);
+        }
+        if (accountFilter != AccountTypeFilter::Payable) {
+            values << receivable;
+            if (labels) *labels << accountTypeDisplayName(AccountType::Receivable);
+        }
+        break;
+    }
     case M_SUPPLIER_PAYMENTS:
         for (int i = 0; i < 12; ++i) if (includeMonth(i)) {
             const double fromSuppliers = d.suppliers[i].payments;
@@ -349,10 +395,30 @@ inline QList<double> metricSeriesValues(const AppData& d, MetricId id, QStringLi
         }
         break;
     case M_EXPENSE_AMOUNT:
-        for (int i = 0; i < 12; ++i) if (includeMonth(i)) values << d.months[i].expenseAmount;
-        if (labels) {
-            const auto months = monthNames();
-            for (int i = 0; i < 12; ++i) if (includeMonth(i)) *labels << months.value(i);
+        if (!d.accounts.isEmpty()) {
+            for (const auto& a : d.accounts) {
+                if (accountFilter == AccountTypeFilter::Payable && a.type != AccountType::Payable)
+                    continue;
+                if (accountFilter == AccountTypeFilter::Receivable && a.type != AccountType::Receivable)
+                    continue;
+                values << a.amount;
+            }
+            if (labels) {
+                for (const auto& a : d.accounts) {
+                    if (accountFilter == AccountTypeFilter::Payable && a.type != AccountType::Payable)
+                        continue;
+                    if (accountFilter == AccountTypeFilter::Receivable && a.type != AccountType::Receivable)
+                        continue;
+                    *labels << a.name;
+                }
+            }
+        } else {
+            for (const auto& e : d.expenseSummary)
+                values << e.total;
+            if (labels) {
+                for (const auto& e : d.expenseSummary)
+                    *labels << e.account;
+            }
         }
         break;
     case M_INVENTORY_OPENING:

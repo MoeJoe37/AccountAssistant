@@ -345,20 +345,36 @@ static const MetricDef kMetricDefs[] = {
     { M_PROFIT_MARGIN,     "Profit Margin",     "هامش الربح",            true,  true  },
 };
 
-static QList<QPair<MetricId, QString>> compareMetrics()
+static QList<QPair<MetricId, QString>> compareMetricsForGroup(CompareGroup group)
 {
-    return {
+    const QList<QPair<MetricId, QString>> all = {
         { M_SALES,             metricDisplayName(M_SALES) },
         { M_SALES_RETURN,      metricDisplayName(M_SALES_RETURN) },
         { M_PURCHASES,         metricDisplayName(M_PURCHASES) },
+        { M_SUPPLIER_NAME,     metricDisplayName(M_SUPPLIER_NAME) },
         { M_SUPPLIER_PAYMENTS, metricDisplayName(M_SUPPLIER_PAYMENTS) },
-        { M_EXPENSE_AMOUNT,    metricDisplayName(M_EXPENSE_AMOUNT) },
-        { M_INVENTORY_OPENING, metricDisplayName(M_INVENTORY_OPENING) },
-        { M_INVENTORY_CLOSING, metricDisplayName(M_INVENTORY_CLOSING) },
         { M_NET_SALES,         metricDisplayName(M_NET_SALES) },
         { M_COGS,              metricDisplayName(M_COGS) },
         { M_PROFIT_MARGIN,     metricDisplayName(M_PROFIT_MARGIN) },
     };
+
+    QList<MetricId> specific;
+    if (group == CompareGroup::Suppliers) {
+        specific = { M_SUPPLIER_NAME, M_SUPPLIER_PAYMENTS, M_PURCHASES };
+    }
+
+    QList<QPair<MetricId, QString>> ordered;
+    for (MetricId id : specific) {
+        for (const auto& metric : all) {
+            if (metric.first == id && !ordered.contains(metric))
+                ordered << metric;
+        }
+    }
+    for (const auto& metric : all) {
+        if (!ordered.contains(metric))
+            ordered << metric;
+    }
+    return ordered;
 }
 
 static const MetricDef* metricDefForId(MetricId id)
@@ -431,12 +447,21 @@ static bool requestIsCompareKind(ChartKind kind)
 
 static bool isSupplierMetric(MetricId id)
 {
-    return id == M_PURCHASES || id == M_SUPPLIER_PAYMENTS;
+    return id == M_SUPPLIER_NAME || id == M_PURCHASES || id == M_SUPPLIER_PAYMENTS;
 }
 
 static bool isAccountMetric(MetricId id)
 {
-    return id == M_EXPENSES || id == M_EXPENSE_AMOUNT || id == M_INVENTORY_OPENING || id == M_INVENTORY_CLOSING;
+    return id == M_EXPENSES || id == M_EXPENSE_TYPE || id == M_EXPENSE_AMOUNT;
+}
+
+static bool hasExpenseMetric(const QList<MetricId>& metrics)
+{
+    for (MetricId id : metrics) {
+        if (isAccountMetric(id))
+            return true;
+    }
+    return false;
 }
 
 static CompareGroup compareGroupForMetric(MetricId id)
@@ -599,7 +624,6 @@ void ChartSelectionDialog::buildUI(const AppData& data)
         });
     };
 
-    addCompareSection(tr_accounts_08f9e5(), m_compareAccountsLayout, CompareGroup::Accounts);
     addCompareSection(tr_suppliers_7beff3(), m_compareSuppliersLayout, CompareGroup::Suppliers);
 
     auto* generalHeader = new QHBoxLayout;
@@ -627,9 +651,11 @@ void ChartSelectionDialog::buildUI(const AppData& data)
 
     const QList<ChartRequest> previous = data.chartRequests;
 
-    // One row per metric type, grouped by accounts and suppliers.
+    // One row per metric type, grouped into general metrics and suppliers.
     addSectionLabel(tr_accounts_08f9e5());
     for (const auto& def : kMetricDefs) {
+        if (def.id == M_EXPENSES)
+            continue;
         if (isSupplierMetric(def.id))
             continue;
 
@@ -684,6 +710,8 @@ void ChartSelectionDialog::buildUI(const AppData& data)
 
     bool hasCompareRows = false;
     for (const auto& req : previous) {
+        if (hasExpenseMetric(req.compareMetrics) || isAccountMetric(req.metricA) || isAccountMetric(req.metricB))
+            continue;
         if (requestIsCompareKind(req.kind)) {
             appendCompareRow(&req);
             hasCompareRows = true;
@@ -878,6 +906,12 @@ QList<int> ChartSelectionDialog::selectedMonths(const MetricRow& row) const
 
 void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset)
 {
+    const CompareGroup forcedGroup = m_nextCompareGroup;
+    m_nextCompareGroup = CompareGroup::General;
+    const CompareGroup rowGroup = preset
+        ? compareGroupForPreset(preset)
+        : (forcedGroup == CompareGroup::General ? CompareGroup::General : forcedGroup);
+
     auto* row = new QFrame;
     row->setObjectName("row");
     row->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
@@ -906,7 +940,7 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset)
               "QListView::item:selected{background:#4f86f7;color:#ffffff;}");
     };
 
-    const auto metrics = compareMetrics();
+    const auto metrics = compareMetricsForGroup(rowGroup);
     for (const auto& m : metrics) {
         left->addItem(m.second, int(m.first));
         right->addItem(m.second, int(m.first));
@@ -996,8 +1030,16 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset)
     auto* selAll = moreMenu->addAction(tr_select_all_7812c3());
     auto* deselAll = moreMenu->addAction(tr_deselect_all_474bc1());
     moreMenu->addSeparator();
-    const auto moreMetricDefs = compareMetrics();
+    const auto moreMetricDefs = compareMetricsForGroup(rowGroup);
+    const QList<MetricId> specificMetrics = rowGroup == CompareGroup::Suppliers
+        ? QList<MetricId>{ M_SUPPLIER_NAME, M_SUPPLIER_PAYMENTS, M_PURCHASES }
+        : QList<MetricId>{};
+    bool insertedSpecificSeparator = false;
     for (const auto& def : moreMetricDefs) {
+        if (!specificMetrics.isEmpty() && !insertedSpecificSeparator && !specificMetrics.contains(def.first)) {
+            moreMenu->addSeparator();
+            insertedSpecificSeparator = true;
+        }
         auto* act = moreMenu->addAction(def.second);
         act->setCheckable(true);
         act->setData(int(def.first));
@@ -1019,9 +1061,9 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset)
         });
     }
     QObject::connect(selAll, &QAction::triggered, moreBtn, [this, moreBtn]() {
-        const auto moreMetricDefs = compareMetrics();
         for (auto& r : m_compareRows) {
             if (r.moreBtn != moreBtn) continue;
+            const auto moreMetricDefs = compareMetricsForGroup(r.group);
             for (const auto& def : moreMetricDefs) {
                 if (!r.moreMetrics.contains(def.first))
                     r.moreMetrics << def.first;
@@ -1062,25 +1104,38 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset)
     grid->setColumnStretch(7, 0);
 
     QVBoxLayout* targetLayout = m_compareGeneralLayout ? m_compareGeneralLayout : m_compareLayout;
-    const CompareGroup forcedGroup = m_nextCompareGroup;
-    m_nextCompareGroup = CompareGroup::General;
     if (preset) {
         const CompareGroup group = compareGroupForPreset(preset);
-        if (group == CompareGroup::Accounts && m_compareAccountsLayout)
-            targetLayout = m_compareAccountsLayout;
-        else if (group == CompareGroup::Suppliers && m_compareSuppliersLayout)
+        if (group == CompareGroup::Suppliers && m_compareSuppliersLayout)
             targetLayout = m_compareSuppliersLayout;
-    } else if (forcedGroup == CompareGroup::Accounts && m_compareAccountsLayout) {
-        targetLayout = m_compareAccountsLayout;
     } else if (forcedGroup == CompareGroup::Suppliers && m_compareSuppliersLayout) {
         targetLayout = m_compareSuppliersLayout;
     }
+
+    if (!preset) {
+        const auto setMetricIfPresent = [](QComboBox* combo, MetricId id) {
+            if (!combo) return;
+            const int idx = combo->findData(int(id));
+            if (idx >= 0)
+                combo->setCurrentIndex(idx);
+        };
+
+        if (targetLayout == m_compareSuppliersLayout) {
+            setMetricIfPresent(left, M_SUPPLIER_NAME);
+            setMetricIfPresent(right, M_PURCHASES);
+        } else {
+            setMetricIfPresent(left, M_SALES);
+            setMetricIfPresent(right, M_NET_SALES);
+        }
+    }
+
     if (targetLayout)
         targetLayout->addWidget(row);
 
     CompareRow item;
     item.frame = row;
     item.layout = targetLayout;
+    item.group = rowGroup;
     item.left = left;
     item.right = right;
     item.moreBtn = moreBtn;
@@ -1188,7 +1243,7 @@ void ChartSelectionDialog::syncCompareMoreButton(CompareRow& row)
     row.moreBtn->setText(row.moreMetrics.isEmpty()
         ? QStringLiteral("+  ") + tr_more_metrics_000000()
         : QStringLiteral("+  ") + tr_more_metrics_000000() + QStringLiteral(" (") + QString::number(row.moreMetrics.size()) + QStringLiteral(")"));
-    const auto defs = compareMetrics();
+    const auto defs = compareMetricsForGroup(row.group);
     for (int i = 0; i < row.moreActions.size() && i < defs.size(); ++i) {
         QAction* act = row.moreActions[i];
         if (!act) continue;

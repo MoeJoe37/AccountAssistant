@@ -58,6 +58,27 @@ QLineEdit, QDoubleSpinBox, QAbstractSpinBox {
 QLineEdit:focus, QDoubleSpinBox:focus, QAbstractSpinBox:focus { border-color:#4f86f7; }
 )";
 
+static QStringList dataEntryMonthNames()
+{
+    if (g_lang == AppLanguage::Arabic) {
+        return {
+            QStringLiteral("\u064A\u0646\u0627\u064A\u0631"),
+            QStringLiteral("\u0641\u0628\u0631\u0627\u064A\u0631"),
+            QStringLiteral("\u0645\u0627\u0631\u0633"),
+            QStringLiteral("\u0623\u0628\u0631\u064A\u0644"),
+            QStringLiteral("\u0645\u0627\u064A\u0648"),
+            QStringLiteral("\u064A\u0648\u0646\u064A\u0648"),
+            QStringLiteral("\u064A\u0648\u0644\u064A\u0648"),
+            QStringLiteral("\u0623\u063A\u0633\u0637\u0633"),
+            QStringLiteral("\u0633\u0628\u062A\u0645\u0628\u0631"),
+            QStringLiteral("\u0623\u0643\u062A\u0648\u0628\u0631"),
+            QStringLiteral("\u0646\u0648\u0641\u0645\u0628\u0631"),
+            QStringLiteral("\u062F\u064A\u0633\u0645\u0628\u0631")
+        };
+    }
+    return monthNames();
+}
+
 NavigableSpinBox::NavigableSpinBox(QWidget* p) : QDoubleSpinBox(p)
 {
     setRange(0, 1e12);
@@ -391,7 +412,7 @@ void MonthCard::applyTheme()
 
 void MonthCard::retranslate()
 {
-    const QStringList names = monthNames();
+    const QStringList names = dataEntryMonthNames();
     m_monthLabel->setText(names.value(m_monthIndex));
     if (m_warnIcon) m_warnIcon->setToolTip(tr_data_warnings_exist_e01dcc());
     if (m_warnHdr) m_warnHdr->setText(QStringLiteral("⚠  ") + tr_warnings_5eb706());
@@ -530,4 +551,3 @@ void DataTableWidget::applyTheme()
     }
     for (int i = 0; i < 12; ++i) m_cards[i]->applyTheme();
 }
-

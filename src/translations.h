@@ -59,6 +59,9 @@ inline QString tr_classic_table_view_spreadsheet_b69d40() { return T("Classic Ta
 inline QString tr_clear_all_data_491f5d() { return T("Clear All Data", "مسح جميع البيانات"); }
 inline QString tr_clear_data_4fcd0d() { return T("🗑  Clear Data", "🗑  مسح البيانات"); }
 inline QString tr_closing_stock_last_period_a0c5b2() { return T("Closing Stock (Last Period)", "اخر المدة"); }
+inline QString tr_account_name_metric_7ac4b1() { return T("Account Name", "اسم الحساب"); }
+inline QString tr_account_type_metric_1f3a92() { return T("Account Type", "نوع الحساب"); }
+inline QString tr_amount_metric_8c9d10() { return T("Amount", "المبلغ"); }
 inline QString tr_cogs_d716f1() { return T("COGS", "تكلفة البضاعة"); }
 inline QString tr_cogs_vs_profit_margin_fd48e9() { return T("COGS vs Profit Margin", "\u062A\u0643\u0644\u0641\u0629 \u0645\u0642\u0627\u0628\u0644 \u0627\u0644\u0631\u0628\u062D"); }
 inline QString tr_comparison_title_optional_fae13e() { return T("Comparison title (optional)", "عنوان اختياري"); }
@@ -157,7 +160,7 @@ inline QString tr_no_charts_selected_7a4c8f() { return T("No charts selected.", 
 inline QString tr_no_months_available_9220b0() { return T("No months available.", "لا توجد أشهر متاحة"); }
 inline QString tr_no_results_available_669e79() { return T("No results available.", "لا توجد نتائج متاحة"); }
 inline QString tr_normal_12px_ac2426() { return T("Normal (12px)", "\u0639\u0627\u062f\u064a (12px)"); }
-inline QString tr_opening_stock_first_period_ba1057() { return T("Opening Stock (First Period)", "اول المدة"); }
+inline QString tr_opening_stock_first_period_ba1057() { return T("Opening Stock (First Period)", "المخزون الافتتاحي (أول مدة)"); }
 inline QString tr_page_1_d40a68() { return T("Page: %1", "الصفحة: %1"); }
 inline QString tr_page_break_0e9502() { return T("Page break", "فاصل صفحة"); }
 inline QString tr_page_separator_5ac5db() { return T("Page separator", "فاصل صفحة"); }
