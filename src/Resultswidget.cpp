@@ -74,6 +74,40 @@ static const QList<QColor> kPal = {
     "#ff9f43", "#fd79a8", "#00cec9", "#fdcb6e"
 };
 
+
+static QColor seriesColorForName(const QString& name, int fallbackIndex = 0)
+{
+    const QString trimmed = name.trimmed();
+    if (trimmed == tr_remaining_1f3b2a())
+        return QColor("#8f97b4");
+    const QColor metric = metricColorFromDisplayName(trimmed);
+    if (trimmed.compare(metricDisplayName(M_SALES).trimmed(), Qt::CaseInsensitive) == 0 ||
+        trimmed.compare(metricDisplayName(M_SALES_RETURN).trimmed(), Qt::CaseInsensitive) == 0 ||
+        trimmed.compare(metricDisplayName(M_PURCHASES).trimmed(), Qt::CaseInsensitive) == 0 ||
+        trimmed.compare(metricDisplayName(M_EXPENSES).trimmed(), Qt::CaseInsensitive) == 0 ||
+        trimmed.compare(metricDisplayName(M_INVENTORY).trimmed(), Qt::CaseInsensitive) == 0 ||
+        trimmed.compare(metricDisplayName(M_NET_SALES).trimmed(), Qt::CaseInsensitive) == 0 ||
+        trimmed.compare(metricDisplayName(M_COGS).trimmed(), Qt::CaseInsensitive) == 0 ||
+        trimmed.compare(metricDisplayName(M_PROFIT_MARGIN).trimmed(), Qt::CaseInsensitive) == 0 ||
+        trimmed.compare(metricDisplayName(M_SUPPLIER_PAYMENTS).trimmed(), Qt::CaseInsensitive) == 0 ||
+        trimmed.compare(metricDisplayName(M_EXPENSE_AMOUNT).trimmed(), Qt::CaseInsensitive) == 0 ||
+        trimmed.compare(metricDisplayName(M_INVENTORY_OPENING).trimmed(), Qt::CaseInsensitive) == 0 ||
+        trimmed.compare(metricDisplayName(M_INVENTORY_CLOSING).trimmed(), Qt::CaseInsensitive) == 0 ||
+        trimmed.compare(metricDisplayName(M_COGS_VS_PROFIT).trimmed(), Qt::CaseInsensitive) == 0 ||
+        trimmed.compare(tr_increasing_c5cd67().trimmed(), Qt::CaseInsensitive) == 0 ||
+        trimmed.compare(tr_decreasing_b4c279().trimmed(), Qt::CaseInsensitive) == 0 ||
+        trimmed.compare(tr_increasing_faa4d2().trimmed(), Qt::CaseInsensitive) == 0 ||
+        trimmed.compare(tr_decreasing_d64136().trimmed(), Qt::CaseInsensitive) == 0)
+        return metric;
+    return kPal[fallbackIndex % kPal.size()];
+}
+
+static QColor metricColorVariant(const QString& name, int fallbackIndex = 0, bool darker = false)
+{
+    QColor c = seriesColorForName(name, fallbackIndex);
+    return darker ? c.darker(130) : c;
+}
+
 static QList<double> normalizePercentValues(const QList<double>& raw)
 {
     QList<double> out;
@@ -356,9 +390,9 @@ static void setTableRow(QTableWidget* t, int row, const QString& month, double n
     };
 
     t->setItem(row, 0, mkItem(month));
-    t->setItem(row, 1, mkItem(money(net), net >= 0 ? QColor("#3ecf8e") : QColor("#e05c6a")));
-    t->setItem(row, 2, mkItem(money(cogs), QColor("#f0a500")));
-    t->setItem(row, 3, mkItem(money(profit), profit >= 0 ? QColor("#3ecf8e") : QColor("#e05c6a")));
+    t->setItem(row, 1, mkItem(money(net), metricColor(M_NET_SALES)));
+    t->setItem(row, 2, mkItem(money(cogs), metricColor(M_COGS)));
+    t->setItem(row, 3, mkItem(money(profit), metricColor(M_PROFIT_MARGIN)));
 }
 
 static void applyChartAxes(QChart* chart, const QStringList& labels)
@@ -744,10 +778,10 @@ public:
         };
 
         makeMetric(m_netLabel, 0, 0, tr_net_sales_23a2f1(), money(netSales),
-                   netSales >= 0 ? QColor("#3ecf8e") : QColor("#e05c6a"));
-        makeMetric(m_cogsLabel, 0, 1, tr_cogs_d716f1(), money(cogs), QColor("#f0a500"));
+                   metricColor(M_NET_SALES));
+        makeMetric(m_cogsLabel, 0, 1, tr_cogs_d716f1(), money(cogs), metricColor(M_COGS));
         makeMetric(m_profitLabel, 1, 0, tr_profit_margin_ec3b22(), money(profit),
-                   profit >= 0 ? QColor("#3ecf8e") : QColor("#e05c6a"));
+                   metricColor(M_PROFIT_MARGIN));
         auto* spacer = new QFrame;
         spacer->setObjectName("metricBox");
         spacer->setAttribute(Qt::WA_TransparentForMouseEvents, true);
@@ -1012,7 +1046,7 @@ ResultsWidget::ResultsWidget(QWidget* parent) : QWidget(parent)
         bl->addWidget(card, 1);
     };
 
-    makeCard(m_sumNetSalesTitle, m_sumNetSales, tr_net_sales_e81e65(), QColor("#3ecf8e"));
+    makeCard(m_sumNetSalesTitle, m_sumNetSales, tr_net_sales_e81e65(), metricColor(M_NET_SALES));
     {
         // Create the COGS card and remember its container widget so we can
         // hide it in Ongoing inventory mode.
@@ -1025,13 +1059,13 @@ ResultsWidget::ResultsWidget(QWidget* parent) : QWidget(parent)
         m_sumCOGSTitle->setObjectName("sumTitle");
         m_sumCOGS = new QLabel("—");
         m_sumCOGS->setObjectName("sumValue");
-        m_sumCOGS->setStyleSheet(QString("color:%1;background:transparent;").arg(QColor("#f0a500").name()));
+        m_sumCOGS->setStyleSheet(QString("color:%1;background:transparent;").arg(metricColor(M_COGS).name()));
         cl->addWidget(m_sumCOGSTitle);
         cl->addWidget(m_sumCOGS);
         bl->addWidget(cogsCard, 1);
         m_sumCOGSCard = cogsCard;
     }
-    makeCard(m_sumProfitTitle, m_sumProfit, tr_profit_margin_dafda2(), QColor("#4f86f7"));
+    makeCard(m_sumProfitTitle, m_sumProfit, tr_profit_margin_dafda2(), metricColor(M_PROFIT_MARGIN));
 
 
     m_hiddenBtn = new QToolButton;
@@ -1249,7 +1283,7 @@ void ResultsWidget::buildResults(const AppData& data)
     m_sumCOGS->setText(money(data.totalCOGS));
     m_sumProfit->setText(money(data.totalProfit));
     m_sumProfit->setStyleSheet(QString("color:%1;font-weight:900;background:transparent;")
-                               .arg(data.totalProfit >= 0 ? "#3ecf8e" : "#e05c6a"));
+                               .arg(metricColor(M_PROFIT_MARGIN).name()));
 
     m_flowSection = new QWidget;
     m_flowSection->setObjectName("flowSection");
@@ -1280,9 +1314,9 @@ void ResultsWidget::buildResults(const AppData& data)
     m_nextCardId = 0;
 
     static const QColor kMonthAccents[] = {
-        QColor("#4f86f7"), QColor("#f0a500"), QColor("#e05c6a"), QColor("#3ecf8e"),
+        QColor("#4f86f7"), metricColor(M_COGS), QColor("#e05c6a"), QColor("#3ecf8e"),
         QColor("#9b6cf9"), QColor("#62c4e3"), QColor("#ff9f43"), QColor("#b0e96a"),
-        QColor("#fd79a8"), QColor("#00cec9"), QColor("#4f86f7"), QColor("#f0a500"),
+        QColor("#fd79a8"), QColor("#00cec9"), QColor("#4f86f7"), metricColor(M_COGS),
         QColor("#3ecf8e")
     };
 
@@ -1373,9 +1407,9 @@ QWidget* ResultsWidget::buildReportSection(const AppData& data)
     m_monthOrder.clear();
 
     static const QColor kMonthAccents[] = {
-        QColor("#4f86f7"), QColor("#f0a500"), QColor("#e05c6a"), QColor("#3ecf8e"),
+        QColor("#4f86f7"), metricColor(M_COGS), QColor("#e05c6a"), QColor("#3ecf8e"),
         QColor("#9b6cf9"), QColor("#62c4e3"), QColor("#ff9f43"), QColor("#b0e96a"),
-        QColor("#fd79a8"), QColor("#00cec9"), QColor("#4f86f7"), QColor("#f0a500")
+        QColor("#fd79a8"), QColor("#00cec9"), QColor("#4f86f7"), metricColor(M_COGS)
     };
 
     const auto months = monthNames();
@@ -2045,7 +2079,7 @@ QChartView* ResultsWidget::makePieChart(const QString& title,
         const double v = normalized[i];
         if (v < 0.001)
             continue;
-        const QColor c = kPal[i % kPal.size()];
+        const QColor c = seriesColorForName(labels.value(i), i);
         auto* sl = series->append(labels[i], v);
         sl->setColor(c);
         sl->setBorderColor(borderCol);
@@ -2080,8 +2114,9 @@ QChartView* ResultsWidget::makeCandleChart(const QString& title,
                                            const QList<double>& values)
 {
     auto* series = new QCandlestickSeries;
-    series->setIncreasingColor(QColor("#3ecf8e"));
-    series->setDecreasingColor(QColor("#e05c6a"));
+    const QColor baseMetricColor = metricColorFromDisplayName(title);
+    series->setIncreasingColor(baseMetricColor);
+    series->setDecreasingColor(baseMetricColor.darker(130));
     series->setBodyOutlineVisible(false);
 
     for (int i = 0; i < values.size(); ++i) {
@@ -2124,10 +2159,10 @@ QChartView* ResultsWidget::makeCandleChart(const QString& title,
 
     auto* legInc = new QLineSeries;
     legInc->setName(tr_increasing_c5cd67());
-    legInc->setColor(QColor("#3ecf8e"));
+    legInc->setColor(metricColorFromDisplayName(title));
     auto* legDec = new QLineSeries;
     legDec->setName(tr_decreasing_b4c279());
-    legDec->setColor(QColor("#e05c6a"));
+    legDec->setColor(metricColorFromDisplayName(title).darker(130));
     chart->addSeries(legInc);
     chart->addSeries(legDec);
     legInc->attachAxis(axX);
@@ -2142,7 +2177,7 @@ QChartView* ResultsWidget::makeCandleChart(const QString& title,
         ? "background:#ffffff; border:none; border-radius:0 0 10px 10px;"
         : "background:#151929; border:none; border-radius:0 0 10px 10px;");
     view->setProperty("legendLabels", QStringList{tr_increasing_c5cd67() + QStringLiteral(" (100.0%)"), tr_decreasing_b4c279() + QStringLiteral(" (100.0%)")});
-    view->setProperty("legendColors", QStringList{QString("#3ecf8e"), QString("#e05c6a")});
+    view->setProperty("legendColors", QStringList{metricColorFromDisplayName(title).name(), metricColorFromDisplayName(title).darker(130).name()});
     view->setProperty("chartLabels", labels);
     QVariantList vl; for (double x : values) vl << x;
     view->setProperty("chartValues", vl);
@@ -2158,7 +2193,7 @@ QChartView* ResultsWidget::makeRankedBarChart(const QString& title,
                                               const QList<double>& values)
 {
     auto* set = new QBarSet(title);
-    set->setColor(QColor("#4f86f7"));
+    set->setColor(metricColorFromDisplayName(title));
     set->setBorderColor(Qt::transparent);
     for (double v : values) *set << v;
 
@@ -2211,7 +2246,7 @@ QChartView* ResultsWidget::makeSingleLineChart(const QString& title,
 {
     auto* line = new QLineSeries;
     line->setName(title);
-    line->setColor(QColor("#4f86f7"));
+    line->setColor(metricColorFromDisplayName(title));
     for (int i = 0; i < values.size(); ++i)
         line->append(i + 0.5, values[i]);
 
@@ -2268,10 +2303,12 @@ QChartView* ResultsWidget::makeCompareCandleChart(const QString& title,
     auto* candB = new QCandlestickSeries;
     candA->setName(nameA);
     candB->setName(nameB);
-    candA->setIncreasingColor(QColor("#3ecf8e"));
-    candA->setDecreasingColor(QColor("#e05c6a"));
-    candB->setIncreasingColor(QColor("#f0a500"));
-    candB->setDecreasingColor(QColor("#7cc4ff"));
+    const QColor colorA = seriesColorForName(nameA, 0);
+    const QColor colorB = seriesColorForName(nameB, 1);
+    candA->setIncreasingColor(colorA);
+    candA->setDecreasingColor(colorA.darker(130));
+    candB->setIncreasingColor(colorB);
+    candB->setDecreasingColor(colorB.darker(130));
     candA->setBodyOutlineVisible(false);
     candB->setBodyOutlineVisible(false);
 
@@ -2325,7 +2362,7 @@ QChartView* ResultsWidget::makeCompareCandleChart(const QString& title,
         ? "background:#ffffff; border:none; border-radius:0 0 10px 10px;"
         : "background:#151929; border:none; border-radius:0 0 10px 10px;");
     view->setProperty("legendLabels", QStringList{nameA, nameB});
-    view->setProperty("legendColors", QStringList{QString("#3ecf8e"), QString("#f0a500")});
+    view->setProperty("legendColors", QStringList{seriesColorForName(nameA, 0).name(), seriesColorForName(nameB, 1).name()});
     view->setProperty("chartLabels", labels);
     QVariantList vl; for (double x : seriesA) vl << x;
     view->setProperty("chartValues", vl);
@@ -2351,8 +2388,8 @@ QChartView* ResultsWidget::makeCompareBarChart(const QString& title,
 {
     auto* setA = new QBarSet(nameA);
     auto* setB = new QBarSet(nameB);
-    setA->setColor(QColor("#f0a500"));
-    setB->setColor(QColor("#3ecf8e"));
+    setA->setColor(seriesColorForName(nameA, 0));
+    setB->setColor(seriesColorForName(nameB, 1));
     setA->setBorderColor(Qt::transparent);
     setB->setBorderColor(Qt::transparent);
     for (double v : seriesA) *setA << v;
@@ -2417,8 +2454,8 @@ QChartView* ResultsWidget::makeCompareLineChart(const QString& title,
     auto* lineB = new QLineSeries;
     lineA->setName(nameA);
     lineB->setName(nameB);
-    lineA->setColor(QColor("#f0a500"));
-    lineB->setColor(QColor("#3ecf8e"));
+    lineA->setColor(seriesColorForName(nameA, 0));
+    lineB->setColor(seriesColorForName(nameB, 1));
 
     const int n = qMin(seriesA.size(), seriesB.size());
     for (int i = 0; i < n; ++i) {
@@ -2482,7 +2519,7 @@ QChartView* ResultsWidget::makeMultiCompareBarChart(const QString& title,
     for (int i = 0; i < seriesList.size(); ++i) {
         const auto& vals = seriesList[i];
         auto* set = new QBarSet(names.value(i, QStringLiteral("Series %1").arg(i + 1)));
-        const QColor col = kPal[i % kPal.size()];
+        const QColor col = seriesColorForName(names.value(i), i);
         set->setColor(col);
         set->setBorderColor(Qt::transparent);
         for (double v : vals) {
@@ -2551,7 +2588,7 @@ QChartView* ResultsWidget::makeMultiCompareLineChart(const QString& title,
         const auto& vals = seriesList[s];
         auto* line = new QLineSeries;
         line->setName(names.value(s, QStringLiteral("Series %1").arg(s + 1)));
-        line->setColor(kPal[s % kPal.size()]);
+        line->setColor(seriesColorForName(names.value(s), s));
         const int n = vals.size();
         for (int i = 0; i < n; ++i) {
             line->append(i + 0.5, vals[i]);
@@ -2620,7 +2657,7 @@ QChartView* ResultsWidget::makeMultiComparePieChart(const QString& title,
         const double sliceValue = qAbs(normalized.value(i));
         if (sliceValue < 0.001)
             continue;
-        const QColor color = (names.value(i) == tr_remaining_1f3b2a()) ? QColor("#8f97b4") : kPal[i % kPal.size()];
+        const QColor color = seriesColorForName(names.value(i), i);
         auto* sl = series->append(names.value(i, QStringLiteral("Series %1").arg(i + 1)), sliceValue);
         sl->setColor(color);
         sl->setLabelVisible(true);
@@ -2658,7 +2695,7 @@ QChartView* ResultsWidget::makeMultiCompareCandleChart(const QString& title,
         const auto& vals = seriesList[s];
         auto* series = new QCandlestickSeries;
         series->setName(names.value(s, QStringLiteral("Series %1").arg(s + 1)));
-        const QColor col = kPal[s % kPal.size()];
+        const QColor col = seriesColorForName(names.value(s), s);
         series->setIncreasingColor(col);
         series->setDecreasingColor(col.darker(120));
         series->setBodyOutlineVisible(false);
@@ -2741,8 +2778,8 @@ QChartView* ResultsWidget::makeComparePieChart(const QString& title,
     b->setLabelColor(g_lightMode ? QColor("#1e2340") : QColor("#ffffff"));
     a->setLabel(QString::number(display.value(0), 'f', 1) + QStringLiteral("%"));
     b->setLabel(QString::number(display.value(1), 'f', 1) + QStringLiteral("%"));
-    const QColor colA = kPal[0];
-    const QColor colB = kPal[1];
+    const QColor colA = seriesColorForName(nameA, 0);
+    const QColor colB = seriesColorForName(nameB, 1);
     a->setColor(colA);
     b->setColor(colB);
 

@@ -1270,20 +1270,115 @@ void MainWindow::onInventoryModeChanged(int index)
         return;
 
     if (appDataHasUserEntries(current)) {
-        QMessageBox box(QMessageBox::Warning,
-                        T("Switch inventory mode", "تبديل وضع الجرد"),
-                        T("Switching the inventory mode will clear the current data.", "تبديل وضع الجرد سيؤدي إلى مسح البيانات الحالية."),
-                        QMessageBox::NoButton,
-                        this);
-        box.setInformativeText(T("Choose how to continue.", "اختر كيف تريد المتابعة."));
-        QPushButton* clearBtn = box.addButton(T("Clear them", "مسحها"), QMessageBox::DestructiveRole);
-        QPushButton* saveClearBtn = box.addButton(T("Save data and clear", "حفظ البيانات ومسحها"), QMessageBox::AcceptRole);
-        QPushButton* cancelBtn = box.addButton(T("Cancel", "إلغاء"), QMessageBox::RejectRole);
-        box.setDefaultButton(cancelBtn);
-        box.setStyleSheet(ThemeBox::style());
-        box.exec();
+        QDialog dialog(this);
+        dialog.setWindowTitle(T("Switch inventory mode", "تبديل وضع الجرد"));
+        dialog.setModal(true);
+        dialog.setSizeGripEnabled(false);
+        dialog.setWindowFlag(Qt::MSWindowsFixedSizeDialogHint, true);
+        dialog.setStyleSheet(g_lightMode
+            ? QStringLiteral(R"(
+                QDialog { background:#f4f6fb; }
+                QLabel { color:#1e2340; background:transparent; }
+                QPushButton {
+                    background:#4f86f7;
+                    color:white;
+                    font-weight:700;
+                    border:none;
+                    border-radius:7px;
+                    padding:8px 18px;
+                }
+                QPushButton:hover { background:#6a9df9; }
+                QPushButton:pressed { background:#3a6fe0; }
+            )")
+            : QStringLiteral(R"(
+                QDialog { background:#12152a; }
+                QLabel { color:#e6ebff; background:transparent; }
+                QPushButton {
+                    background:#4f86f7;
+                    color:white;
+                    font-weight:700;
+                    border:none;
+                    border-radius:7px;
+                    padding:8px 18px;
+                }
+                QPushButton:hover { background:#6a9df9; }
+                QPushButton:pressed { background:#3a6fe0; }
+            )"));
+        dialog.setMinimumWidth(g_lang == AppLanguage::Arabic ? 760 : 560);
 
-        if (box.clickedButton() == cancelBtn || !box.clickedButton()) {
+        auto* root = new QVBoxLayout(&dialog);
+        root->setContentsMargins(18, 18, 18, 18);
+        root->setSpacing(14);
+
+        auto* topRow = new QHBoxLayout;
+        topRow->setSpacing(12);
+
+        auto* iconLabel = new QLabel(&dialog);
+        const QPixmap iconPm = style()->standardIcon(QStyle::SP_MessageBoxWarning).pixmap(40, 40);
+        iconLabel->setPixmap(iconPm);
+        iconLabel->setAlignment(Qt::AlignTop | Qt::AlignHCenter);
+
+        auto* textCol = new QVBoxLayout;
+        textCol->setSpacing(8);
+
+        auto* mainText = new QLabel(T("Switching the inventory mode will clear the current data.", "تبديل وضع الجرد سيؤدي إلى مسح البيانات الحالية."), &dialog);
+        mainText->setWordWrap(true);
+        mainText->setTextFormat(Qt::PlainText);
+        mainText->setAlignment(g_lang == AppLanguage::Arabic ? Qt::AlignRight : Qt::AlignLeft);
+        QFont mainFont = mainText->font();
+        mainFont.setPointSize(mainFont.pointSize() + 2);
+        mainText->setFont(mainFont);
+
+        auto* infoText = new QLabel(T("Choose how to continue.", "اختر كيف تريد المتابعة."), &dialog);
+        infoText->setWordWrap(true);
+        infoText->setTextFormat(Qt::PlainText);
+        infoText->setAlignment(g_lang == AppLanguage::Arabic ? Qt::AlignRight : Qt::AlignLeft);
+
+        textCol->addWidget(mainText);
+        textCol->addWidget(infoText);
+        topRow->addLayout(textCol, 1);
+        topRow->addWidget(iconLabel, 0, Qt::AlignTop);
+        root->addLayout(topRow);
+
+        auto* buttons = new QHBoxLayout;
+        buttons->setSpacing(12);
+        if (g_lang == AppLanguage::Arabic)
+            buttons->setDirection(QBoxLayout::RightToLeft);
+
+        auto* clearBtn = new QPushButton(T("Clear them", "مسحها"), &dialog);
+        auto* saveClearBtn = new QPushButton(T("Save data and clear", "حفظ البيانات ومسحها"), &dialog);
+        auto* cancelBtn = new QPushButton(T("Cancel", "إلغاء"), &dialog);
+
+        const QFontMetrics btnFm(dialog.font());
+        const auto buttonWidthForText = [&](const QString& s, int minWidth) {
+            return std::max(minWidth, btnFm.horizontalAdvance(s) + 96);
+        };
+        clearBtn->setMinimumWidth(buttonWidthForText(clearBtn->text(), 150));
+        saveClearBtn->setMinimumWidth(buttonWidthForText(saveClearBtn->text(), g_lang == AppLanguage::Arabic ? 280 : 210));
+        cancelBtn->setMinimumWidth(buttonWidthForText(cancelBtn->text(), 120));
+        clearBtn->setMinimumHeight(38);
+        saveClearBtn->setMinimumHeight(38);
+        cancelBtn->setMinimumHeight(38);
+        clearBtn->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+        saveClearBtn->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+        cancelBtn->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+
+        buttons->addWidget(cancelBtn);
+        buttons->addWidget(clearBtn);
+        buttons->addWidget(saveClearBtn);
+        root->addLayout(buttons);
+
+        dialog.adjustSize();
+        dialog.setFixedSize(dialog.sizeHint());
+
+        enum class SwitchChoice { Cancel, Clear, SaveAndClear };
+        SwitchChoice choice = SwitchChoice::Cancel;
+        QObject::connect(cancelBtn, &QPushButton::clicked, &dialog, [&]() { choice = SwitchChoice::Cancel; dialog.reject(); });
+        QObject::connect(clearBtn, &QPushButton::clicked, &dialog, [&]() { choice = SwitchChoice::Clear; dialog.accept(); });
+        QObject::connect(saveClearBtn, &QPushButton::clicked, &dialog, [&]() { choice = SwitchChoice::SaveAndClear; dialog.accept(); });
+        dialog.exec();
+
+        if (choice == SwitchChoice::Cancel) {
             if (m_inventoryModeCombo) {
                 QSignalBlocker blocker(m_inventoryModeCombo);
                 m_inventoryModeCombo->setCurrentIndex(int(current.inventoryMode));
@@ -1291,7 +1386,7 @@ void MainWindow::onInventoryModeChanged(int index)
             return;
         }
 
-        if (box.clickedButton() == saveClearBtn) {
+        if (choice == SwitchChoice::SaveAndClear) {
             const QString path = QFileDialog::getSaveFileName(
                 this,
                 tr_save_data_ee42b8(),

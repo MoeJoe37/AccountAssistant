@@ -199,125 +199,128 @@ void ChartsWidget::buildCharts(const AppData& d)
 
     // ── Sales ─────────────────────────────────────────────────────────────
     if (d.sel[M_SALES].pie)
-        addPieChart(tr_sales_4af850(), months, monthVals(&MonthData::sales));
+        addPieChart(tr_sales_4af850(), months, monthVals(&MonthData::sales), M_SALES);
     if (d.sel[M_SALES].candle)
-        addCandleChart(tr_sales_4af850(), months, monthVals(&MonthData::sales));
+        addCandleChart(tr_sales_4af850(), months, monthVals(&MonthData::sales), M_SALES);
     if (d.sel[M_SALES].line)
-        addLineChart(tr_sales_4af850(), months, monthVals(&MonthData::sales));
+        addLineChart(tr_sales_4af850(), months, monthVals(&MonthData::sales), M_SALES);
 
     // ── Sales Return ──────────────────────────────────────────────────────
     if (d.sel[M_SALES_RETURN].pie)
         addPieChart(tr_sales_return_7b335a(),
-                    months, monthVals(&MonthData::salesReturn));
+                    months, monthVals(&MonthData::salesReturn), M_SALES_RETURN);
     if (d.sel[M_SALES_RETURN].candle)
         addCandleChart(tr_sales_return_7b335a(),
-                       months, monthVals(&MonthData::salesReturn));
+                       months, monthVals(&MonthData::salesReturn), M_SALES_RETURN);
     if (d.sel[M_SALES_RETURN].line)
         addLineChart(tr_sales_return_e520e9(),
-                     months, monthVals(&MonthData::salesReturn));
+                     months, monthVals(&MonthData::salesReturn), M_SALES_RETURN);
 
     // ── Purchases ─────────────────────────────────────────────────────────
     if (d.sel[M_PURCHASES].pie) {
         QList<double> combined;
         for (auto& m : d.months) combined << (m.supplierPurchases + m.supplierPayments);
-        addPieChart(tr_purchases_988898(), months, combined);
+        addPieChart(tr_purchases_988898(), months, combined, M_PURCHASES);
     }
     if (d.sel[M_PURCHASES].candle)
         addCandleChart(tr_purchases_988898(),
-                       months, monthVals(&MonthData::supplierPurchases));
+                       months, monthVals(&MonthData::supplierPurchases), M_PURCHASES);
     if (d.sel[M_PURCHASES].line)
         addLineChart(tr_purchases_16236c(),
-                     months, monthVals(&MonthData::supplierPurchases));
+                     months, monthVals(&MonthData::supplierPurchases), M_PURCHASES);
 
     // ── Expenses ──────────────────────────────────────────────────────────
     if (d.sel[M_EXPENSES].pie)
         addPieChart(tr_expenses_ed49c9(),
-                    months, monthVals(&MonthData::expenseAmount));
+                    months, monthVals(&MonthData::expenseAmount), M_EXPENSE_AMOUNT);
     if (d.sel[M_EXPENSES].candle)
         addCandleChart(tr_expenses_ed49c9(),
-                       months, monthVals(&MonthData::expenseAmount));
+                       months, monthVals(&MonthData::expenseAmount), M_EXPENSE_AMOUNT);
     if (d.sel[M_EXPENSES].line)
         addLineChart(tr_expenses_5a0c3c(),
-                     months, monthVals(&MonthData::expenseAmount));
+                     months, monthVals(&MonthData::expenseAmount), M_EXPENSE_AMOUNT);
 
     // ── Inventory ─────────────────────────────────────────────────────────
     if (d.sel[M_INVENTORY].pie) {
         QList<double> combined;
         for (auto& m : d.months) combined << (m.inventoryFirst + m.inventoryLast);
-        addPieChart(tr_inventory_d636e9(), months, combined);
+        addPieChart(tr_inventory_d636e9(), months, combined, M_INVENTORY);
     }
     if (d.sel[M_INVENTORY].candle)
         addCandleChart(tr_inventory_d636e9(),
-                       months, monthVals(&MonthData::inventoryFirst));
+                       months, monthVals(&MonthData::inventoryFirst), M_INVENTORY_OPENING);
     if (d.sel[M_INVENTORY].line)
         addLineChart(tr_inventory_18734c(),
-                     months, monthVals(&MonthData::inventoryFirst));
+                     months, monthVals(&MonthData::inventoryFirst), M_INVENTORY_OPENING);
 
     // ── Net Sales ─────────────────────────────────────────────────────────
     if (d.sel[M_NET_SALES].pie)
         addPieChart(tr_net_sales_ae3003(),
-                    months, arr12(d.netSales));
+                    months, arr12(d.netSales), M_NET_SALES);
     if (d.sel[M_NET_SALES].candle)
         addCandleChart(tr_net_sales_ae3003(),
-                       months, arr12(d.netSales));
+                       months, arr12(d.netSales), M_NET_SALES);
     if (d.sel[M_NET_SALES].line)
         addLineChart(tr_net_sales_23a2f1(),
-                     months, arr12(d.netSales));
+                     months, arr12(d.netSales), M_NET_SALES);
 
     // ── COGS ──────────────────────────────────────────────────────────────
     if (d.sel[M_COGS].pie)
         addPieChart(tr_cost_of_goods_sold_31b73d(),
-                    months, arr12(d.cogs));
+                    months, arr12(d.cogs), M_COGS);
     if (d.sel[M_COGS].candle)
         addCandleChart(tr_cost_of_goods_sold_31b73d(),
-                       months, arr12(d.cogs));
+                       months, arr12(d.cogs), M_COGS);
     if (d.sel[M_COGS].line)
         addLineChart(tr_cost_of_goods_sold_6e7684(),
-                     months, arr12(d.cogs));
+                     months, arr12(d.cogs), M_COGS);
 
     // ── Profit Margin ─────────────────────────────────────────────────────
     if (d.sel[M_PROFIT_MARGIN].pie)
         addPieChart(tr_profit_margin_ff57d3(),
-                    months, arr12(d.profitMargin));
+                    months, arr12(d.profitMargin), M_PROFIT_MARGIN);
     if (d.sel[M_PROFIT_MARGIN].candle)
         addCandleChart(tr_profit_margin_ff57d3(),
-                       months, arr12(d.profitMargin));
+                       months, arr12(d.profitMargin), M_PROFIT_MARGIN);
     if (d.sel[M_PROFIT_MARGIN].line)
         addLineChart(tr_profit_margin_ec3b22(),
-                     months, arr12(d.profitMargin));
+                     months, arr12(d.profitMargin), M_PROFIT_MARGIN);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 void ChartsWidget::addPieChart(const QString& title,
                                 const QStringList& labels,
-                                const QList<double>& values)
+                                const QList<double>& values,
+                                MetricId metricId)
 {
-    auto* cv = makePie(title, labels, values);
+    auto* cv = makePie(title, labels, values, metricId);
     m_views << cv;
     QList<QColor> colors;
     for (int i = 0; i < labels.size() && i < values.size(); ++i)
-        colors << kPalette[i % kPalette.size()];
+        colors << metricColor(metricId);
     auto* wrap = wrapChartWithLegend(m_container, cv, labels, colors);
     m_layout->insertWidget(m_layout->count()-1, wrap);
 }
 
 void ChartsWidget::addCandleChart(const QString& title,
                                    const QStringList& labels,
-                                   const QList<double>& values)
+                                   const QList<double>& values,
+                                   MetricId metricId)
 {
-    auto* cv = makeCandle(title, labels, values);
+    auto* cv = makeCandle(title, labels, values, metricId);
     m_views << cv;
     auto* wrap = wrapChartWithLegend(m_container, cv,
                                      QStringList{tr_increasing_faa4d2(), tr_decreasing_d64136()},
-                                     QList<QColor>{QColor("#59A14F"), QColor("#E15759")});
+                                     QList<QColor>{metricColor(metricId), metricColor(metricId).darker(130)});
     m_layout->insertWidget(m_layout->count()-1, wrap);
 }
 
 void ChartsWidget::addLineChart(const QString& title,
                                 const QStringList& labels,
-                                const QList<double>& values)
+                                const QList<double>& values,
+                                MetricId metricId)
 {
-    auto* cv = makeLine(title, labels, values);
+    auto* cv = makeLine(title, labels, values, metricId);
     m_views << cv;
     m_layout->insertWidget(m_layout->count()-1, cv);
 }
@@ -325,7 +328,8 @@ void ChartsWidget::addLineChart(const QString& title,
 // ─────────────────────────────────────────────────────────────────────────────
 QChartView* ChartsWidget::makePie(const QString& title,
                                    const QStringList& labels,
-                                   const QList<double>& values)
+                                   const QList<double>& values,
+                                   MetricId metricId)
 {
     auto* series = new QPieSeries;
     double total = 0;
@@ -336,7 +340,7 @@ QChartView* ChartsWidget::makePie(const QString& title,
     for (int i = 0; i < labels.size() && i < values.size(); ++i) {
         double val = qAbs(values[i]);
         if (val == 0) continue;
-        const QColor c = kPalette[i % kPalette.size()];
+        const QColor c = metricColor(metricId);
         auto* slice = series->append(labels[i], val);
         slice->setColor(c);
         sliceColors << c;
@@ -369,12 +373,13 @@ QChartView* ChartsWidget::makePie(const QString& title,
 // ─────────────────────────────────────────────────────────────────────────────
 QChartView* ChartsWidget::makeCandle(const QString& title,
                                       const QStringList& labels,
-                                      const QList<double>& values)
+                                      const QList<double>& values,
+                                      MetricId metricId)
 {
     auto* series = new QCandlestickSeries;
     series->setName(title);
-    series->setIncreasingColor(QColor("#59A14F"));
-    series->setDecreasingColor(QColor("#E15759"));
+    series->setIncreasingColor(metricColor(metricId));
+    series->setDecreasingColor(metricColor(metricId).darker(130));
 
     for (int i = 0; i < values.size(); ++i) {
         double cur = values[i];
@@ -417,10 +422,10 @@ QChartView* ChartsWidget::makeCandle(const QString& title,
     // Legend: add two invisible dummy series so the colour key is visible
     auto* legendInc = new QLineSeries;
     legendInc->setName(tr_increasing_c5cd67());
-    legendInc->setColor(QColor("#59A14F"));
+    legendInc->setColor(metricColor(metricId));
     auto* legendDec = new QLineSeries;
     legendDec->setName(tr_decreasing_b4c279());
-    legendDec->setColor(QColor("#E15759"));
+    legendDec->setColor(metricColor(metricId).darker(130));
     chart->addSeries(legendInc);
     chart->addSeries(legendDec);
     legendInc->attachAxis(axisX);
@@ -429,8 +434,8 @@ QChartView* ChartsWidget::makeCandle(const QString& title,
     legendDec->attachAxis(axisY);
 
     chart->legend()->setVisible(false);
-    applyLegendMarkerColorsLater(chart, legendInc, QStringList{tr_increasing_c5cd67()}, QList<QColor>{QColor("#59A14F")});
-    applyLegendMarkerColorsLater(chart, legendDec, QStringList{tr_decreasing_b4c279()}, QList<QColor>{QColor("#E15759")});
+    applyLegendMarkerColorsLater(chart, legendInc, QStringList{tr_increasing_c5cd67()}, QList<QColor>{metricColor(metricId)});
+    applyLegendMarkerColorsLater(chart, legendDec, QStringList{tr_decreasing_b4c279()}, QList<QColor>{metricColor(metricId).darker(130)});
     chart->setMargins(QMargins(2, 2, 2, 20));
     chart->setAnimationOptions(QChart::AllAnimations);
 
@@ -443,11 +448,12 @@ QChartView* ChartsWidget::makeCandle(const QString& title,
 
 QChartView* ChartsWidget::makeLine(const QString& title,
                                    const QStringList& labels,
-                                   const QList<double>& values)
+                                   const QList<double>& values,
+                                   MetricId metricId)
 {
     auto* line = new QLineSeries;
     line->setName(title);
-    line->setColor(QColor("#4f86f7"));
+    line->setColor(metricColor(metricId));
     for (int i = 0; i < values.size(); ++i)
         line->append(i, values[i]);
 

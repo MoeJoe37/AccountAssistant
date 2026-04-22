@@ -25,11 +25,13 @@ private:
 
     void addPieChart(const QString& title,
                      const QStringList& labels,
-                     const QList<double>& values);
+                     const QList<double>& values,
+                     MetricId metricId);
 
     void addCandleChart(const QString& title,
                         const QStringList& labels,
-                        const QList<double>& values);
+                        const QList<double>& values,
+                        MetricId metricId);
 
     void addBarChart(const QString& title,
                      const QStringList& labels,
@@ -37,15 +39,18 @@ private:
 
     void addLineChart(const QString& title,
                       const QStringList& labels,
-                      const QList<double>& values);
+                      const QList<double>& values,
+                      MetricId metricId);
 
     static QChartView* makePie(const QString& title,
                                const QStringList& labels,
-                               const QList<double>& values);
+                               const QList<double>& values,
+                               MetricId metricId);
 
     static QChartView* makeCandle(const QString& title,
                                   const QStringList& labels,
-                                  const QList<double>& values);
+                                  const QList<double>& values,
+                                  MetricId metricId);
 
     static QChartView* makeBar(const QString& title,
                                const QStringList& labels,
@@ -53,5 +58,6 @@ private:
 
     static QChartView* makeLine(const QString& title,
                                 const QStringList& labels,
-                                const QList<double>& values);
+                                const QList<double>& values,
+                                MetricId metricId);
 };

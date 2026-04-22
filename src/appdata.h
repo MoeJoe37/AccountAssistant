@@ -5,6 +5,7 @@
 #include <QStringList>
 #include <QList>
 #include <QMap>
+#include <QColor>
 #include "translations.h"
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -375,6 +376,46 @@ inline QList<double> metricSeriesValues(const AppData& d, MetricId id, QStringLi
         break;
     }
     return values;
+}
+
+
+
+inline QColor metricColor(MetricId id)
+{
+    switch (id) {
+    case M_SALES:             return QColor("#4f86f7");
+    case M_SALES_RETURN:      return QColor("#e05c6a");
+    case M_PURCHASES:         return QColor("#9b6cf9");
+    case M_EXPENSES:          return QColor("#62c4e3");
+    case M_INVENTORY:         return QColor("#8f97b4");
+    case M_NET_SALES:         return QColor("#3ecf8e");
+    case M_COGS:              return QColor("#f0a500");
+    case M_PROFIT_MARGIN:     return QColor("#14b8a6");
+    case M_SUPPLIER_PAYMENTS: return QColor("#ff9f43");
+    case M_EXPENSE_AMOUNT:    return QColor("#fd79a8");
+    case M_INVENTORY_OPENING: return QColor("#5b8def");
+    case M_INVENTORY_CLOSING: return QColor("#8f97b4");
+    case M_COGS_VS_PROFIT:    return QColor("#4f86f7");
+    case M_COUNT:             break;
+    }
+    return QColor("#4f86f7");
+}
+
+inline QColor metricColorFromDisplayName(const QString& name)
+{
+    const QString key = name.trimmed();
+    for (int i = 0; i < int(M_COUNT); ++i) {
+        const MetricId id = static_cast<MetricId>(i);
+        if (metricDisplayName(id).trimmed().compare(key, Qt::CaseInsensitive) == 0)
+            return metricColor(id);
+    }
+    if (key.compare(tr_increasing_c5cd67().trimmed(), Qt::CaseInsensitive) == 0 ||
+        key.compare(tr_increasing_faa4d2().trimmed(), Qt::CaseInsensitive) == 0)
+        return metricColor(M_NET_SALES);
+    if (key.compare(tr_decreasing_b4c279().trimmed(), Qt::CaseInsensitive) == 0 ||
+        key.compare(tr_decreasing_d64136().trimmed(), Qt::CaseInsensitive) == 0)
+        return metricColor(M_NET_SALES).darker(135);
+    return QColor("#4f86f7");
 }
 
 inline QString comparisonTitle(MetricId a, MetricId b)
