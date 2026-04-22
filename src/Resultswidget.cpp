@@ -1634,7 +1634,7 @@ void ResultsWidget::addCard(const ChartRequest& request, QChartView* view)
     connect(card, &DraggableChartCard::insertSeparatorRequested, this, &ResultsWidget::onAddSeparatorAfter);
     connect(card, &DraggableChartCard::hideRequested, this, &ResultsWidget::onHideCard);
     connect(card, &DraggableChartCard::removeRequested, this, &ResultsWidget::onRemoveCard);
-    connect(card, &DraggableChartCard::editRequested, this, [this](int) { emit editChartsRequested(); });
+    connect(card, &DraggableChartCard::editRequested, this, [this](int cardIndex) { emit editChartsRequested(cardIndex); });
     m_cards.append(card);
     m_cardRequests.append(request);
 }
@@ -1646,7 +1646,7 @@ void ResultsWidget::addHiddenCard(const ChartRequest& request, QChartView* view)
     connect(card, &DraggableChartCard::swapRequested, this, &ResultsWidget::onSwapFlowItems);
     connect(card, &DraggableChartCard::insertSeparatorRequested, this, &ResultsWidget::onAddSeparatorAfter);
     connect(card, &DraggableChartCard::removeRequested, this, &ResultsWidget::onRemoveCard);
-    connect(card, &DraggableChartCard::editRequested, this, [this](int) { emit editChartsRequested(); });
+    connect(card, &DraggableChartCard::editRequested, this, [this](int cardIndex) { emit editChartsRequested(cardIndex); });
     card->hide();
     m_hiddenCards.append(card);
     m_hiddenRequests.append(request);
@@ -1923,6 +1923,23 @@ QList<QChartView*> ResultsWidget::allChartViews() const
     QList<QChartView*> list;
     for (auto* c : m_cards) list << c->chartView();
     return list;
+}
+
+
+ChartRequest ResultsWidget::requestForCard(int cardIndex) const
+{
+    for (int i = 0; i < m_cards.size() && i < m_cardRequests.size(); ++i) {
+        if (m_cards[i] && m_cards[i]->cardIndex() == cardIndex)
+            return m_cardRequests[i];
+    }
+    for (int i = 0; i < m_hiddenCards.size() && i < m_hiddenRequests.size(); ++i) {
+        if (m_hiddenCards[i] && m_hiddenCards[i]->cardIndex() == cardIndex)
+            return m_hiddenRequests[i];
+    }
+    ChartRequest req;
+    req.metricA = M_COUNT;
+    req.metricB = M_COUNT;
+    return req;
 }
 
 QList<ChartRequest> ResultsWidget::chartRequests() const

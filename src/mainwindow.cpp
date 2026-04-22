@@ -1159,7 +1159,7 @@ void MainWindow::onCalculate()
 }
 
 
-void MainWindow::onEditCharts()
+void MainWindow::onEditCharts(int cardIndex)
 {
     if (!m_hasResults)
         return;
@@ -1168,9 +1168,30 @@ void MainWindow::onEditCharts()
         popup->hide();
 
     AppData working = collectAllData();
+    working.calculate();
     working.chartRequests = m_lastChartRequests;
     working.hiddenChartRequests = m_lastHiddenChartRequests;
     working.resultFlowOrder = m_lastFlowOrder;
+
+    if (cardIndex >= 0 && m_results) {
+        const ChartRequest focused = m_results->requestForCard(cardIndex);
+        if (focused.metricA != M_COUNT || !focused.title.isEmpty()) {
+            auto sameReq = [&](const ChartRequest& req) {
+                return req.kind == focused.kind
+                    && req.metricA == focused.metricA
+                    && req.metricB == focused.metricB
+                    && req.compareMetrics == focused.compareMetrics
+                    && req.months == focused.months
+                    && req.title == focused.title;
+            };
+            for (int i = 0; i < working.chartRequests.size(); ++i) {
+                if (sameReq(working.chartRequests[i])) {
+                    working.chartRequests.move(i, 0);
+                    break;
+                }
+            }
+        }
+    }
 
     ChartSelectionDialog dlg(working, this);
     if (dlg.exec() != QDialog::Accepted)
@@ -1390,12 +1411,8 @@ void MainWindow::onExportPdf()
 // ─────────────────────────────────────────────────────────────────────────────
 AppData MainWindow::collectTableData() const
 {
-    if (g_classicView && m_classicTable) {
-        AppData d = m_classicTable->collectData();
-        if (m_table)
-            d.inventoryMode = m_table->inventoryMode();
-        return d;
-    }
+    if (g_classicView && m_classicTable)
+        return m_classicTable->collectData();
     return m_table ? m_table->collectData() : AppData{};
 }
 void MainWindow::setTableData(const AppData& d)
@@ -1404,7 +1421,10 @@ void MainWindow::setTableData(const AppData& d)
         m_table->setData(d);
         m_table->setInventoryMode(d.inventoryMode);
     }
-    if (m_classicTable) m_classicTable->setData(d);
+    if (m_classicTable) {
+        m_classicTable->setInventoryMode(d.inventoryMode);
+        m_classicTable->setData(d);
+    }
     if (m_suppliers)    m_suppliers->setData(d);
     if (m_inventoryModeCombo) {
         QSignalBlocker blocker(m_inventoryModeCombo);

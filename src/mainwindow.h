@@ -30,7 +30,7 @@ private slots:
     void onExportPdf();
     void onSettings();
     void onClearData();
-    void onEditCharts();
+    void onEditCharts(int cardIndex = -1);
     void onAccountGraphRequested(ChartKind kind, AccountTypeFilter accountFilter);
     void onInventoryModeChanged(int index);
     void syncResultsState();

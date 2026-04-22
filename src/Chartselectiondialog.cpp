@@ -424,9 +424,13 @@ static QString stripGeneratedMonthSuffix(const QString& text)
     return text.trimmed();
 }
 
-static bool requestIsCompareKind(ChartKind kind)
+static bool requestIsCompareKind(const ChartRequest& req)
 {
-    return kind == ChartKind::CompareBar || kind == ChartKind::CompareLine || kind == ChartKind::ComparePie;
+    if (req.kind == ChartKind::CompareBar || req.kind == ChartKind::CompareLine || req.kind == ChartKind::ComparePie)
+        return true;
+    if (req.kind == ChartKind::Candle && (!req.compareMetrics.isEmpty() || req.metricB != M_COUNT || !req.seriesB.isEmpty()))
+        return true;
+    return false;
 }
 
 static bool isSupplierMetric(MetricId id)
@@ -639,7 +643,7 @@ void ChartSelectionDialog::buildUI(const AppData& data)
         bool includeSummary = false;
 
         for (const auto& req : previous) {
-            if (requestIsCompareKind(req.kind))
+            if (requestIsCompareKind(req))
                 continue;
             if (req.metricA != def.id)
                 continue;
@@ -672,7 +676,7 @@ void ChartSelectionDialog::buildUI(const AppData& data)
         bool includeSummary = false;
 
         for (const auto& req : previous) {
-            if (requestIsCompareKind(req.kind))
+            if (requestIsCompareKind(req))
                 continue;
             if (req.metricA != def.id)
                 continue;
@@ -696,7 +700,7 @@ void ChartSelectionDialog::buildUI(const AppData& data)
 
     bool hasCompareRows = false;
     for (const auto& req : previous) {
-        if (requestIsCompareKind(req.kind)) {
+        if (requestIsCompareKind(req)) {
             appendCompareRow(&req);
             hasCompareRows = true;
         }

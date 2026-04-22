@@ -41,6 +41,8 @@ public:
     void    applyTheme();
     void    clearData();
     void    updateCurrency();  // no-op (classic table doesn't use currency prefixes)
+    void    setInventoryMode(InventoryMode mode);
+    InventoryMode inventoryMode() const { return m_mode; }
 
 private:
     void buildTable();
@@ -68,4 +70,5 @@ private:
     QDoubleSpinBox*      m_salesRetCell[12]{};
     ClassicDualSpinCell* m_purchCell[12]{};
     ClassicDualSpinCell* m_invCell[12]{};
+    InventoryMode m_mode{InventoryMode::Periodic};
 };

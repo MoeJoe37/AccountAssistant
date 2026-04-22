@@ -33,12 +33,13 @@ public:
     QList<ChartRequest> hiddenChartRequests() const;
     QList<int> monthOrder() const;
     QList<ResultFlowItem> flowOrder() const;
+    ChartRequest requestForCard(int cardIndex) const;
     bool pageLandscape() const { return m_pageLandscape; }
 
     QImage renderFlowItemImage(const ResultFlowItem& item) const;
 
 signals:
-    void editChartsRequested();
+    void editChartsRequested(int cardIndex);
     void resultsStateChanged();
 
 private slots:

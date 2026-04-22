@@ -1,5 +1,6 @@
 #include "ClassicDataTableWidget.h"
 #include "translations.h"
+#include <QSignalBlocker>
 
 #include <QHBoxLayout>
 #include <QVBoxLayout>
@@ -334,10 +335,10 @@ void ClassicDataTableWidget::retranslate()
 {
     QStringList months = monthNames();
 
-    if (m_lSales)    m_lSales->setText(   tr_sales_4fd176());
+    if (m_lSales)    m_lSales->setText(tr_sales_4fd176());
     if (m_lSalesRet) m_lSalesRet->setText(tr_sales_return_7b335a());
-    if (m_lPurch)    m_lPurch->setText(   tr_purchases_00c2b6());
-    if (m_lInv)      m_lInv->setText(     tr_inventory_f08e08());
+    if (m_lPurch)    m_lPurch->setText(tr_purchases_00c2b6());
+    if (m_lInv)      m_lInv->setText(m_mode == InventoryMode::Ongoing ? tr_ongoing_inventory_4f9f2c() : tr_inventory_f08e08());
 
     for (int i = 0; i < 12; ++i) {
         if (m_monthHdr[i]) m_monthHdr[i]->setText(months[i]);
@@ -345,10 +346,13 @@ void ClassicDataTableWidget::retranslate()
             m_purchCell[i]->retranslate(
                 tr_purch_1e85b9(),
                 tr_paym_631d4e());
-        if (m_invCell[i])
-            m_invCell[i]->retranslate(
-                tr_first_period_8d67c2(),
-                tr_last_period_30676e());
+        if (m_invCell[i]) {
+            if (m_mode == InventoryMode::Ongoing) {
+                m_invCell[i]->retranslate(metricDisplayName(M_COGS), tr_inventory_closing_d69943());
+            } else {
+                m_invCell[i]->retranslate(tr_first_period_8d67c2(), tr_last_period_30676e());
+            }
+        }
     }
 }
 
@@ -376,6 +380,7 @@ void ClassicDataTableWidget::updateCurrency()
 
 void ClassicDataTableWidget::setData(const AppData& d)
 {
+    setInventoryMode(d.inventoryMode);
     for (int i = 0; i < 12; ++i) {
         const auto& m = d.months[i];
         if (m_salesCell[i])    m_salesCell[i]->setValue(m.sales);
@@ -385,8 +390,13 @@ void ClassicDataTableWidget::setData(const AppData& d)
             m_purchCell[i]->setBotValue(m.supplierPayments);
         }
         if (m_invCell[i]) {
-            m_invCell[i]->setTopValue(m.inventoryFirst);
-            m_invCell[i]->setBotValue(m.inventoryLast);
+            if (m_mode == InventoryMode::Ongoing) {
+                m_invCell[i]->setTopValue(m.cogsInput);
+                m_invCell[i]->setBotValue(m.inventoryLast);
+            } else {
+                m_invCell[i]->setTopValue(m.inventoryFirst);
+                m_invCell[i]->setBotValue(m.inventoryLast);
+            }
         }
     }
 }
@@ -394,6 +404,7 @@ void ClassicDataTableWidget::setData(const AppData& d)
 AppData ClassicDataTableWidget::collectData() const
 {
     AppData d;
+    d.inventoryMode = m_mode;
     for (int i = 0; i < 12; ++i) {
         auto& m = d.months[i];
         if (m_salesCell[i])    m.sales             = m_salesCell[i]->value();
@@ -403,9 +414,24 @@ AppData ClassicDataTableWidget::collectData() const
             m.supplierPayments  = m_purchCell[i]->botValue();
         }
         if (m_invCell[i]) {
-            m.inventoryFirst = m_invCell[i]->topValue();
-            m.inventoryLast  = m_invCell[i]->botValue();
+            if (m_mode == InventoryMode::Ongoing) {
+                m.cogsInput      = m_invCell[i]->topValue();
+                m.inventoryLast  = m_invCell[i]->botValue();
+                m.inventoryFirst = 0.0;
+            } else {
+                m.inventoryFirst = m_invCell[i]->topValue();
+                m.inventoryLast  = m_invCell[i]->botValue();
+                m.cogsInput      = 0.0;
+            }
         }
     }
     return d;
+}
+
+void ClassicDataTableWidget::setInventoryMode(InventoryMode mode)
+{
+    if (m_mode == mode)
+        return;
+    m_mode = mode;
+    retranslate();
 }
