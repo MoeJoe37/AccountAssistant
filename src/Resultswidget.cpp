@@ -41,6 +41,7 @@
 #include <QSizePolicy>
 #include <QSet>
 #include <QTableWidgetItem>
+#include <QPen>
 #include <algorithm>
 #include <cmath>
 
@@ -380,6 +381,81 @@ static QString pageModeText(bool landscape)
     return landscape ? tr_landscape_94f6c5() : tr_portrait_247c2f();
 }
 
+static QString percentText(double pct)
+{
+    return QString::number(pct, 'f', 1) + QStringLiteral("%");
+}
+
+static QList<double> toDoubleList(const QVariant& v)
+{
+    QList<double> out;
+    const QVariantList list = v.toList();
+    out.reserve(list.size());
+    for (const QVariant& x : list) out << x.toDouble();
+    return out;
+}
+
+static QList<QList<double>> toDoubleLists(const QVariant& v)
+{
+    QList<QList<double>> out;
+    const QVariantList outer = v.toList();
+    out.reserve(outer.size());
+    for (const QVariant& one : outer) out << toDoubleList(one);
+    return out;
+}
+
+static QList<double> computePercentages(const QList<double>& values)
+{
+    QList<double> out;
+    out.reserve(values.size());
+    double total = 0.0;
+    for (double v : values) total += qAbs(v);
+    if (total < 0.000001) {
+        for (int i = 0; i < values.size(); ++i) out << 0.0;
+        return out;
+    }
+    for (double v : values) out << (qAbs(v) / total) * 100.0;
+    return out;
+}
+
+static QList<double> computePercentagesAgainstBase(const QList<double>& values, const QList<double>& base)
+{
+    QList<double> out;
+    const int n = qMax(values.size(), base.size());
+    out.reserve(n);
+    for (int i = 0; i < n; ++i) {
+        const double v = i < values.size() ? values[i] : 0.0;
+        const double b = i < base.size() ? qAbs(base[i]) : 0.0;
+        out << (b < 0.000001 ? 0.0 : (qAbs(v) / b) * 100.0);
+    }
+    return out;
+}
+
+static double computeTotalPercentageAgainstBase(const QList<double>& values, const QList<double>& base)
+{
+    double totalV = 0.0, totalB = 0.0;
+    for (double v : values) totalV += qAbs(v);
+    for (double b : base) totalB += qAbs(b);
+    return totalB < 0.000001 ? 0.0 : (totalV / totalB) * 100.0;
+}
+
+static double totalAbsValue(const QList<double>& values)
+{
+    double total = 0.0;
+    for (double v : values) total += qAbs(v);
+    return total;
+}
+
+static void drawPercentText(QPainter& p, const QPointF& pos, const QString& text, const QColor& fg, const QColor& bg)
+{
+    const QRectF r(pos.x() - 22.0, pos.y() - 10.0, 44.0, 18.0);
+    p.setPen(Qt::NoPen);
+    p.setBrush(bg);
+    p.drawRoundedRect(r, 6.0, 6.0);
+    p.setPen(fg);
+    p.drawText(r, Qt::AlignCenter, text);
+}
+
 class SafeChartView : public QChartView
 {
 public:
@@ -415,6 +491,91 @@ protected:
     void mouseMoveEvent(QMouseEvent* e) override
     {
         if (e) e->accept();
+    }
+
+    void paintEvent(QPaintEvent* event) override
+    {
+        QChartView::paintEvent(event);
+        QChart* c = chart();
+        if (!c) return;
+
+        const QString type = property("chartType").toString();
+        const QColor fg = g_lightMode ? QColor("#111827") : QColor("#f9fafb");
+        const QColor bg = g_lightMode ? QColor(255,255,255,215) : QColor(17,24,39,215);
+        QPainter p(viewport());
+        p.setRenderHint(QPainter::Antialiasing);
+        p.setFont(QFont("Segoe UI", 8, QFont::Bold));
+
+        auto placeY = [&](double value, double maxAbs) {
+            const QRectF plot = c->plotArea();
+            if (maxAbs < 0.000001) maxAbs = 1.0;
+            const double frac = qBound(0.0, value / (maxAbs * 1.1), 1.0);
+            return plot.bottom() - frac * plot.height();
+        };
+
+        if (type == "line") {
+            const QList<double> values = toDoubleList(property("chartValues"));
+            const QList<double> pcts = toDoubleList(property("chartPercents"));
+            if (values.isEmpty() || pcts.size() != values.size() || c->series().isEmpty()) return;
+            auto* line = qobject_cast<QLineSeries*>(c->series().first());
+            if (!line) return;
+            for (int i = 0; i < pcts.size() && i < line->count(); ++i)
+                drawPercentText(p, mapFromScene(c->mapToPosition(line->at(i), line)) + QPoint(0, -14), percentText(pcts[i]), fg, bg);
+            return;
+        }
+
+        if (type == "linecompare") {
+            const QList<QList<double>> pcts = toDoubleLists(property("chartPercentsMulti"));
+            if (pcts.isEmpty()) return;
+            const auto series = c->series();
+            for (int s = 0; s < pcts.size() && s < series.size(); ++s) {
+                auto* line = qobject_cast<QLineSeries*>(series[s]);
+                if (!line) continue;
+                for (int i = 0; i < pcts[s].size() && i < line->count(); ++i)
+                    drawPercentText(p, mapFromScene(c->mapToPosition(line->at(i), line)) + QPoint(0, -14), percentText(pcts[s][i]), fg, bg);
+            }
+            return;
+        }
+
+        if (type == "rankedbar" || type == "candle") {
+            const QList<double> values = toDoubleList(property("chartValues"));
+            const QList<double> pcts = toDoubleList(property("chartPercents"));
+            if (values.isEmpty() || pcts.size() != values.size()) return;
+            double maxAbs = 0.0; for (double v : values) maxAbs = qMax(maxAbs, qAbs(v));
+            const QRectF plot = c->plotArea();
+            const double slot = plot.width() / qMax(1, values.size());
+            for (int i = 0; i < values.size(); ++i) {
+                const double x = plot.left() + slot * (i + 0.5);
+                const double y = placeY(qAbs(values[i]), maxAbs) - 14.0;
+                drawPercentText(p, QPointF(x, y), percentText(pcts[i]), fg, bg);
+            }
+            return;
+        }
+
+        if (type == "barcompare" || type == "comparecandle") {
+            const QList<QList<double>> values = property("chartValuesMulti").isValid() ? toDoubleLists(property("chartValuesMulti"))
+                                                                                         : QList<QList<double>>{toDoubleList(property("chartValues")), toDoubleList(property("chartValues2"))};
+            const QList<QList<double>> pcts = toDoubleLists(property("chartPercentsMulti"));
+            if (values.isEmpty() || pcts.size() != values.size()) return;
+            double maxAbs = 0.0;
+            int count = 0;
+            for (const auto& one : values) {
+                count = qMax(count, one.size());
+                for (double v : one) maxAbs = qMax(maxAbs, qAbs(v));
+            }
+            const QRectF plot = c->plotArea();
+            const double slot = plot.width() / qMax(1, count);
+            const double gap = qMin(28.0, slot * 0.6);
+            const int seriesCount = values.size();
+            for (int s = 0; s < values.size(); ++s) {
+                for (int i = 0; i < values[s].size() && i < pcts[s].size(); ++i) {
+                    const double offset = ((s + 0.5) / qMax(1, seriesCount) - 0.5) * gap;
+                    const double x = plot.left() + slot * (i + 0.5) + offset;
+                    const double y = placeY(qAbs(values[s][i]), maxAbs) - 14.0;
+                    drawPercentText(p, QPointF(x, y), percentText(pcts[s][i]), fg, bg);
+                }
+            }
+        }
     }
 };
 
@@ -1886,7 +2047,7 @@ QChartView* ResultsWidget::makePieChart(const QString& title,
     series->setPieSize(0.66);
     auto* chart = new QChart;
     chart->addSeries(series);
-    chart->legend()->setVisible(false);
+    chart->legend()->setVisible(true);
     chart->setMargins(QMargins(18, 18, 18, 18));
     applyThemeToChart(chart);
     chart->setTitle(title);
@@ -1963,11 +2124,13 @@ QChartView* ResultsWidget::makeCandleChart(const QString& title,
     view->setStyleSheet(g_lightMode
         ? "background:#ffffff; border:none; border-radius:0 0 10px 10px;"
         : "background:#151929; border:none; border-radius:0 0 10px 10px;");
-    view->setProperty("legendLabels", QStringList{tr_increasing_c5cd67(), tr_decreasing_b4c279()});
+    view->setProperty("legendLabels", QStringList{tr_increasing_c5cd67() + QStringLiteral(" (100.0%)"), tr_decreasing_b4c279() + QStringLiteral(" (100.0%)")});
     view->setProperty("legendColors", QStringList{QString("#3ecf8e"), QString("#e05c6a")});
     view->setProperty("chartLabels", labels);
     QVariantList vl; for (double x : values) vl << x;
     view->setProperty("chartValues", vl);
+    QVariantList vp; for (double x : computePercentages(values)) vp << x;
+    view->setProperty("chartPercents", vp);
     view->setProperty("chartType", "candle");
     view->setProperty("chartTitle", title);
     return view;
@@ -2017,6 +2180,9 @@ QChartView* ResultsWidget::makeRankedBarChart(const QString& title,
     view->setProperty("chartLabels", labels);
     QVariantList vl; for (double x : values) vl << x;
     view->setProperty("chartValues", vl);
+    QVariantList vp; for (double x : computePercentages(values)) vp << x;
+    view->setProperty("chartPercents", vp);
+    set->setLabel(title + QStringLiteral(" (") + percentText(100.0) + QStringLiteral(")"));
     view->setProperty("chartType", "rankedbar");
     view->setProperty("chartTitle", title);
     return view;
@@ -2066,6 +2232,9 @@ QChartView* ResultsWidget::makeSingleLineChart(const QString& title,
     view->setProperty("chartLabels", labels);
     QVariantList vl; for (double x : values) vl << x;
     view->setProperty("chartValues", vl);
+    QVariantList vp; for (double x : computePercentages(values)) vp << x;
+    view->setProperty("chartPercents", vp);
+    line->setName(title + QStringLiteral(" (") + percentText(100.0) + QStringLiteral(")"));
     view->setProperty("chartType", "line");
     view->setProperty("chartTitle", title);
     return view;
@@ -2148,6 +2317,9 @@ QChartView* ResultsWidget::makeCompareCandleChart(const QString& title,
     view->setProperty("chartLabels2", labels);
     QVariantList vl2; for (double x : seriesB) vl2 << x;
     view->setProperty("chartValues2", vl2);
+    QVariantList vpm; QVariantList pA; for (double x : computePercentages(seriesA)) pA << x; QVariantList pB; for (double x : computePercentages(seriesB)) pB << x; vpm << pA << pB;
+    view->setProperty("chartValuesMulti", QVariantList{vl, vl2});
+    view->setProperty("chartPercentsMulti", vpm);
     view->setProperty("chartSeriesA", nameA);
     view->setProperty("chartSeriesB", nameB);
     return view;
@@ -2209,6 +2381,9 @@ QChartView* ResultsWidget::makeCompareBarChart(const QString& title,
     view->setProperty("chartLabels2", labels);
     QVariantList vl2; for (double x : seriesB) vl2 << x;
     view->setProperty("chartValues2", vl2);
+    QVariantList vpm; QVariantList pA; for (double x : computePercentages(seriesA)) pA << x; QVariantList pB; for (double x : computePercentages(seriesB)) pB << x; vpm << pA << pB;
+    view->setProperty("chartValuesMulti", QVariantList{vl, vl2});
+    view->setProperty("chartPercentsMulti", vpm);
     view->setProperty("chartSeriesA", nameA);
     view->setProperty("chartSeriesB", nameB);
     return view;
@@ -2272,6 +2447,9 @@ QChartView* ResultsWidget::makeCompareLineChart(const QString& title,
     view->setProperty("chartLabels2", labels);
     QVariantList vl2; for (double x : seriesB) vl2 << x;
     view->setProperty("chartValues2", vl2);
+    QVariantList vpm; QVariantList pA; for (double x : computePercentages(seriesA)) pA << x; QVariantList pB; for (double x : computePercentages(seriesB)) pB << x; vpm << pA << pB;
+    view->setProperty("chartValuesMulti", QVariantList{vl, vl2});
+    view->setProperty("chartPercentsMulti", vpm);
     view->setProperty("chartSeriesA", nameA);
     view->setProperty("chartSeriesB", nameB);
     return view;
@@ -2331,11 +2509,15 @@ QChartView* ResultsWidget::makeMultiCompareBarChart(const QString& title,
     view->setProperty("chartTitle", title);
     view->setProperty("chartSeriesNames", names);
     QVariantList valuesProp;
+    QVariantList percentProp;
     for (const auto& vals : seriesList) {
         QVariantList one; for (double x : vals) one << x;
         valuesProp << one;
+        QVariantList pp; for (double x : computePercentages(vals)) pp << x;
+        percentProp << pp;
     }
     view->setProperty("chartValuesMulti", valuesProp);
+    view->setProperty("chartPercentsMulti", percentProp);
     return view;
 }
 
@@ -2394,11 +2576,15 @@ QChartView* ResultsWidget::makeMultiCompareLineChart(const QString& title,
     view->setProperty("chartTitle", title);
     view->setProperty("chartSeriesNames", names);
     QVariantList valuesProp;
+    QVariantList percentProp;
     for (const auto& vals : seriesList) {
         QVariantList one; for (double x : vals) one << x;
         valuesProp << one;
+        QVariantList pp; for (double x : computePercentages(vals)) pp << x;
+        percentProp << pp;
     }
     view->setProperty("chartValuesMulti", valuesProp);
+    view->setProperty("chartPercentsMulti", percentProp);
     return view;
 }
 
@@ -2499,11 +2685,15 @@ QChartView* ResultsWidget::makeMultiCompareCandleChart(const QString& title,
     view->setProperty("chartTitle", title);
     view->setProperty("chartSeriesNames", names);
     QVariantList valuesProp;
+    QVariantList percentProp;
     for (const auto& vals : seriesList) {
         QVariantList one; for (double x : vals) one << x;
         valuesProp << one;
+        QVariantList pp; for (double x : computePercentages(vals)) pp << x;
+        percentProp << pp;
     }
     view->setProperty("chartValuesMulti", valuesProp);
+    view->setProperty("chartPercentsMulti", percentProp);
     return view;
 }
 
@@ -2572,6 +2762,7 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
     QList<double> b;
     QString title = request.title.isEmpty() ? metricDisplayName(request.metricA) : request.title;
     const bool includeSummaryPoint = request.includeSummaryPoint && request.kind != ChartKind::Pie && request.kind != ChartKind::ComparePie;
+    const bool usePercentBase = request.comparePieBaseMetric >= M_SALES && request.comparePieBaseMetric < M_COUNT;
 
     QList<MetricId> compareMetrics = request.compareMetrics;
     if (compareMetrics.size() < 2 && (request.kind == ChartKind::CompareBar || request.kind == ChartKind::CompareLine || request.kind == ChartKind::ComparePie || request.kind == ChartKind::Candle)) {
@@ -2594,6 +2785,25 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
             appendSummaryLabel(labels);
             for (auto& values : seriesList)
                 appendSummaryValue(values);
+        }
+        if (!usePercentBase && request.kind != ChartKind::ComparePie) {
+            double grandTotal = 0.0;
+            for (const auto& values : seriesList) grandTotal += totalAbsValue(values);
+            if (grandTotal > 0.000001) {
+                for (int i = 0; i < seriesList.size(); ++i)
+                    names[i] += QStringLiteral(" (") + percentText((totalAbsValue(seriesList[i]) / grandTotal) * 100.0) + QStringLiteral(")");
+            }
+        }
+        if (usePercentBase && request.kind != ChartKind::ComparePie) {
+            const int baseIdx = compareMetrics.indexOf(request.comparePieBaseMetric);
+            if (baseIdx >= 0 && baseIdx < seriesList.size()) {
+                const QList<double> baseSeries = seriesList[baseIdx];
+                for (int i = 0; i < seriesList.size(); ++i) {
+                    names[i] += QStringLiteral(" (") + percentText(computeTotalPercentageAgainstBase(seriesList[i], baseSeries)) + QStringLiteral(")");
+                    seriesList[i] = computePercentagesAgainstBase(seriesList[i], baseSeries);
+                }
+                title += QStringLiteral(" — ") + metricDisplayName(request.comparePieBaseMetric) + QStringLiteral(" = 100%");
+            }
         }
         if (request.kind == ChartKind::CompareLine)
             return makeMultiCompareLineChart(title, labels, seriesList, names);
@@ -2626,9 +2836,27 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
                 appendSummaryValue(a);
                 appendSummaryValue(b);
             }
-            return makeCompareCandleChart(title, labels, a, b,
-                                          request.seriesA.isEmpty() ? metricDisplayName(request.metricA) : request.seriesA,
-                                          request.seriesB.isEmpty() ? metricDisplayName(request.metricB) : request.seriesB);
+            QString nameA = request.seriesA.isEmpty() ? metricDisplayName(request.metricA) : request.seriesA;
+            QString nameB = request.seriesB.isEmpty() ? metricDisplayName(request.metricB) : request.seriesB;
+            if (usePercentBase) {
+                QList<double> baseSeries;
+                if (request.comparePieBaseMetric == request.metricA) baseSeries = a;
+                else if (request.comparePieBaseMetric == request.metricB) baseSeries = b;
+                if (!baseSeries.isEmpty()) {
+                    nameA += QStringLiteral(" (") + percentText(computeTotalPercentageAgainstBase(a, baseSeries)) + QStringLiteral(")");
+                    nameB += QStringLiteral(" (") + percentText(computeTotalPercentageAgainstBase(b, baseSeries)) + QStringLiteral(")");
+                    a = computePercentagesAgainstBase(a, baseSeries);
+                    b = computePercentagesAgainstBase(b, baseSeries);
+                    title += QStringLiteral(" — ") + metricDisplayName(request.comparePieBaseMetric) + QStringLiteral(" = 100%");
+                }
+            } else {
+                const double totalAB = totalAbsValue(a) + totalAbsValue(b);
+                if (totalAB > 0.000001) {
+                    nameA += QStringLiteral(" (") + percentText((totalAbsValue(a) / totalAB) * 100.0) + QStringLiteral(")");
+                    nameB += QStringLiteral(" (") + percentText((totalAbsValue(b) / totalAB) * 100.0) + QStringLiteral(")");
+                }
+            }
+            return makeCompareCandleChart(title, labels, a, b, nameA, nameB);
         }
         if (includeSummaryPoint) {
             appendSummaryLabel(labels);
@@ -2658,9 +2886,27 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
             appendSummaryValue(a);
             appendSummaryValue(b);
         }
-        return makeCompareBarChart(title, labels, a, b,
-                                   request.seriesA.isEmpty() ? metricDisplayName(request.metricA) : request.seriesA,
-                                   request.seriesB.isEmpty() ? metricDisplayName(request.metricB) : request.seriesB);
+        QString nameA = request.seriesA.isEmpty() ? metricDisplayName(request.metricA) : request.seriesA;
+        QString nameB = request.seriesB.isEmpty() ? metricDisplayName(request.metricB) : request.seriesB;
+        if (usePercentBase) {
+            QList<double> baseSeries;
+            if (request.comparePieBaseMetric == request.metricA) baseSeries = a;
+            else if (request.comparePieBaseMetric == request.metricB) baseSeries = b;
+            if (!baseSeries.isEmpty()) {
+                nameA += QStringLiteral(" (") + percentText(computeTotalPercentageAgainstBase(a, baseSeries)) + QStringLiteral(")");
+                nameB += QStringLiteral(" (") + percentText(computeTotalPercentageAgainstBase(b, baseSeries)) + QStringLiteral(")");
+                a = computePercentagesAgainstBase(a, baseSeries);
+                b = computePercentagesAgainstBase(b, baseSeries);
+                title += QStringLiteral(" — ") + metricDisplayName(request.comparePieBaseMetric) + QStringLiteral(" = 100%");
+            }
+        } else {
+            const double totalAB = totalAbsValue(a) + totalAbsValue(b);
+            if (totalAB > 0.000001) {
+                nameA += QStringLiteral(" (") + percentText((totalAbsValue(a) / totalAB) * 100.0) + QStringLiteral(")");
+                nameB += QStringLiteral(" (") + percentText((totalAbsValue(b) / totalAB) * 100.0) + QStringLiteral(")");
+            }
+        }
+        return makeCompareBarChart(title, labels, a, b, nameA, nameB);
     }
     case ChartKind::CompareLine: {
         QStringList labelsB;
@@ -2670,11 +2916,27 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
             appendSummaryValue(a);
             appendSummaryValue(b);
         }
-        return makeMultiCompareLineChart(title, labels, QList<QList<double>>{a, b},
-                                         QStringList{
-                                             request.seriesA.isEmpty() ? metricDisplayName(request.metricA) : request.seriesA,
-                                             request.seriesB.isEmpty() ? metricDisplayName(request.metricB) : request.seriesB
-                                         });
+        QString nameA = request.seriesA.isEmpty() ? metricDisplayName(request.metricA) : request.seriesA;
+        QString nameB = request.seriesB.isEmpty() ? metricDisplayName(request.metricB) : request.seriesB;
+        if (usePercentBase) {
+            QList<double> baseSeries;
+            if (request.comparePieBaseMetric == request.metricA) baseSeries = a;
+            else if (request.comparePieBaseMetric == request.metricB) baseSeries = b;
+            if (!baseSeries.isEmpty()) {
+                nameA += QStringLiteral(" (") + percentText(computeTotalPercentageAgainstBase(a, baseSeries)) + QStringLiteral(")");
+                nameB += QStringLiteral(" (") + percentText(computeTotalPercentageAgainstBase(b, baseSeries)) + QStringLiteral(")");
+                a = computePercentagesAgainstBase(a, baseSeries);
+                b = computePercentagesAgainstBase(b, baseSeries);
+                title += QStringLiteral(" — ") + metricDisplayName(request.comparePieBaseMetric) + QStringLiteral(" = 100%");
+            }
+        } else {
+            const double totalAB = totalAbsValue(a) + totalAbsValue(b);
+            if (totalAB > 0.000001) {
+                nameA += QStringLiteral(" (") + percentText((totalAbsValue(a) / totalAB) * 100.0) + QStringLiteral(")");
+                nameB += QStringLiteral(" (") + percentText((totalAbsValue(b) / totalAB) * 100.0) + QStringLiteral(")");
+            }
+        }
+        return makeMultiCompareLineChart(title, labels, QList<QList<double>>{a, b}, QStringList{nameA, nameB});
     }
     case ChartKind::ComparePie: {
         QStringList labelsB;

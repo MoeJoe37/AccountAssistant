@@ -1230,7 +1230,7 @@ void ChartSelectionDialog::syncCompareMoreButton(CompareRow& row)
 
 void ChartSelectionDialog::syncComparePieBaseControls(CompareRow& row)
 {
-    const bool show = row.type && ChartKind(row.type->currentData().toInt()) == ChartKind::ComparePie;
+    const bool show = row.type && (ChartKind(row.type->currentData().toInt()) == ChartKind::ComparePie || ChartKind(row.type->currentData().toInt()) == ChartKind::CompareBar || ChartKind(row.type->currentData().toInt()) == ChartKind::CompareLine || ChartKind(row.type->currentData().toInt()) == ChartKind::Candle);
     if (row.countAs100) row.countAs100->setVisible(show);
     if (!show || !row.countAs100)
         return;
@@ -1256,7 +1256,7 @@ void ChartSelectionDialog::syncComparePieBaseControls(CompareRow& row)
 void ChartSelectionDialog::syncComparePieBaseVisibility()
 {
     const bool show = std::any_of(m_compareRows.cbegin(), m_compareRows.cend(), [](const CompareRow& r) {
-        return r.type && ChartKind(r.type->currentData().toInt()) == ChartKind::ComparePie;
+        return r.type && (ChartKind(r.type->currentData().toInt()) == ChartKind::ComparePie || ChartKind(r.type->currentData().toInt()) == ChartKind::CompareBar || ChartKind(r.type->currentData().toInt()) == ChartKind::CompareLine || ChartKind(r.type->currentData().toInt()) == ChartKind::Candle);
     });
     if (m_comparePieBaseHdr)
         m_comparePieBaseHdr->setVisible(show);
