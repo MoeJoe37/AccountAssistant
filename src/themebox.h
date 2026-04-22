@@ -20,8 +20,6 @@
 #include <QMessageBox>
 #include "translations.h"
 
-// Declared in appdata.h / mainwindow.cpp and visible application-wide.
-extern bool g_lightMode;
 
 namespace ThemeBox {
 
@@ -88,6 +86,18 @@ QMessageBox QPushButton[text="Cancel"] {
 }
 
 inline const char* style() { return g_lightMode ? styleLight() : styleDark(); }
+
+inline QString dialogBaseStyle()
+{
+    return QString::fromUtf8(style());
+}
+
+inline void applyDialogTheme(QDialog* dialog)
+{
+    if (!dialog) return;
+    dialog->setStyleSheet(dialogBaseStyle());
+}
+
 
 // ── Helper builders ───────────────────────────────────────────────────────────
 

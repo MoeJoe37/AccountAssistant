@@ -1,6 +1,7 @@
 #pragma once
 #include <QString>
 #include <QStringList>
+#include <Qt>
 
 enum class AppLanguage { English, Arabic };
 inline AppLanguage g_lang      = AppLanguage::English;
@@ -10,6 +11,17 @@ enum class AppCurrency { USD, IQD };
 inline AppCurrency g_currency    = AppCurrency::USD;
 inline int         g_fontSize    = 12;  // 12, 14, or 16
 inline bool        g_classicView = false; // classic spreadsheet table vs. card view
+
+inline bool isArabic()  { return g_lang == AppLanguage::Arabic; }
+inline bool isEnglish() { return g_lang == AppLanguage::English; }
+inline Qt::LayoutDirection appLayoutDirection()
+{
+    return isArabic() ? Qt::RightToLeft : Qt::LeftToRight;
+}
+inline Qt::Alignment appTextAlign()
+{
+    return isArabic() ? Qt::AlignRight : Qt::AlignLeft;
+}
 
 inline QString currencyPrefix()
 {

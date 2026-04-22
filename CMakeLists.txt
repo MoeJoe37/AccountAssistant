@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(AccountAssistant VERSION 4.0.0 LANGUAGES CXX)
+project(AccountAssistant VERSION 5.3.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
