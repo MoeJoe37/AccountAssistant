@@ -1,111 +1,65 @@
-# Account Assistant
+# Account Assistant 5.3
 
-A bilingual (English / Arabic) Qt 6 accounting data-entry application with
-interactive pie and candlestick charts and PDF report export.
+Account Assistant 5.3 is a stability, structure, and usability release focused on improving maintainability, visual consistency, and the inventory workflow without removing any existing features or interface elements.
 
----
+## Highlights
 
-## Features
+### Inventory workflow improvements
+- Unified the results experience so inventory result views behave more consistently.
+- Improved the inventory mode switch flow with a dedicated confirmation dialog.
+- Added safer handling when switching between inventory modes to prevent accidental data loss.
+- Improved support for inventory-related calculations in the results flow.
 
-| Section | Fields |
-|---------|--------|
-| **Sales** | 12 monthly figures |
-| **Sales Return** | 12 monthly figures |
-| **Purchases** | Supplier Purchases · Supplier Payments |
-| **Expenses** | Dynamic table – Account Name · Month · Amount |
-| **Inventory** | 12 × First Period + 12 × Last Period |
+### Results and charting improvements
+- Added support for summary-style metric output across selected periods.
+- Improved chart editing behavior from the Results tab so existing graph settings are restored correctly when editing.
+- Fixed issues where recalculating could clear result values or produce empty graphs.
+- Improved percentage display behavior across chart types.
+- Improved metric color consistency across cards, legends, and chart series.
 
-Each section has **Pie Chart** and **Candle Chart** checkboxes to control which
-charts are rendered on the right panel.
+### Table and results stability
+- Fixed regressions affecting table-based views.
+- Improved compatibility between results, charts, and inventory modes.
+- Reduced issues caused by repeated calculate/edit cycles.
 
-### Calculations
-```
-Cost of Goods Sold  = Σ First Period  +  Supplier Purchases  +  Σ Last Period
-Net Sales           = Σ Sales  −  Σ Sales Return
-Profit Margin       = Cost of Goods Sold  −  Net Sales
-```
+### UI and dialog improvements
+- Improved the inventory switch warning dialog behavior and layout.
+- Fixed theme-related inconsistencies in that popup.
+- Made the inventory switch popup fixed-size for more predictable behavior.
 
-### Other features
-- **Language switching** — Settings button → English / Arabic (full RTL layout)
-- **PDF export** — exports summary figures + all visible charts to a PDF file
+### Internal cleanup and maintainability
+- Refactored shared UI styling logic into centralized theme helpers.
+- Reduced duplicated UI refresh and results rebuild paths.
+- Cleaned up project packaging by removing stale build output from the release archive.
 
----
+## Performance and optimization
 
-## Prerequisites
+This release includes safe structural cleanup intended to improve responsiveness and reduce redundant work in the UI update flow:
+- less duplicated results rebuild logic
+- fewer repeated styling paths
+- cleaner shared helpers for dialogs, charts, and widgets
 
-| Tool | Version |
-|------|---------|
-| CMake | ≥ 3.20 |
-| vcpkg | latest |
-| Qt 6 | ≥ 6.4 (via vcpkg or system) |
-| C++ compiler | MSVC 2022 / GCC 12+ / Clang 15+ |
+These changes were made without removing features or changing the overall interface structure.
 
----
+## Upgrade notes
+- For best results, perform a clean rebuild when upgrading to 5.3.
+- If you are updating from an older local build, remove the old `build` directory before configuring again.
 
-## Build
+## Clean build example
 
-### 1. Install dependencies via vcpkg
-```bash
-# Clone vcpkg if you don't have it
-git clone https://github.com/microsoft/vcpkg.git
-./vcpkg/bootstrap-vcpkg.sh   # Linux/macOS
-# or
-.\vcpkg\bootstrap-vcpkg.bat  # Windows
-
-# Install Qt packages (this may take a while)
-./vcpkg/vcpkg install qtbase qtcharts qtsvg
-```
-
-### 2. Configure & build
-```bash
-cmake -B build \
-  -DCMAKE_TOOLCHAIN_FILE=/path/to/vcpkg/scripts/buildsystems/vcpkg.cmake \
-  -DCMAKE_BUILD_TYPE=Release
+```powershell
+rmdir /s /q build
+cmake -B build -DCMAKE_TOOLCHAIN_FILE="C:\vcpkg\scripts\buildsystems\vcpkg.cmake" -DCMAKE_PREFIX_PATH="C:/Qt/6.11.0/msvc2022_64"
 cmake --build build --config Release
 ```
 
-> **Windows (Visual Studio)**  
-> ```bat
-> cmake -B build -G "Visual Studio 17 2022" -A x64 ^
->   -DCMAKE_TOOLCHAIN_FILE=C:\vcpkg\scripts\buildsystems\vcpkg.cmake
-> cmake --build build --config Release
-> ```
+## Included in this release
+- Source code for version 5.3
+- Updated inventory switch dialog behavior
+- Results and chart handling fixes
+- Visual consistency improvements for metrics and charts
+- Internal code cleanup and optimization
 
-### 3. Run
-```bash
-./build/AccountAssistant          # Linux/macOS
-build\Release\AccountAssistant.exe  # Windows
-```
+## Version
+**Release:** 5.3.0
 
----
-
-## Project structure
-
-```
-AccountAssistant/
-├── CMakeLists.txt
-├── vcpkg.json
-└── src/
-    ├── main.cpp
-    ├── mainwindow.h / .cpp      — main window, data entry tabs
-    ├── chartswidget.h / .cpp    — pie & candlestick chart panel
-    ├── pdfexporter.h / .cpp     — PDF export via QPrinter
-    ├── settingsdialog.h / .cpp  — language settings dialog
-    ├── translations.h           — bilingual string helper (T macro)
-    └── appdata.h                — shared data structures + calculations
-```
-
----
-
-## Troubleshooting
-
-**Qt Charts not found**  
-Make sure `qtcharts` is installed in vcpkg and the toolchain file is set.
-
-**Arabic text not rendering**  
-Install an Arabic system font (e.g. *Tahoma*, *Arial*, *Segoe UI*). Qt uses the
-system font stack for Unicode shaping.
-
-**windeployqt not found**  
-Run `windeployqt.exe AccountAssistant.exe` manually from your Qt bin directory
-after building.
