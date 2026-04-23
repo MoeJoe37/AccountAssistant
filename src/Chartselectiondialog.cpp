@@ -338,6 +338,11 @@ static const MetricDef kMetricDefs[] = {
     { M_SALES_RETURN,      "Sales Return",      "مرتجعات المبيعات",      true,  true  },
     { M_PURCHASES,         "Purchases",         "المشتريات",             true,  true  },
     { M_SUPPLIER_PAYMENTS, "Supplier Payments",  "دفعات الموردين",        false, true  },
+    { M_SUPPLIER_PREVIOUS_BALANCE, "Supplier previous balance", "الرصيد السابق للمورد", false, true },
+    { M_SUPPLIER_TOTAL_DEBT, "Supplier total debt", "إجمالي دين المورد", false, true },
+    { M_SUPPLIER_PAYMENT_PCT_PURCHASES, "Supplier payment % of purchases", "نسبة دفع المورد من المشتريات", false, true },
+    { M_SUPPLIER_PAYMENT_PCT_DEBT, "Supplier payment % of debt", "نسبة دفع المورد من الدين", false, true },
+    { M_SUPPLIER_BALANCE, "Supplier balance", "رصيد المورد", false, true },
     { M_EXPENSES,          "Expenses",          "المصروفات",             false, true  },
     { M_INVENTORY,         "Inventory",         "المخزون",               true,  true  },
     { M_NET_SALES,         "Net Sales",         "صافي المبيعات",         true,  true  },
@@ -352,6 +357,11 @@ static QList<QPair<MetricId, QString>> compareMetrics()
         { M_SALES_RETURN,      metricDisplayName(M_SALES_RETURN) },
         { M_PURCHASES,         metricDisplayName(M_PURCHASES) },
         { M_SUPPLIER_PAYMENTS, metricDisplayName(M_SUPPLIER_PAYMENTS) },
+        { M_SUPPLIER_PREVIOUS_BALANCE, metricDisplayName(M_SUPPLIER_PREVIOUS_BALANCE) },
+        { M_SUPPLIER_TOTAL_DEBT, metricDisplayName(M_SUPPLIER_TOTAL_DEBT) },
+        { M_SUPPLIER_PAYMENT_PCT_PURCHASES, metricDisplayName(M_SUPPLIER_PAYMENT_PCT_PURCHASES) },
+        { M_SUPPLIER_PAYMENT_PCT_DEBT, metricDisplayName(M_SUPPLIER_PAYMENT_PCT_DEBT) },
+        { M_SUPPLIER_BALANCE, metricDisplayName(M_SUPPLIER_BALANCE) },
         { M_EXPENSE_AMOUNT,    metricDisplayName(M_EXPENSE_AMOUNT) },
         { M_INVENTORY_OPENING, metricDisplayName(M_INVENTORY_OPENING) },
         { M_INVENTORY_CLOSING, metricDisplayName(M_INVENTORY_CLOSING) },
@@ -435,7 +445,10 @@ static bool requestIsCompareKind(const ChartRequest& req)
 
 static bool isSupplierMetric(MetricId id)
 {
-    return id == M_PURCHASES || id == M_SUPPLIER_PAYMENTS;
+    return id == M_PURCHASES || id == M_SUPPLIER_PAYMENTS ||
+           id == M_SUPPLIER_PREVIOUS_BALANCE || id == M_SUPPLIER_TOTAL_DEBT ||
+           id == M_SUPPLIER_PAYMENT_PCT_PURCHASES || id == M_SUPPLIER_PAYMENT_PCT_DEBT ||
+           id == M_SUPPLIER_BALANCE;
 }
 
 static bool isAccountMetric(MetricId id)
@@ -802,27 +815,17 @@ void ChartSelectionDialog::appendMetricRow(MetricId id, ChartKind kind, const QL
     duplicateBtn->setCursor(Qt::PointingHandCursor);
     hl->addWidget(duplicateBtn);
 
-    auto* removeBtn = new QPushButton(QStringLiteral("X"));
-    removeBtn->setObjectName("removeBtn");
-    removeBtn->setCursor(Qt::PointingHandCursor);
-    removeBtn->setFixedSize(28, 28);
-    removeBtn->setFont(QFont("Segoe UI", 11, QFont::Bold));
-    removeBtn->setToolTip(tr_remove_c3a712());
-    hl->addWidget(removeBtn);
 
-
-    QObject::connect(enabled, &QCheckBox::toggled, frame, [type, monthsBtn, summaryCheck, duplicateBtn, removeBtn](bool on) {
+    QObject::connect(enabled, &QCheckBox::toggled, frame, [type, monthsBtn, summaryCheck, duplicateBtn](bool on) {
         if (type) type->setEnabled(on);
         if (monthsBtn) monthsBtn->setEnabled(on);
         if (summaryCheck) summaryCheck->setEnabled(on);
         if (duplicateBtn) duplicateBtn->setEnabled(on);
-        if (removeBtn) removeBtn->setEnabled(on);
     });
     type->setEnabled(false);
     monthsBtn->setEnabled(false);
     summaryCheck->setEnabled(false);
     duplicateBtn->setEnabled(false);
-    removeBtn->setEnabled(false);
     enabled->setChecked(false);
 
     hl->addStretch();
@@ -837,7 +840,6 @@ void ChartSelectionDialog::appendMetricRow(MetricId id, ChartKind kind, const QL
     row.monthActions = monthActs;
     row.summaryCheck = summaryCheck;
     row.duplicateBtn = duplicateBtn;
-    row.removeBtn = removeBtn;
 
     const int pos = (insertAt < 0 || insertAt > m_metricRows.size()) ? m_metricRows.size() : insertAt;
     m_metricRows.insert(pos, row);
@@ -860,15 +862,6 @@ void ChartSelectionDialog::appendMetricRow(MetricId id, ChartKind kind, const QL
                         idx + 1);
         if (idx + 1 < m_metricRows.size() && m_metricRows[idx].summaryCheck && m_metricRows[idx + 1].summaryCheck)
             m_metricRows[idx + 1].summaryCheck->setChecked(m_metricRows[idx].summaryCheck->isChecked());
-    });
-
-    connect(removeBtn, &QPushButton::clicked, this, [this, frame]() {
-        for (int i = 0; i < m_metricRows.size(); ++i) {
-            if (m_metricRows[i].frame == frame) {
-                removeMetricRow(i);
-                return;
-            }
-        }
     });
 }
 
@@ -1011,12 +1004,6 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset)
     if (!presetTitle.isEmpty())
         title->setText(presetTitle);
 
-    auto* removeBtn = new QPushButton(QStringLiteral("X"));
-    removeBtn->setObjectName("removeBtn");
-    removeBtn->setCursor(Qt::PointingHandCursor);
-    removeBtn->setFixedSize(28, 28);
-    removeBtn->setFont(QFont("Segoe UI", 11, QFont::Bold));
-    removeBtn->setToolTip(tr_remove_c3a712());
 
     auto* selAll = moreMenu->addAction(tr_select_all_7812c3());
     auto* deselAll = moreMenu->addAction(tr_deselect_all_474bc1());
@@ -1086,9 +1073,7 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset)
     grid->addWidget(monthBtn,     1, 5);
     grid->addWidget(summaryCheck, 1, 6);
     grid->addWidget(title,        1, 7);
-    grid->addWidget(removeBtn,    0, 8, 2, 1, Qt::AlignVCenter);
     grid->setColumnStretch(7, 1);
-    grid->setColumnStretch(8, 0);
 
     QVBoxLayout* targetLayout = m_compareGeneralLayout ? m_compareGeneralLayout : m_compareLayout;
     const CompareGroup forcedGroup = m_nextCompareGroup;
@@ -1166,15 +1151,57 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset)
     });
 
     syncComparePieBaseControls(m_compareRows.last());
-    connect(removeBtn, &QPushButton::clicked, this, [this, row]() {
+
+    row->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(row, &QWidget::customContextMenuRequested, this, [this, row](const QPoint& pos) {
+        int idx = -1;
         for (int i = 0; i < m_compareRows.size(); ++i) {
-            if (m_compareRows[i].frame == row) {
-                removeCompareRow(i);
-                return;
-            }
+            if (m_compareRows[i].frame == row) { idx = i; break; }
         }
+        if (idx < 0) return;
+
+        QMenu menu(this);
+        menu.setCursor(Qt::PointingHandCursor);
+        menu.setStyleSheet(g_lightMode
+            ? "QMenu{background:#ffffff;color:#1e2340;border:1px solid #dde2f0;padding:4px;}"
+              "QMenu::item{padding:7px 22px;min-width:180px;}"
+              "QMenu::item:selected{background:#eef0fa;color:#1e2340;}"
+            : "QMenu{background:#1a1f38;color:#e7ecff;border:1px solid #343c63;padding:4px;}"
+              "QMenu::item{padding:7px 22px;min-width:180px;}"
+              "QMenu::item:selected{background:#4f86f7;color:#ffffff;}");
+        QAction* duplicateAct = menu.addAction(tr_duplicate_47648b());
+        QAction* removeAct = menu.addAction(tr_remove_c3a712());
+        QAction* chosen = menu.exec(row->mapToGlobal(pos));
+        if (chosen == duplicateAct)
+            duplicateCompareRow(idx);
+        else if (chosen == removeAct)
+            removeCompareRow(idx);
     });
 }
+void ChartSelectionDialog::duplicateCompareRow(int rowIndex)
+{
+    if (rowIndex < 0 || rowIndex >= m_compareRows.size()) return;
+    const CompareRow& src = m_compareRows[rowIndex];
+
+    ChartRequest preset;
+    const QList<MetricId> metrics = selectedCompareMetrics(src);
+    if (!metrics.isEmpty()) {
+        preset.metricA = metrics.value(0, M_SALES);
+        preset.metricB = metrics.value(1, preset.metricA);
+        preset.compareMetrics = metrics;
+    } else {
+        preset.metricA = src.left ? MetricId(src.left->currentData().toInt()) : M_SALES;
+        preset.metricB = src.right ? MetricId(src.right->currentData().toInt()) : M_SALES_RETURN;
+        preset.compareMetrics = QList<MetricId>{preset.metricA, preset.metricB};
+    }
+    preset.kind = src.type ? ChartKind(src.type->currentData().toInt()) : ChartKind::CompareBar;
+    preset.months = selectedMonths(src);
+    preset.title = src.title ? src.title->text().trimmed() : QString();
+    preset.includeSummaryPoint = src.summaryCheck && src.summaryCheck->isChecked();
+    preset.comparePieBaseMetric = src.comparePieBase;
+    appendCompareRow(&preset);
+}
+
 void ChartSelectionDialog::removeCompareRow(int rowIndex)
 {
     if (rowIndex < 0 || rowIndex >= m_compareRows.size()) return;

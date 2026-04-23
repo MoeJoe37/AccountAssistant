@@ -40,6 +40,7 @@ public:
 
 signals:
     void editChartsRequested(int cardIndex);
+    void duplicateChartRequested(int cardIndex);
     void resultsStateChanged();
 
 private slots:

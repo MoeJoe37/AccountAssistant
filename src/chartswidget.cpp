@@ -102,7 +102,72 @@ static QWidget* makeLegendWidget(QWidget* parent, const QStringList& labels, con
     if (labels.isEmpty() || colors.isEmpty())
         return nullptr;
 
+    const QString monthSeparator = QStringLiteral(" — ");
+    bool allHaveMonthPrefix = true;
+    QStringList orderedMonths;
+    QMap<QString, QList<int>> monthRows;
+
+    for (int i = 0; i < labels.size() && i < colors.size(); ++i) {
+        const int sep = labels[i].indexOf(monthSeparator);
+        if (sep <= 0) {
+            allHaveMonthPrefix = false;
+            break;
+        }
+        const QString month = labels[i].left(sep).trimmed();
+        if (!monthRows.contains(month))
+            orderedMonths << month;
+        monthRows[month] << i;
+    }
+
+    if (allHaveMonthPrefix && orderedMonths.size() > 1) {
+        auto* wrap = new QWidget(parent);
+        wrap->setLayoutDirection(Qt::LeftToRight);
+        auto* hl = new QHBoxLayout(wrap);
+        hl->setContentsMargins(8, 4, 8, 8);
+        hl->setSpacing(18);
+
+        for (const QString& month : orderedMonths) {
+            auto* colWrap = new QFrame(wrap);
+            colWrap->setLayoutDirection(Qt::LeftToRight);
+            colWrap->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+            auto* col = new QVBoxLayout(colWrap);
+            col->setContentsMargins(0, 0, 0, 0);
+            col->setSpacing(4);
+
+            auto* monthLab = new QLabel(month, colWrap);
+            monthLab->setAlignment(Qt::AlignCenter);
+            monthLab->setStyleSheet("background:transparent;color:#ffffff;font-size:11px;font-weight:700;");
+            col->addWidget(monthLab);
+
+            for (int idx : monthRows.value(month)) {
+                auto* item = new QWidget(colWrap);
+                item->setLayoutDirection(Qt::LeftToRight);
+                auto* row = new QHBoxLayout(item);
+                row->setContentsMargins(0, 0, 0, 0);
+                row->setSpacing(6);
+                auto* swatch = new QFrame(item);
+                swatch->setFixedSize(10, 10);
+                swatch->setAutoFillBackground(true);
+                swatch->setStyleSheet(QString("background-color:%1; border:1px solid #d4dbea; border-radius:2px;").arg(colors[idx].name()));
+                QString text = labels[idx].mid(labels[idx].indexOf(monthSeparator) + monthSeparator.size()).trimmed();
+                auto* lab = new QLabel(text, item);
+                lab->setWordWrap(true);
+                lab->setAlignment(Qt::AlignCenter);
+                lab->setStyleSheet("background:transparent;color:#ffffff;font-size:11px;");
+                row->addStretch();
+                row->addWidget(swatch, 0, Qt::AlignTop);
+                row->addWidget(lab, 0, Qt::AlignTop);
+                row->addStretch();
+                col->addWidget(item);
+            }
+            col->addStretch();
+            hl->addWidget(colWrap, 1);
+        }
+        return wrap;
+    }
+
     auto* wrap = new QWidget(parent);
+    wrap->setLayoutDirection(Qt::LeftToRight);
     auto* grid = new QGridLayout(wrap);
     grid->setContentsMargins(8, 4, 8, 8);
     grid->setHorizontalSpacing(10);
@@ -111,6 +176,7 @@ static QWidget* makeLegendWidget(QWidget* parent, const QStringList& labels, con
     const int cols = labels.size() > 4 ? 2 : 3;
     for (int i = 0; i < labels.size() && i < colors.size(); ++i) {
         auto* item = new QWidget(wrap);
+        item->setLayoutDirection(Qt::LeftToRight);
         auto* hl = new QHBoxLayout(item);
         hl->setContentsMargins(0, 0, 0, 0);
         hl->setSpacing(6);
@@ -322,7 +388,10 @@ void ChartsWidget::addLineChart(const QString& title,
 {
     auto* cv = makeLine(title, labels, values, metricId);
     m_views << cv;
-    m_layout->insertWidget(m_layout->count()-1, cv);
+    auto* wrap = wrapChartWithLegend(m_container, cv,
+                                     QStringList{title + QStringLiteral(": 100.0%")},
+                                     QList<QColor>{metricColor(metricId)});
+    m_layout->insertWidget(m_layout->count()-1, wrap);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -442,6 +511,18 @@ QChartView* ChartsWidget::makeCandle(const QString& title,
     auto* view = makeSafeView(chart);
     view->setFixedSize(420, 360);
     view->setObjectName("chartView");
+    QStringList candleLegendLabels;
+    QStringList candleLegendColors;
+    double candleTotal = 0.0;
+    for (double v : values) candleTotal += qAbs(v);
+    if (candleTotal < 0.001) candleTotal = 1.0;
+    for (int i = 0; i < labels.size() && i < values.size(); ++i) {
+        const double pct = (qAbs(values[i]) / candleTotal) * 100.0;
+        candleLegendLabels << (labels[i] + QStringLiteral(" — ") + title + QStringLiteral(": ") + QString::number(pct, 'f', 1) + QStringLiteral("%"));
+        candleLegendColors << ((values[i] >= 0.0) ? metricColor(metricId).name() : metricColor(metricId).darker(130).name());
+    }
+    view->setProperty("legendLabels", candleLegendLabels);
+    view->setProperty("legendColors", candleLegendColors);
     return view;
 }
 
@@ -488,5 +569,17 @@ QChartView* ChartsWidget::makeLine(const QString& title,
     auto* view = makeSafeView(chart);
     view->setFixedSize(420, 360);
     view->setObjectName("chartView");
+    QStringList lineLegendLabels;
+    QStringList lineLegendColors;
+    double lineTotal = 0.0;
+    for (double v : values) lineTotal += qAbs(v);
+    if (lineTotal < 0.001) lineTotal = 1.0;
+    for (int i = 0; i < labels.size() && i < values.size(); ++i) {
+        const double pct = (qAbs(values[i]) / lineTotal) * 100.0;
+        lineLegendLabels << (labels[i] + QStringLiteral(" — ") + title + QStringLiteral(": ") + QString::number(pct, 'f', 1) + QStringLiteral("%"));
+        lineLegendColors << metricColor(metricId).name();
+    }
+    view->setProperty("legendLabels", lineLegendLabels);
+    view->setProperty("legendColors", lineLegendColors);
     return view;
 }

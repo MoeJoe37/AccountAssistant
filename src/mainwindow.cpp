@@ -235,7 +235,9 @@ static QString xmlEscape(const QString& s)
     return out;
 }
 
-static QByteArray makeWorksheetXml(const AppData& data)
+enum class XlsxSheetKind { DataEntry, Expenses, Suppliers, AllData };
+
+static QByteArray makeWorksheetXml(const QStringList& headers, const QList<QStringList>& rows)
 {
     QByteArray ba;
     QBuffer buffer(&ba);
@@ -245,78 +247,6 @@ static QByteArray makeWorksheetXml(const AppData& data)
     w.writeStartDocument();
     w.writeStartElement("worksheet");
     w.writeDefaultNamespace("http://schemas.openxmlformats.org/spreadsheetml/2006/main");
-    w.writeNamespace("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "r");
-    w.writeStartElement("sheetData");
-
-    const QStringList headers = {
-        "Month", "Sales", "Sales Return", "Supplier Purchases", "Supplier Payments",
-        "Expense Account", "Expense Amount", "Inventory First", "Inventory Last",
-        "Supplier Name", "COGS Input"
-    };
-
-    auto writeTextCell = [&](const QString& ref, const QString& text) {
-        w.writeStartElement("c");
-        w.writeAttribute("r", ref);
-        w.writeAttribute("t", "inlineStr");
-        w.writeStartElement("is");
-        w.writeTextElement("t", text);
-        w.writeEndElement();
-        w.writeEndElement();
-    };
-    auto writeNumCell = [&](const QString& ref, double value) {
-        w.writeStartElement("c");
-        w.writeAttribute("r", ref);
-        w.writeStartElement("v");
-        w.writeCharacters(QString::number(value, 'f', 2));
-        w.writeEndElement();
-        w.writeEndElement();
-    };
-
-    w.writeStartElement("row");
-    w.writeAttribute("r", "1");
-    for (int i = 0; i < headers.size(); ++i) {
-        const QChar col = QLatin1Char(char('A' + i));
-        writeTextCell(QString(col) + "1", headers.value(i));
-    }
-    w.writeEndElement();
-
-    const auto months = monthNames();
-    for (int i = 0; i < 12; ++i) {
-        const auto& m = data.months[i];
-        const int row = i + 2;
-        w.writeStartElement("row");
-        w.writeAttribute("r", QString::number(row));
-        writeTextCell(QString("A%1").arg(row), months.value(i));
-        writeNumCell(QString("B%1").arg(row), m.sales);
-        writeNumCell(QString("C%1").arg(row), m.salesReturn);
-        writeNumCell(QString("D%1").arg(row), m.supplierPurchases);
-        writeNumCell(QString("E%1").arg(row), m.supplierPayments);
-        writeTextCell(QString("F%1").arg(row), m.expenseAccount);
-        writeNumCell(QString("G%1").arg(row), m.expenseAmount);
-        writeNumCell(QString("H%1").arg(row), m.inventoryFirst);
-        writeNumCell(QString("I%1").arg(row), m.inventoryLast);
-        writeTextCell(QString("J%1").arg(row), m.supplierName);
-        writeNumCell(QString("K%1").arg(row), m.cogsInput);
-        w.writeEndElement();
-    }
-
-    w.writeEndElement(); // sheetData
-    w.writeEndElement(); // worksheet
-    w.writeEndDocument();
-    return ba;
-}
-
-static QByteArray makeAccountsWorksheetXml(const AppData& data)
-{
-    QByteArray ba;
-    QBuffer buffer(&ba);
-    buffer.open(QIODevice::WriteOnly);
-    QXmlStreamWriter w(&buffer);
-    w.setAutoFormatting(true);
-    w.writeStartDocument();
-    w.writeStartElement("worksheet");
-    w.writeDefaultNamespace("http://schemas.openxmlformats.org/spreadsheetml/2006/main");
-    w.writeNamespace("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "r");
     w.writeStartElement("sheetData");
 
     auto writeTextCell = [&](const QString& ref, const QString& text) {
@@ -328,31 +258,27 @@ static QByteArray makeAccountsWorksheetXml(const AppData& data)
         w.writeEndElement();
         w.writeEndElement();
     };
-    auto writeNumCell = [&](const QString& ref, double value) {
-        w.writeStartElement("c");
-        w.writeAttribute("r", ref);
-        w.writeStartElement("v");
-        w.writeCharacters(QString::number(value, 'f', 2));
-        w.writeEndElement();
+
+    auto writeRow = [&](int rowNum, const QStringList& cols) {
+        w.writeStartElement("row");
+        w.writeAttribute("r", QString::number(rowNum));
+        for (int i = 0; i < cols.size(); ++i) {
+            QString col;
+            int n = i;
+            do {
+                col.prepend(QChar('A' + (n % 26)));
+                n = n / 26 - 1;
+            } while (n >= 0);
+            writeTextCell(QString("%1%2").arg(col).arg(rowNum), cols[i]);
+        }
         w.writeEndElement();
     };
 
-    w.writeStartElement("row");
-    w.writeAttribute("r", "1");
-    writeTextCell("A1", "Account");
-    writeTextCell("B1", "Type");
-    writeTextCell("C1", "Amount");
-    w.writeEndElement();
-
-    for (int i = 0; i < data.accounts.size(); ++i) {
-        const int row = i + 2;
-        w.writeStartElement("row");
-        w.writeAttribute("r", QString::number(row));
-        writeTextCell(QString("A%1").arg(row), data.accounts[i].name);
-        writeTextCell(QString("B%1").arg(row), accountTypeDisplayName(data.accounts[i].type));
-        writeNumCell(QString("C%1").arg(row), data.accounts[i].amount);
-        w.writeEndElement();
-    }
+    writeRow(1, {"ACCOUNT_ASSISTANT_EXPORT", "6.0.0"});
+    writeRow(2, headers);
+    int row = 3;
+    for (const auto& r : rows)
+        writeRow(row++, r);
 
     w.writeEndElement();
     w.writeEndElement();
@@ -360,15 +286,14 @@ static QByteArray makeAccountsWorksheetXml(const AppData& data)
     return ba;
 }
 
-static QByteArray makeWorkbookXml()
+static QByteArray makeWorkbookXml(const QString& sheetName)
 {
-    return QByteArray(R"xml(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    return QString(R"xml(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <sheets>
-    <sheet name="Data" sheetId="1" r:id="rId1"/>
-    <sheet name="Accounts" sheetId="2" r:id="rId2"/>
+    <sheet name="%1" sheetId="1" r:id="rId1"/>
   </sheets>
-</workbook>)xml");
+</workbook>)xml").arg(xmlEscape(sheetName)).toUtf8();
 }
 
 static QByteArray makeWorkbookRelsXml()
@@ -376,7 +301,6 @@ static QByteArray makeWorkbookRelsXml()
     return QByteArray(R"xml(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
-  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>
 </Relationships>)xml");
 }
 
@@ -396,7 +320,6 @@ static QByteArray makeContentTypesXml()
   <Default Extension="xml" ContentType="application/xml"/>
   <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
   <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
-  <Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
 </Types>)xml");
 }
 
@@ -415,10 +338,10 @@ static bool writeStoredZip(const QString& path, const QVector<ZipEntry>& entries
         e.crc = crc32Bytes(e.data);
         e.offset = quint32(f.pos());
         writeU32(out, 0x04034b50u);
-        writeU16(out, 20); // version
-        writeU16(out, 0);  // flags
-        writeU16(out, 0);  // stored
-        writeU16(out, 0); writeU16(out, 0); // time/date
+        writeU16(out, 20);
+        writeU16(out, 0);
+        writeU16(out, 0);
+        writeU16(out, 0); writeU16(out, 0);
         writeU32(out, e.crc);
         writeU32(out, quint32(e.data.size()));
         writeU32(out, quint32(e.data.size()));
@@ -432,8 +355,8 @@ static bool writeStoredZip(const QString& path, const QVector<ZipEntry>& entries
     for (const auto& e : local) {
         const QByteArray name = e.name.toUtf8();
         writeU32(out, 0x02014b50u);
-        writeU16(out, 20); // made by
-        writeU16(out, 20); // needed
+        writeU16(out, 20);
+        writeU16(out, 20);
         writeU16(out, 0);
         writeU16(out, 0);
         writeU16(out, 0); writeU16(out, 0);
@@ -451,8 +374,7 @@ static bool writeStoredZip(const QString& path, const QVector<ZipEntry>& entries
     }
     const quint32 centralSize = quint32(f.pos()) - centralOffset;
     writeU32(out, 0x06054b50u);
-    writeU16(out, 0);
-    writeU16(out, 0);
+    writeU16(out, 0); writeU16(out, 0);
     writeU16(out, quint16(local.size()));
     writeU16(out, quint16(local.size()));
     writeU32(out, centralSize);
@@ -461,16 +383,96 @@ static bool writeStoredZip(const QString& path, const QVector<ZipEntry>& entries
     return true;
 }
 
-static bool saveAppDataXlsx(const QString& path, const AppData& data)
+static bool saveSheetXlsx(const QString& path, const QString& sheetName, const QStringList& headers, const QList<QStringList>& rows)
 {
     QVector<ZipEntry> entries;
     entries.push_back({"[Content_Types].xml", makeContentTypesXml()});
     entries.push_back({"_rels/.rels", makeRootRelsXml()});
-    entries.push_back({"xl/workbook.xml", makeWorkbookXml()});
+    entries.push_back({"xl/workbook.xml", makeWorkbookXml(sheetName)});
     entries.push_back({"xl/_rels/workbook.xml.rels", makeWorkbookRelsXml()});
-    entries.push_back({"xl/worksheets/sheet1.xml", makeWorksheetXml(data)});
-    entries.push_back({"xl/worksheets/sheet2.xml", makeAccountsWorksheetXml(data)});
+    entries.push_back({"xl/worksheets/sheet1.xml", makeWorksheetXml(headers, rows)});
     return writeStoredZip(path, entries);
+}
+
+static bool saveAppDataXlsx(const QString& path, const AppData& data, XlsxSheetKind kind = XlsxSheetKind::DataEntry)
+{
+    QStringList headers;
+    QList<QStringList> rows;
+    QString sheetName;
+    switch (kind) {
+    case XlsxSheetKind::DataEntry: {
+        sheetName = "DATA_ENTRY";
+        headers = {"DATA_ENTRY", "Month", "Sales", "Sales Return", "Supplier Purchases", "Supplier Payments", "Expense Account", "Expense Amount", "Inventory First", "Inventory Last", "Supplier Name", "COGS Input"};
+        const auto months = monthNames();
+        for (int i = 0; i < 12; ++i) {
+            const auto& m = data.months[i];
+            rows.push_back({
+                "DATA_ENTRY", months.value(i),
+                QString::number(m.sales, 'f', 2),
+                QString::number(m.salesReturn, 'f', 2),
+                QString::number(m.supplierPurchases, 'f', 2),
+                QString::number(m.supplierPayments, 'f', 2),
+                m.expenseAccount,
+                QString::number(m.expenseAmount, 'f', 2),
+                QString::number(m.inventoryFirst, 'f', 2),
+                QString::number(m.inventoryLast, 'f', 2),
+                m.supplierName,
+                QString::number(m.cogsInput, 'f', 2)
+            });
+        }
+        break;
+    }
+    case XlsxSheetKind::Expenses: {
+        sheetName = "EXPENSES";
+        headers = {"EXPENSES", "Account Name", "Account Type", "Amount"};
+        for (const auto& a : data.accounts) {
+            rows.push_back({"EXPENSES", a.name, accountTypeDisplayName(a.type), QString::number(a.amount, 'f', 2)});
+        }
+        break;
+    }
+    case XlsxSheetKind::Suppliers: {
+        sheetName = "SUPPLIERS";
+        headers = {"SUPPLIERS", "Month", "Supplier Name", "Previous Balance", "Purchases", "Total Debt", "Payments", "Payment % of Purchases", "Payment % of Total Debt", "Supplier Balance"};
+        const auto months = monthNames();
+        for (int i = 0; i < 12; ++i) {
+            const auto entries = !data.supplierEntries[i].isEmpty() ? data.supplierEntries[i] : QList<SupplierEntry>{};
+            if (entries.isEmpty()) {
+                SupplierEntry e;
+                e.name = data.suppliers[i].supplierName;
+                e.purchases = data.suppliers[i].purchases;
+                e.payments = data.suppliers[i].payments;
+                e.totalDebt = e.previousBalance + e.purchases;
+                rows.push_back({"SUPPLIERS", months.value(i), e.name, QString::number(e.previousBalance,'f',2), QString::number(e.purchases,'f',2), QString::number(e.totalDebt,'f',2), QString::number(e.payments,'f',2), QString::number(e.paymentPctOfPurchases(),'f',2), QString::number(e.paymentPctOfTotalDebt(),'f',2), QString::number(e.supplierBalance(),'f',2)});
+            } else {
+                for (const auto& e : entries) {
+                    rows.push_back({"SUPPLIERS", months.value(i), e.name, QString::number(e.previousBalance,'f',2), QString::number(e.purchases,'f',2), QString::number(e.totalDebt > 0.0 ? e.totalDebt : (e.previousBalance + e.purchases),'f',2), QString::number(e.payments,'f',2), QString::number(e.paymentPctOfPurchases(),'f',2), QString::number(e.paymentPctOfTotalDebt(),'f',2), QString::number(e.supplierBalance(),'f',2)});
+                }
+            }
+        }
+        break;
+    }
+    case XlsxSheetKind::AllData: {
+        sheetName = "ALL_DATA";
+        headers = {"ALL_DATA", "Section", "Key 1", "Value 1", "Value 2", "Value 3", "Value 4", "Value 5", "Value 6", "Value 7", "Value 8", "Value 9", "Value 10"};
+        const auto months = monthNames();
+        for (int i = 0; i < 12; ++i) {
+            const auto& m = data.months[i];
+            rows.push_back({"ALL_DATA", "DATA_ENTRY", months.value(i),
+                QString::number(m.sales, 'f', 2), QString::number(m.salesReturn, 'f', 2), QString::number(m.supplierPurchases, 'f', 2),
+                QString::number(m.supplierPayments, 'f', 2), m.expenseAccount, QString::number(m.expenseAmount, 'f', 2),
+                QString::number(m.inventoryFirst, 'f', 2), QString::number(m.inventoryLast, 'f', 2), m.supplierName, QString::number(m.cogsInput, 'f', 2)});
+        }
+        for (const auto& a : data.accounts)
+            rows.push_back({"ALL_DATA", "EXPENSES", a.name, accountTypeDisplayName(a.type), QString::number(a.amount, 'f', 2)});
+        for (int i = 0; i < 12; ++i) {
+            const auto& entries = data.supplierEntries[i];
+            for (const auto& e : entries)
+                rows.push_back({"ALL_DATA", "SUPPLIERS", months.value(i), e.name, QString::number(e.previousBalance,'f',2), QString::number(e.purchases,'f',2), QString::number(e.totalDebt > 0.0 ? e.totalDebt : (e.previousBalance + e.purchases),'f',2), QString::number(e.payments,'f',2), QString::number(e.paymentPctOfPurchases(),'f',2), QString::number(e.paymentPctOfTotalDebt(),'f',2), QString::number(e.supplierBalance(),'f',2)});
+        }
+        break;
+    }
+    }
+    return saveSheetXlsx(path, sheetName, headers, rows);
 }
 
 // Decompress raw deflate (ZIP method 8) using zlib
@@ -595,153 +597,24 @@ static int colLetterToIndex(const QString& ref)
     return col - 1;  // 0-based
 }
 
-static QList<AccountItem> parseAccountsSheet(const QByteArray& sheet)
+static QList<QString> g_sharedStringsXlsx;
+
+static QList<QMap<int, QString>> parseWorksheetRows(const QByteArray& sheet)
 {
-    QList<AccountItem> accounts;
-    if (sheet.isEmpty()) return accounts;
+    QList<QMap<int, QString>> rows;
+    if (sheet.isEmpty()) return rows;
     QXmlStreamReader xr(sheet);
     int rowNum = 0;
     QMap<int, QString> rowCells;
-
-    auto parseType = [](const QString& text) {
-        const QString k = text.trimmed().toCaseFolded();
-        if (k.contains(QString::fromUtf8("مدين")) || k.contains(QStringLiteral("receivable")))
-            return AccountType::Receivable;
-        return AccountType::Payable;
-    };
-
-    auto flushRow = [&]() {
-        if (rowNum < 2) return;
-        AccountItem a;
-        a.name = rowCells.value(0).trimmed();
-        if (rowCells.contains(2)) {
-            a.type = parseType(rowCells.value(1));
-            a.amount = rowCells.value(2).trimmed().toDouble();
-        } else {
-            a.type = AccountType::Payable;
-            a.amount = rowCells.value(1).trimmed().toDouble();
-        }
-        if (!a.name.isEmpty() || !qFuzzyIsNull(a.amount))
-            accounts.append(a);
-        rowCells.clear();
-    };
-
     while (!xr.atEnd()) {
         xr.readNext();
         if (xr.isStartElement() && xr.name() == QLatin1String("row")) {
             rowCells.clear();
             rowNum = xr.attributes().value("r").toInt();
         } else if (xr.isStartElement() && xr.name() == QLatin1String("c")) {
-            const QString ref      = xr.attributes().value("r").toString();
+            const QString ref = xr.attributes().value("r").toString();
             const QString cellType = xr.attributes().value("t").toString();
             const int colIdx = colLetterToIndex(ref);
-            QString val;
-            while (!(xr.isEndElement() && xr.name() == QLatin1String("c")) && !xr.atEnd()) {
-                xr.readNext();
-                if (xr.isStartElement()) {
-                    if (xr.name() == QLatin1String("v")) {
-                        QString raw = xr.readElementText();
-                        val = raw;
-                    } else if (xr.name() == QLatin1String("t") && cellType == QStringLiteral("inlineStr")) {
-                        val = xr.readElementText();
-                    }
-                }
-            }
-            if (colIdx >= 0 && colIdx <= 2)
-                rowCells[colIdx] = val;
-        } else if (xr.isEndElement() && xr.name() == QLatin1String("row")) {
-            flushRow();
-        }
-    }
-    return accounts;
-}
-
-
-static bool appDataHasUserEntries(const AppData& d)
-{
-    for (const auto& m : d.months) {
-        if (m.sales != 0.0 || m.salesReturn != 0.0 || m.supplierPurchases != 0.0 || m.supplierPayments != 0.0
-            || m.expenseAmount != 0.0 || m.inventoryFirst != 0.0 || m.inventoryLast != 0.0 || m.cogsInput != 0.0
-            || !m.supplierName.trimmed().isEmpty() || !m.expenseAccount.trimmed().isEmpty())
-            return true;
-    }
-    for (const auto& s : d.suppliers) {
-        if (s.purchases != 0.0 || s.payments != 0.0 || !s.supplierName.trimmed().isEmpty())
-            return true;
-    }
-    for (const auto& a : d.accounts) {
-        if (a.amount != 0.0 || !a.name.trimmed().isEmpty())
-            return true;
-    }
-    return false;
-}
-static bool loadAppDataXlsx(const QString& path, AppData* data)
-{
-    if (!data) return false;
-    QMap<QString, QByteArray> entries;
-    if (!readZipEntries(path, &entries)) return false;
-
-    // Try to find the worksheets – check common paths
-    QByteArray sheet;
-    QByteArray accountsSheet;
-    for (const QString& key : entries.keys()) {
-        if (key.endsWith("worksheets/sheet1.xml")) sheet = entries.value(key);
-        else if (key.endsWith("worksheets/sheet2.xml")) accountsSheet = entries.value(key);
-        else if (key.contains("worksheets/sheet") && key.endsWith(".xml") && sheet.isEmpty()) sheet = entries.value(key);
-    }
-    if (sheet.isEmpty()) return false;
-
-    // Build shared strings table (present when Excel saves strings)
-    QList<QString> sharedStrings;
-    for (const QString& key : entries.keys()) {
-        if (key.contains("sharedStrings")) {
-            sharedStrings = parseSharedStrings(entries.value(key));
-            break;
-        }
-    }
-
-    // Map of column index → column name in our data (0=Month, 1=Sales, …, 8=InvLast)
-    // We'll parse using cell references (e.g. "B3") so skipped cells don't break alignment.
-    QXmlStreamReader xr(sheet);
-    int rowNum = 0;
-
-    // Per-row data: col index (0-based) → string value
-    QMap<int, QString> rowCells;
-
-    auto flushRow = [&]() {
-        if (rowNum < 2) return;                    // row 1 is header
-        const int i = rowNum - 2;
-        if (i < 0 || i >= 12) return;
-        auto& m = data->months[i];
-        auto toDouble = [&](int col) {
-            return rowCells.value(col).trimmed().toDouble();
-        };
-        // Col A(0)=Month name, B(1)=Sales, C(2)=SalesReturn, D(3)=SupPurch,
-        // E(4)=SupPayments, F(5)=ExpAccount, G(6)=ExpAmount, H(7)=InvFirst, I(8)=InvLast,
-        // J(9)=SupplierName, K(10)=COGSInput
-        m.sales             = toDouble(1);
-        m.salesReturn       = toDouble(2);
-        m.supplierPurchases = toDouble(3);
-        m.supplierPayments  = toDouble(4);
-        m.expenseAccount    = rowCells.value(5);
-        m.expenseAmount     = toDouble(6);
-        m.inventoryFirst    = toDouble(7);
-        m.inventoryLast     = toDouble(8);
-        m.supplierName      = rowCells.value(9);
-        m.cogsInput         = toDouble(10);
-        rowCells.clear();
-    };
-
-    while (!xr.atEnd()) {
-        xr.readNext();
-        if (xr.isStartElement() && xr.name() == QLatin1String("row")) {
-            rowCells.clear();
-            rowNum = xr.attributes().value("r").toInt();
-        } else if (xr.isStartElement() && xr.name() == QLatin1String("c")) {
-            const QString ref      = xr.attributes().value("r").toString();
-            const QString cellType = xr.attributes().value("t").toString();
-            const int colIdx = colLetterToIndex(ref);
-
             QString val;
             while (!(xr.isEndElement() && xr.name() == QLatin1String("c")) && !xr.atEnd()) {
                 xr.readNext();
@@ -749,26 +622,176 @@ static bool loadAppDataXlsx(const QString& path, AppData* data)
                     if (xr.name() == QLatin1String("v")) {
                         QString raw = xr.readElementText();
                         if (cellType == QStringLiteral("s")) {
-                            // Shared string index
                             bool ok = false;
                             int si = raw.toInt(&ok);
-                            val = (ok && si < sharedStrings.size()) ? sharedStrings[si] : raw;
+                            val = (ok && si >= 0 && si < g_sharedStringsXlsx.size()) ? g_sharedStringsXlsx[si] : raw;
                         } else {
                             val = raw;
                         }
-                    } else if (xr.name() == QLatin1String("t") && cellType == QStringLiteral("inlineStr")) {
+                    } else if (xr.name() == QLatin1String("t") && cellType == QStringLiteral("inlineStr"))
                         val = xr.readElementText();
-                    }
                 }
             }
-            if (colIdx >= 0 && colIdx <= 10)
-                rowCells[colIdx] = val;
+            if (colIdx >= 0) rowCells[colIdx] = val;
         } else if (xr.isEndElement() && xr.name() == QLatin1String("row")) {
-            flushRow();
+            while (rows.size() < rowNum) rows.append(QMap<int, QString>{});
+            rows[rowNum - 1] = rowCells;
         }
     }
-    if (xr.hasError()) return false;
-    data->accounts = parseAccountsSheet(accountsSheet);
+    return rows;
+}
+
+static bool strictToDouble(const QString& text, double* out)
+{
+    if (!out) return false;
+    const QString t = text.trimmed();
+    if (t.isEmpty()) { *out = 0.0; return true; }
+    bool ok = false;
+    double v = QLocale::c().toDouble(t, &ok);
+    if (!ok) v = QLocale(QLocale::English, QLocale::UnitedStates).toDouble(t, &ok);
+    if (!ok) return false;
+    *out = v;
+    return true;
+}
+
+static QString g_lastImportError;
+
+static bool loadAppDataXlsx(const QString& path, AppData* data)
+{
+    g_lastImportError.clear();
+    if (!data) return false;
+    QMap<QString, QByteArray> entries;
+    if (!readZipEntries(path, &entries)) return false;
+    QByteArray sheet;
+    for (const QString& key : entries.keys()) {
+        if (key.endsWith("worksheets/sheet1.xml")) { sheet = entries.value(key); break; }
+        if (key.contains("worksheets/sheet") && key.endsWith(".xml") && sheet.isEmpty()) sheet = entries.value(key);
+    }
+    if (sheet.isEmpty()) return false;
+
+    g_sharedStringsXlsx.clear();
+    for (const QString& key : entries.keys()) {
+        if (key.contains("sharedStrings")) {
+            g_sharedStringsXlsx = parseSharedStrings(entries.value(key));
+            break;
+        }
+    }
+    const auto rows = parseWorksheetRows(sheet);
+    if (rows.size() < 2) { g_lastImportError = T("Missing sheet marker or headers.", "ملف الاستيراد لا يحتوي على فهرس أو عناوين."); return false; }
+
+    const QString marker = rows[1].value(0).trimmed().toUpper();
+    if (marker != QStringLiteral("DATA_ENTRY") && marker != QStringLiteral("EXPENSES") && marker != QStringLiteral("SUPPLIERS") && marker != QStringLiteral("ALL_DATA")) {
+        g_lastImportError = T("The first data row must identify the export source: DATA_ENTRY, EXPENSES, SUPPLIERS, or ALL_DATA.", "يجب أن يحدد الصف الأول مصدر التصدير: DATA_ENTRY أو EXPENSES أو SUPPLIERS أو ALL_DATA.");
+        return false;
+    }
+
+    *data = AppData{};
+    if (marker == QStringLiteral("DATA_ENTRY")) {
+        int monthIndex = 0;
+        for (int r = 2; r < rows.size() && monthIndex < 12; ++r, ++monthIndex) {
+            const auto& row = rows[r];
+            auto& m = data->months[monthIndex];
+            auto parseNumeric = [&](int col, double& target, const QString& fieldName) -> bool {
+                double v = 0.0;
+                if (!strictToDouble(row.value(col), &v)) { g_lastImportError = T("Import error: a numeric field contains text.", "خطأ في الاستيراد: أحد الحقول الرقمية يحتوي على نص.") + QStringLiteral(" ") + fieldName; return false; }
+                target = v; return true;
+            };
+            if (!parseNumeric(2, m.sales, "Sales")) return false;
+            if (!parseNumeric(3, m.salesReturn, "Sales Return")) return false;
+            if (!parseNumeric(4, m.supplierPurchases, "Supplier Purchases")) return false;
+            if (!parseNumeric(5, m.supplierPayments, "Supplier Payments")) return false;
+            m.expenseAccount = row.value(6);
+            if (!parseNumeric(7, m.expenseAmount, "Expense Amount")) return false;
+            if (!parseNumeric(8, m.inventoryFirst, "Inventory First")) return false;
+            if (!parseNumeric(9, m.inventoryLast, "Inventory Last")) return false;
+            m.supplierName = row.value(10);
+            if (!parseNumeric(11, m.cogsInput, "COGS Input")) return false;
+        }
+    } else if (marker == QStringLiteral("EXPENSES")) {
+        auto parseType = [](const QString& text) {
+            const QString k = text.trimmed().toCaseFolded();
+            if (k.contains(QString::fromUtf8("مدين")) || k.contains(QStringLiteral("receivable"))) return AccountType::Receivable;
+            return AccountType::Payable;
+        };
+        for (int r = 2; r < rows.size(); ++r) {
+            const auto& row = rows[r];
+            if (row.value(1).trimmed().isEmpty() && row.value(3).trimmed().isEmpty()) continue;
+            AccountItem a;
+            a.name = row.value(1).trimmed();
+            a.type = parseType(row.value(2));
+            if (!strictToDouble(row.value(3), &a.amount)) { g_lastImportError = T("Import error: Amount must be numeric.", "خطأ في الاستيراد: يجب أن يكون المبلغ رقمياً."); return false; }
+            data->accounts.append(a);
+        }
+    } else if (marker == QStringLiteral("SUPPLIERS")) {
+        const auto months = monthNames();
+        QMap<QString, int> monthLookup;
+        for (int i = 0; i < months.size(); ++i) monthLookup[months[i].trimmed()] = i;
+        for (int r = 2; r < rows.size(); ++r) {
+            const auto& row = rows[r];
+            const QString monthName = row.value(1).trimmed();
+            const int monthIndex = monthLookup.value(monthName, -1);
+            if (monthIndex < 0 || monthIndex >= 12) continue;
+            SupplierEntry e;
+            e.name = row.value(2).trimmed();
+            if (!strictToDouble(row.value(3), &e.previousBalance)) { g_lastImportError = T("Import error: Previous Balance must be numeric.", "خطأ في الاستيراد: يجب أن يكون الرصيد السابق رقمياً."); return false; }
+            if (!strictToDouble(row.value(4), &e.purchases)) { g_lastImportError = T("Import error: Purchases must be numeric.", "خطأ في الاستيراد: يجب أن تكون المشتريات رقمية."); return false; }
+            if (!strictToDouble(row.value(5), &e.totalDebt)) { g_lastImportError = T("Import error: Total Debt must be numeric.", "خطأ في الاستيراد: يجب أن يكون إجمالي الدين رقمياً."); return false; }
+            if (!strictToDouble(row.value(6), &e.payments)) { g_lastImportError = T("Import error: Payments must be numeric.", "خطأ في الاستيراد: يجب أن تكون الدفعات رقمية."); return false; }
+            data->supplierEntries[monthIndex].append(e);
+        }
+        for (int i = 0; i < 12; ++i) {
+            double p=0.0, pay=0.0; QString first;
+            for (const auto& e : data->supplierEntries[i]) { p += e.purchases; pay += e.payments; if (first.isEmpty() && !e.name.isEmpty()) first = e.name; }
+            data->suppliers[i].supplierName = first;
+            data->suppliers[i].purchases = p;
+            data->suppliers[i].payments = pay;
+        }
+    } else if (marker == QStringLiteral("ALL_DATA")) {
+        const auto months = monthNames();
+        QMap<QString, int> monthLookup;
+        for (int i = 0; i < months.size(); ++i) monthLookup[months[i].trimmed()] = i;
+        auto parseType = [](const QString& text) {
+            const QString k = text.trimmed().toCaseFolded();
+            if (k.contains(QString::fromUtf8("مدين")) || k.contains(QStringLiteral("receivable"))) return AccountType::Receivable;
+            return AccountType::Payable;
+        };
+        for (int r = 2; r < rows.size(); ++r) {
+            const auto& row = rows[r];
+            const QString section = row.value(1).trimmed().toUpper();
+            if (section == QStringLiteral("DATA_ENTRY")) {
+                const int monthIndex = monthLookup.value(row.value(2).trimmed(), -1);
+                if (monthIndex < 0 || monthIndex >= 12) continue;
+                auto& m = data->months[monthIndex];
+                if (!strictToDouble(row.value(3), &m.sales)) { g_lastImportError = T("Import error: Sales must be numeric.", "خطأ في الاستيراد: يجب أن تكون المبيعات رقمية."); return false; }
+                if (!strictToDouble(row.value(4), &m.salesReturn)) { g_lastImportError = T("Import error: Sales Return must be numeric.", "خطأ في الاستيراد: يجب أن يكون مردود المبيعات رقمياً."); return false; }
+                if (!strictToDouble(row.value(5), &m.supplierPurchases)) { g_lastImportError = T("Import error: Supplier Purchases must be numeric.", "خطأ في الاستيراد: يجب أن تكون مشتريات الموردين رقمية."); return false; }
+                if (!strictToDouble(row.value(6), &m.supplierPayments)) { g_lastImportError = T("Import error: Supplier Payments must be numeric.", "خطأ في الاستيراد: يجب أن تكون دفعات الموردين رقمية."); return false; }
+                m.expenseAccount = row.value(7).trimmed();
+                if (!strictToDouble(row.value(8), &m.expenseAmount)) { g_lastImportError = T("Import error: Expense Amount must be numeric.", "خطأ في الاستيراد: يجب أن يكون مبلغ المصروف رقمياً."); return false; }
+                if (!strictToDouble(row.value(9), &m.inventoryFirst)) { g_lastImportError = T("Import error: Inventory First must be numeric.", "خطأ في الاستيراد: يجب أن يكون أول المخزون رقمياً."); return false; }
+                if (!strictToDouble(row.value(10), &m.inventoryLast)) { g_lastImportError = T("Import error: Inventory Last must be numeric.", "خطأ في الاستيراد: يجب أن يكون آخر المخزون رقمياً."); return false; }
+                m.supplierName = row.value(11).trimmed();
+                if (!strictToDouble(row.value(12), &m.cogsInput)) { g_lastImportError = T("Import error: COGS Input must be numeric.", "خطأ في الاستيراد: يجب أن يكون إدخال تكلفة البضاعة المباعة رقمياً."); return false; }
+            } else if (section == QStringLiteral("EXPENSES")) {
+                if (row.value(2).trimmed().isEmpty() && row.value(4).trimmed().isEmpty()) continue;
+                AccountItem a;
+                a.name = row.value(2).trimmed();
+                a.type = parseType(row.value(3));
+                if (!strictToDouble(row.value(4), &a.amount)) { g_lastImportError = T("Import error: Amount must be numeric.", "خطأ في الاستيراد: يجب أن يكون المبلغ رقمياً."); return false; }
+                data->accounts.append(a);
+            } else if (section == QStringLiteral("SUPPLIERS")) {
+                const int monthIndex = monthLookup.value(row.value(2).trimmed(), -1);
+                if (monthIndex < 0 || monthIndex >= 12) continue;
+                SupplierEntry e;
+                e.name = row.value(3).trimmed();
+                if (!strictToDouble(row.value(4), &e.previousBalance)) { g_lastImportError = T("Import error: Previous Balance must be numeric.", "خطأ في الاستيراد: يجب أن يكون الرصيد السابق رقمياً."); return false; }
+                if (!strictToDouble(row.value(5), &e.purchases)) { g_lastImportError = T("Import error: Purchases must be numeric.", "خطأ في الاستيراد: يجب أن تكون المشتريات رقمية."); return false; }
+                if (!strictToDouble(row.value(6), &e.totalDebt)) { g_lastImportError = T("Import error: Total Debt must be numeric.", "خطأ في الاستيراد: يجب أن يكون إجمالي الدين رقمياً."); return false; }
+                if (!strictToDouble(row.value(7), &e.payments)) { g_lastImportError = T("Import error: Payments must be numeric.", "خطأ في الاستيراد: يجب أن تكون الدفعات رقمية."); return false; }
+                data->supplierEntries[monthIndex].append(e);
+            }
+        }
+    }
     data->calculate();
     return true;
 }
@@ -888,6 +911,17 @@ void MainWindow::saveTableDataLocally()
         s.setValue(QStringLiteral("supplierName"), sm.supplierName);
         s.setValue(QStringLiteral("purchases"), sm.purchases);
         s.setValue(QStringLiteral("payments"), sm.payments);
+        const auto entries = data.supplierEntries[i];
+        s.setValue(QStringLiteral("entryCount"), entries.size());
+        for (int j = 0; j < entries.size(); ++j) {
+            s.beginGroup(QStringLiteral("entry_") + QString::number(j));
+            s.setValue(QStringLiteral("name"), entries[j].name);
+            s.setValue(QStringLiteral("previousBalance"), entries[j].previousBalance);
+            s.setValue(QStringLiteral("purchases"), entries[j].purchases);
+            s.setValue(QStringLiteral("totalDebt"), entries[j].totalDebt);
+            s.setValue(QStringLiteral("payments"), entries[j].payments);
+            s.endGroup();
+        }
         s.endGroup();
     }
     s.endGroup();
@@ -947,6 +981,18 @@ void MainWindow::loadTableDataLocally()
             supData.suppliers[i].supplierName = s.value(QStringLiteral("supplierName"), QString()).toString();
             supData.suppliers[i].purchases    = s.value(QStringLiteral("purchases"), 0.0).toDouble();
             supData.suppliers[i].payments     = s.value(QStringLiteral("payments"), 0.0).toDouble();
+            const int entryCount = s.value(QStringLiteral("entryCount"), 0).toInt();
+            for (int j = 0; j < entryCount; ++j) {
+                s.beginGroup(QStringLiteral("entry_") + QString::number(j));
+                SupplierEntry e;
+                e.name = s.value(QStringLiteral("name"), QString()).toString();
+                e.previousBalance = s.value(QStringLiteral("previousBalance"), 0.0).toDouble();
+                e.purchases = s.value(QStringLiteral("purchases"), 0.0).toDouble();
+                e.totalDebt = s.value(QStringLiteral("totalDebt"), 0.0).toDouble();
+                e.payments = s.value(QStringLiteral("payments"), 0.0).toDouble();
+                supData.supplierEntries[i].append(e);
+                s.endGroup();
+            }
             s.endGroup();
         }
     }
@@ -1123,6 +1169,7 @@ void MainWindow::buildUI()
     {
         m_results = new ResultsWidget;
         connect(m_results, &ResultsWidget::editChartsRequested, this, &MainWindow::onEditCharts);
+        connect(m_results, &ResultsWidget::duplicateChartRequested, this, &MainWindow::onDuplicateChart);
         connect(m_results, &ResultsWidget::resultsStateChanged, this, &MainWindow::syncResultsState);
         m_tabs->addTab(m_results, "");
     }
@@ -1205,6 +1252,28 @@ void MainWindow::onEditCharts(int cardIndex)
         m_results->buildResults(m_data);
         syncResultsState();
     }
+    m_tabs->setCurrentIndex(3);
+}
+
+
+void MainWindow::onDuplicateChart(int cardIndex)
+{
+    if (!m_hasResults || !m_results)
+        return;
+
+    AppData working = collectAllData();
+    working.calculate();
+    working.chartRequests = m_lastChartRequests;
+    working.hiddenChartRequests = m_lastHiddenChartRequests;
+    working.resultFlowOrder = m_lastFlowOrder;
+
+    const ChartRequest req = m_results->requestForCard(cardIndex);
+    if (req.metricA == M_COUNT && req.title.isEmpty())
+        return;
+
+    m_data = working;
+    m_results->appendChart(m_data, req);
+    syncResultsState();
     m_tabs->setCurrentIndex(3);
 }
 
@@ -1424,6 +1493,20 @@ void MainWindow::onInventoryModeChanged(int index)
 
 void MainWindow::onSaveData()
 {
+    QMessageBox box(this);
+    box.setIcon(QMessageBox::Question);
+    box.setWindowTitle(tr_save_data_ee42b8());
+    box.setText(T("Choose what to export.", "اختر ما تريد تصديره."));
+    auto* currentBtn = box.addButton(T("Current tab", "التبويب الحالي"), QMessageBox::AcceptRole);
+    auto* allBtn = box.addButton(T("All data", "كل البيانات"), QMessageBox::ActionRole);
+    currentBtn->setMinimumWidth(isArabic() ? 220 : 150);
+    allBtn->setMinimumWidth(isArabic() ? 180 : 120);
+    box.setMinimumWidth(isArabic() ? 520 : 420);
+    box.addButton(T("Cancel", "إلغاء"), QMessageBox::RejectRole);
+    ThemeBox::applyDialogTheme(&box);
+    box.exec();
+    if (box.clickedButton() != currentBtn && box.clickedButton() != allBtn) return;
+
     const QString path = QFileDialog::getSaveFileName(
         this,
         tr_save_data_ee42b8(),
@@ -1432,16 +1515,16 @@ void MainWindow::onSaveData()
     if (path.isEmpty()) return;
 
     const AppData data = collectAllData();
-    if (!saveAppDataXlsx(path, data)) {
-        ThemeBox::critical(this,
-            tr_save_data_ee42b8(),
-            tr_unable_to_write_the_xlsx_file_da2b9b());
+    XlsxSheetKind kind = XlsxSheetKind::DataEntry;
+    if (box.clickedButton() == allBtn) kind = XlsxSheetKind::AllData;
+    else if (m_tabs && m_tabs->currentIndex() == 1) kind = XlsxSheetKind::Expenses;
+    else if (m_tabs && m_tabs->currentIndex() == 2) kind = XlsxSheetKind::Suppliers;
+    if (!saveAppDataXlsx(path, data, kind)) {
+        ThemeBox::critical(this, tr_save_data_ee42b8(), tr_unable_to_write_the_xlsx_file_da2b9b());
         return;
     }
 
-    ThemeBox::info(this,
-        tr_save_data_ee42b8(),
-        tr_data_saved_successfully_f941c7());
+    ThemeBox::info(this, tr_save_data_ee42b8(), tr_data_saved_successfully_f941c7());
 }
 
 void MainWindow::onImportData()
@@ -1457,14 +1540,34 @@ void MainWindow::onImportData()
     if (!loadAppDataXlsx(path, &imported)) {
         ThemeBox::critical(this,
             tr_import_data_8de4db(),
-            tr_unable_to_read_the_xlsx_file_cd99e7());
+            !g_lastImportError.isEmpty() ? g_lastImportError : tr_unable_to_read_the_xlsx_file_cd99e7());
         return;
     }
 
-    setTableData(imported);
-    setAccountData(imported.accounts);
-    m_data = imported;
+    if (!appDataHasUserEntries(imported) && m_tabs) {
+        ThemeBox::critical(this, tr_import_data_8de4db(), T("The workbook did not contain any importable rows.", "ملف العمل لا يحتوي على صفوف قابلة للاستيراد."));
+        return;
+    }
+
+    bool applied = false;
+    bool hasSupplierEntries = false;
+    for (int i = 0; i < 12; ++i) {
+        if (!imported.supplierEntries[i].isEmpty()) { hasSupplierEntries = true; break; }
+    }
+    if (!imported.accounts.isEmpty()) {
+        setAccountData(imported.accounts);
+        applied = true;
+    }
+    if (hasSupplierEntries) {
+        if (m_suppliers) m_suppliers->setData(imported);
+        applied = true;
+    }
+    if (!applied || imported.months[0].sales != 0.0 || imported.months[0].salesReturn != 0.0 || imported.months[0].supplierPurchases != 0.0 || imported.months[0].supplierPayments != 0.0 || imported.months[0].inventoryFirst != 0.0 || imported.months[0].inventoryLast != 0.0 || imported.months[0].cogsInput != 0.0 || !imported.months[0].expenseAccount.isEmpty() || !imported.months[0].supplierName.isEmpty()) {
+        setTableData(imported);
+    }
+    m_data = collectAllData();
     m_hasResults = false;
+    if (m_results) m_results->clearResults();
     ThemeBox::info(this,
         tr_import_data_8de4db(),
         tr_data_imported_successfully_c05a52());
@@ -1536,8 +1639,11 @@ void MainWindow::setAccountData(const QList<AccountItem>& accounts)
 AppData MainWindow::collectAllData() const
 {
     AppData d = collectTableData();
-    if (m_suppliers)
-        d.suppliers = m_suppliers->collectData().suppliers;
+    if (m_suppliers) {
+        AppData sup = m_suppliers->collectData();
+        d.suppliers = sup.suppliers;
+        d.supplierEntries = sup.supplierEntries;
+    }
     if (m_accounts) {
         AppData acc = m_accounts->collectData();
         d.accounts = acc.accounts;

@@ -31,6 +31,7 @@ private slots:
     void onSettings();
     void onClearData();
     void onEditCharts(int cardIndex = -1);
+    void onDuplicateChart(int cardIndex);
     void onAccountGraphRequested(ChartKind kind, AccountTypeFilter accountFilter);
     void onInventoryModeChanged(int index);
     void syncResultsState();

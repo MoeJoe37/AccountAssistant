@@ -30,6 +30,29 @@ struct SupplierMonthData {
     double  payments  = 0.0;
 };
 
+struct SupplierEntry {
+    QString name;
+    double previousBalance = 0.0;
+    double purchases = 0.0;
+    double totalDebt = 0.0;
+    double payments = 0.0;
+
+    double paymentPctOfPurchases() const
+    {
+        return purchases > 0.0 ? (payments / purchases) * 100.0 : 0.0;
+    }
+
+    double paymentPctOfTotalDebt() const
+    {
+        return totalDebt > 0.0 ? (payments / totalDebt) * 100.0 : 0.0;
+    }
+
+    double supplierBalance() const
+    {
+        return totalDebt - payments;
+    }
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  Expense/account entry independent from months
 // ─────────────────────────────────────────────────────────────────────────────
@@ -78,6 +101,11 @@ enum MetricId {
     M_COGS,
     M_PROFIT_MARGIN,
     M_SUPPLIER_PAYMENTS,
+    M_SUPPLIER_PREVIOUS_BALANCE,
+    M_SUPPLIER_TOTAL_DEBT,
+    M_SUPPLIER_PAYMENT_PCT_PURCHASES,
+    M_SUPPLIER_PAYMENT_PCT_DEBT,
+    M_SUPPLIER_BALANCE,
     M_EXPENSE_AMOUNT,
     M_INVENTORY_OPENING,
     M_INVENTORY_CLOSING,
@@ -151,6 +179,7 @@ struct AppData {
     std::array<ChartSel, M_COUNT> sel{};
     QList<AccountItem> accounts;
     std::array<SupplierMonthData, 12> suppliers{};
+    std::array<QList<SupplierEntry>, 12> supplierEntries{};
     InventoryMode inventoryMode = InventoryMode::Periodic;
 
     // Chosen charts for the Results tab and PDF export
@@ -187,6 +216,25 @@ struct AppData {
             totalProfit   += profitMargin[i];
         }
 
+        for (int i = 0; i < 12; ++i) {
+            if (!supplierEntries[i].isEmpty()) {
+                double totalPurchases = 0.0;
+                double totalPayments = 0.0;
+                QString firstName;
+                for (auto& e : supplierEntries[i]) {
+                    if (e.totalDebt <= 0.0)
+                        e.totalDebt = e.previousBalance + e.purchases;
+                    totalPurchases += e.purchases;
+                    totalPayments += e.payments;
+                    if (firstName.isEmpty() && !e.name.trimmed().isEmpty())
+                        firstName = e.name.trimmed();
+                }
+                suppliers[i].supplierName = firstName;
+                suppliers[i].purchases = totalPurchases;
+                suppliers[i].payments = totalPayments;
+            }
+        }
+
         // Build expense summary from the accounts tab, preserving the displayed order.
         // Legacy monthly expense fields are used only as a fallback for older data.
         expenseSummary.clear();
@@ -205,6 +253,39 @@ struct AppData {
         }
     }
 };
+
+
+inline bool appDataHasUserEntries(const AppData& d)
+{
+    for (const auto& m : d.months) {
+        if (m.sales != 0.0 || m.salesReturn != 0.0 || m.supplierPurchases != 0.0 ||
+            m.supplierPayments != 0.0 || !m.supplierName.trimmed().isEmpty() ||
+            !m.expenseAccount.trimmed().isEmpty() || m.expenseAmount != 0.0 ||
+            m.inventoryFirst != 0.0 || m.inventoryLast != 0.0 || m.cogsInput != 0.0)
+            return true;
+    }
+
+    if (!d.accounts.isEmpty() || !d.chartRequests.isEmpty() || !d.hiddenChartRequests.isEmpty() ||
+        !d.resultFlowOrder.isEmpty())
+        return true;
+
+    for (const auto& s : d.suppliers) {
+        if (!s.supplierName.trimmed().isEmpty() || s.purchases != 0.0 || s.payments != 0.0)
+            return true;
+    }
+
+    for (const auto& monthEntries : d.supplierEntries) {
+        if (!monthEntries.isEmpty()) {
+            for (const auto& e : monthEntries) {
+                if (!e.name.trimmed().isEmpty() || e.previousBalance != 0.0 || e.purchases != 0.0 ||
+                    e.totalDebt != 0.0 || e.payments != 0.0)
+                    return true;
+            }
+        }
+    }
+
+    return false;
+}
 
 inline QString accountTypeDisplayName(AccountType type)
 {
@@ -237,6 +318,11 @@ inline QString metricDisplayName(MetricId id)
     case M_COGS:             return tr_cost_of_goods_sold_55196f();
     case M_PROFIT_MARGIN:    return tr_profit_margin_56b595();
     case M_SUPPLIER_PAYMENTS:return tr_supplier_payments_bb713e();
+    case M_SUPPLIER_PREVIOUS_BALANCE:return T("Supplier previous balance", "الرصيد السابق للمورد");
+    case M_SUPPLIER_TOTAL_DEBT:return T("Supplier total debt", "إجمالي دين المورد");
+    case M_SUPPLIER_PAYMENT_PCT_PURCHASES:return T("Supplier payment % of purchases", "نسبة دفع المورد من المشتريات");
+    case M_SUPPLIER_PAYMENT_PCT_DEBT:return T("Supplier payment % of debt", "نسبة دفع المورد من الدين");
+    case M_SUPPLIER_BALANCE:return T("Supplier balance", "رصيد المورد");
     case M_EXPENSE_AMOUNT:   return tr_expense_amount_1ad3d5();
     case M_INVENTORY_OPENING:return tr_inventory_opening_ccde20();
     case M_INVENTORY_CLOSING:return tr_inventory_closing_d69943();
@@ -350,6 +436,61 @@ inline QList<double> metricSeriesValues(const AppData& d, MetricId id, QStringLi
             for (int i = 0; i < 12; ++i) if (includeMonth(i)) *labels << months.value(i);
         }
         break;
+    case M_SUPPLIER_PREVIOUS_BALANCE:
+        for (int i = 0; i < 12; ++i) if (includeMonth(i)) {
+            double total = 0.0;
+            for (const auto& e : d.supplierEntries[i]) total += e.previousBalance;
+            values << total;
+        }
+        if (labels) {
+            const auto months = monthNames();
+            for (int i = 0; i < 12; ++i) if (includeMonth(i)) *labels << months.value(i);
+        }
+        break;
+    case M_SUPPLIER_TOTAL_DEBT:
+        for (int i = 0; i < 12; ++i) if (includeMonth(i)) {
+            double total = 0.0;
+            for (const auto& e : d.supplierEntries[i]) total += (e.totalDebt > 0.0 ? e.totalDebt : (e.previousBalance + e.purchases));
+            values << total;
+        }
+        if (labels) {
+            const auto months = monthNames();
+            for (int i = 0; i < 12; ++i) if (includeMonth(i)) *labels << months.value(i);
+        }
+        break;
+    case M_SUPPLIER_PAYMENT_PCT_PURCHASES:
+        for (int i = 0; i < 12; ++i) if (includeMonth(i)) {
+            double payments = 0.0, purchases = 0.0;
+            for (const auto& e : d.supplierEntries[i]) { payments += e.payments; purchases += e.purchases; }
+            values << (purchases > 0.0 ? (payments / purchases) * 100.0 : 0.0);
+        }
+        if (labels) {
+            const auto months = monthNames();
+            for (int i = 0; i < 12; ++i) if (includeMonth(i)) *labels << months.value(i);
+        }
+        break;
+    case M_SUPPLIER_PAYMENT_PCT_DEBT:
+        for (int i = 0; i < 12; ++i) if (includeMonth(i)) {
+            double payments = 0.0, debt = 0.0;
+            for (const auto& e : d.supplierEntries[i]) { payments += e.payments; debt += (e.totalDebt > 0.0 ? e.totalDebt : (e.previousBalance + e.purchases)); }
+            values << (debt > 0.0 ? (payments / debt) * 100.0 : 0.0);
+        }
+        if (labels) {
+            const auto months = monthNames();
+            for (int i = 0; i < 12; ++i) if (includeMonth(i)) *labels << months.value(i);
+        }
+        break;
+    case M_SUPPLIER_BALANCE:
+        for (int i = 0; i < 12; ++i) if (includeMonth(i)) {
+            double total = 0.0;
+            for (const auto& e : d.supplierEntries[i]) total += ((e.totalDebt > 0.0 ? e.totalDebt : (e.previousBalance + e.purchases)) - e.payments);
+            values << total;
+        }
+        if (labels) {
+            const auto months = monthNames();
+            for (int i = 0; i < 12; ++i) if (includeMonth(i)) *labels << months.value(i);
+        }
+        break;
     case M_EXPENSE_AMOUNT:
         for (int i = 0; i < 12; ++i) if (includeMonth(i)) values << d.months[i].expenseAmount;
         if (labels) {
@@ -392,6 +533,11 @@ inline QColor metricColor(MetricId id)
     case M_COGS:              return QColor("#f0a500");
     case M_PROFIT_MARGIN:     return QColor("#14b8a6");
     case M_SUPPLIER_PAYMENTS: return QColor("#ff9f43");
+    case M_SUPPLIER_PREVIOUS_BALANCE: return QColor("#7c83fd");
+    case M_SUPPLIER_TOTAL_DEBT: return QColor("#ef476f");
+    case M_SUPPLIER_PAYMENT_PCT_PURCHASES: return QColor("#06d6a0");
+    case M_SUPPLIER_PAYMENT_PCT_DEBT: return QColor("#118ab2");
+    case M_SUPPLIER_BALANCE: return QColor("#ffd166");
     case M_EXPENSE_AMOUNT:    return QColor("#fd79a8");
     case M_INVENTORY_OPENING: return QColor("#5b8def");
     case M_INVENTORY_CLOSING: return QColor("#8f97b4");

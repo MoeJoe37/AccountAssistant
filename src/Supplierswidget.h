@@ -6,9 +6,11 @@
 #include <QDoubleSpinBox>
 #include <QLabel>
 #include <QFrame>
-#include <QPropertyAnimation>
-#include <QKeyEvent>
+#include <QPushButton>
+#include <QVector>
 #include <QWheelEvent>
+#include <QFocusEvent>
+#include <QPropertyAnimation>
 #include <QEvent>
 #include "appdata.h"
 
@@ -28,53 +30,72 @@ class SupplierMonthCard : public QFrame {
 public:
     explicit SupplierMonthCard(int monthIndex, QWidget* parent = nullptr);
 
-    QString supplierName() const;
-    double purchases() const;
-    double payments() const;
-
-    void setSupplierName(const QString& v);
-    void setPurchases(double v);
-    void setPayments(double v);
-
+    void setRowCount(int count);
+    int rowCount() const;
+    QList<SupplierEntry> entries() const;
+    void setEntries(const QList<SupplierEntry>& entries);
     void clearAll();
-    void setExpanded(bool e);
-    bool isExpanded() const { return m_expanded; }
     void applyTheme();
     void retranslate();
     void updateCurrencyPrefix();
-
+    void refreshComputedValues(const QList<SupplierEntry>* previousMonthEntries = nullptr);
+    void setNamesFrom(const QStringList& names);
+    bool isExpanded() const { return m_expanded; }
+    void setExpanded(bool e);
+    void setAddButtonVisible(bool visible);
     int contentHeight() const;
     void setContentHeight(int h);
 
 signals:
-    void dataChanged();
+    void addSupplierRequested();
+    void supplierNameEdited(int rowIndex, const QString& name);
+    void monthChanged();
+    void removeSupplierRequested(int rowIndex);
 
 protected:
     bool eventFilter(QObject* obj, QEvent* ev) override;
 
 private:
-    void buildHeader();
-    void buildContent();
-    void updateMode();
-    void updateLayoutHeight();
+    struct RowWidgets {
+        QWidget* row{};
+        QLabel* nameLabel{};
+        QLabel* previousBalanceLabel{};
+        QLabel* purchasesLabel{};
+        QLabel* totalDebtLabel{};
+        QLabel* paymentsLabel{};
+        QLabel* pctPurchasesLabel{};
+        QLabel* pctDebtLabel{};
+        QLabel* balanceLabel{};
+        QLineEdit* name{};
+        SupplierSpinBox* previousBalance{};
+        SupplierSpinBox* purchases{};
+        SupplierSpinBox* totalDebt{};
+        SupplierSpinBox* payments{};
+        QLabel* pctPurchases{};
+        QLabel* pctDebt{};
+        QLabel* balance{};
+    };
 
-    SupplierSpinBox* makeSpin();
-    QWidget* makeFieldRow(const QString& labelText, QWidget* input);
-    QWidget* makeColumn(const QString& title, QList<QWidget*> rows);
+    SupplierSpinBox* makeSpin(bool readOnly = false);
+    QLabel* makeResultLabel();
+    void appendRow();
+    void setupRowContextMenu(RowWidgets& rw, int rowIndex);
+    void updateStyles();
+    void toggleExpand();
 
-    int m_monthIndex;
+    int m_monthIndex{};
     bool m_expanded{false};
-
     QWidget* m_header{};
-    QLabel*  m_monthLabel{};
-    QLabel*  m_chevron{};
+    QLabel* m_monthLabel{};
+    QLabel* m_chevron{};
+    QPushButton* m_addBtn{};
     QWidget* m_content{};
-    int      m_fullHeight{0};
+    QWidget* m_labelsRow{};
+    QGridLayout* m_labelsLayout{};
+    QVBoxLayout* m_rowsLayout{};
+    QVector<RowWidgets> m_rows;
+    int m_fullHeight{0};
     QPropertyAnimation* m_anim{};
-
-    QLineEdit* m_nameEdit{};
-    SupplierSpinBox* m_purchases{};
-    SupplierSpinBox* m_payments{};
 };
 
 class SuppliersWidget : public QWidget {
@@ -89,7 +110,17 @@ public:
     void retranslate();
     void updateCurrencyPrefix();
 
+private slots:
+    void onAddSupplierRequested();
+    void onSupplierNameEdited(int rowIndex, const QString& name);
+    void onMonthChanged();
+    void onRemoveSupplierRequested(int rowIndex);
+
 private:
+    void ensureGlobalSupplierCount(int count);
+    void refreshAllComputedValues();
+    QStringList currentSupplierNames() const;
+
     QScrollArea* m_scroll{};
     QLabel*      m_title{};
     QLabel*      m_subtitle{};

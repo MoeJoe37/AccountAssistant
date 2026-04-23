@@ -73,6 +73,7 @@ private:
     void syncMonthButton(MetricRow& row);
     QList<int> selectedMonths(const MetricRow& row) const;
     void appendCompareRow(const ChartRequest* preset = nullptr);
+    void duplicateCompareRow(int rowIndex);
     void removeCompareRow(int rowIndex);
     QList<int> selectedMonths(const CompareRow& row) const;
     QList<MetricId> selectedCompareMetrics(const CompareRow& row) const;

@@ -16,6 +16,7 @@
 #include <QMenu>
 #include <QContextMenuEvent>
 #include <QEvent>
+#include <QVariant>
 
 static const char* kCardSSDark = R"(
 QFrame#card {
@@ -71,6 +72,55 @@ QLabel#dragHint {
 }
 )";
 
+
+static QList<double> toDoubleList(const QVariant& v)
+{
+    QList<double> out;
+    const QVariantList list = v.toList();
+    out.reserve(list.size());
+    for (const QVariant& x : list) out << x.toDouble();
+    return out;
+}
+
+static QList<QList<double>> toDoubleLists(const QVariant& v)
+{
+    QList<QList<double>> out;
+    const QVariantList outer = v.toList();
+    out.reserve(outer.size());
+    for (const QVariant& one : outer) out << toDoubleList(one);
+    return out;
+}
+
+static void rebuildPerMonthLegendFromView(QChartView* view, QStringList& labels, QStringList& colors)
+{
+    if (!view)
+        return;
+
+    const QStringList months = view->property("chartLabels").toStringList();
+    const QStringList seriesNames = view->property("chartSeriesNames").toStringList();
+    const QList<QList<double>> pctLists = toDoubleLists(view->property("chartPercentsMulti"));
+    if (months.isEmpty() || seriesNames.isEmpty() || pctLists.isEmpty())
+        return;
+
+    labels.clear();
+    colors.clear();
+    for (int month = 0; month < months.size(); ++month) {
+        for (int s = 0; s < seriesNames.size() && s < pctLists.size(); ++s) {
+            const auto& pcts = pctLists[s];
+            if (month >= pcts.size())
+                continue;
+            labels << (months.value(month) + QStringLiteral(" — ") +
+                       seriesNames.value(s) + QStringLiteral(": ") +
+                       QString::number(pcts.value(month), 'f', 1) + QStringLiteral("%"));
+            static const QString fallbackPalette[] = {
+                QStringLiteral("#4f86f7"), QStringLiteral("#f0a500"), QStringLiteral("#e05c6a"), QStringLiteral("#3ecf8e"),
+                QStringLiteral("#9b6cf9"), QStringLiteral("#f06c6c"), QStringLiteral("#62c4e3"), QStringLiteral("#b0e96a")
+            };
+            colors << fallbackPalette[s % 8];
+        }
+    }
+}
+
 static void execCardMenu(DraggableChartCard* self, const QPoint& globalPos)
 {
     if (!self)
@@ -88,12 +138,15 @@ static void execCardMenu(DraggableChartCard* self, const QPoint& globalPos)
           "QMenu::item:selected{background:#4f86f7;color:#ffffff;}"
           "QMenu::separator{height:1px;background:#2b3257;margin:4px 6px;}");
     QAction* editAct = menu.addAction(tr_edit_chart_9932e2());
+    QAction* duplicateAct = menu.addAction(tr_duplicate_47648b());
     QAction* insertSep = menu.addAction(tr_add_page_separator_below_862284());
     QAction* hideAct = menu.addAction(tr_hide_chart_9ad941());
     QAction* removeAct = menu.addAction(tr_remove_c3a712());
     QAction* chosen = menu.exec(globalPos);
     if (chosen == editAct) {
         self->editRequested(self->cardIndex());
+    } else if (chosen == duplicateAct) {
+        self->duplicateRequested(self->cardIndex());
     } else if (chosen == insertSep) {
         self->insertSeparatorRequested(self->flowIndex());
     } else if (chosen == hideAct) {
@@ -108,7 +161,77 @@ static QWidget* makeLegendWidget(QWidget* parent, const QStringList& labels, con
     if (labels.isEmpty() || colors.isEmpty())
         return nullptr;
 
+    const QString monthSeparator = QStringLiteral(" — ");
+    bool allHaveMonthPrefix = true;
+    QStringList orderedMonths;
+    QMap<QString, QList<int>> monthRows;
+
+    for (int i = 0; i < labels.size() && i < colors.size(); ++i) {
+        const int sep = labels[i].indexOf(monthSeparator);
+        if (sep <= 0) {
+            allHaveMonthPrefix = false;
+            break;
+        }
+        const QString month = labels[i].left(sep).trimmed();
+        if (!monthRows.contains(month))
+            orderedMonths << month;
+        monthRows[month] << i;
+    }
+
+    if (allHaveMonthPrefix && orderedMonths.size() > 1) {
+        auto* wrap = new QWidget(parent);
+        wrap->setLayoutDirection(Qt::LeftToRight);
+        auto* hl = new QHBoxLayout(wrap);
+        hl->setContentsMargins(8, 4, 8, 8);
+        hl->setSpacing(18);
+
+        for (const QString& month : orderedMonths) {
+            auto* colWrap = new QFrame(wrap);
+            colWrap->setLayoutDirection(Qt::LeftToRight);
+            colWrap->setFrameShape(QFrame::NoFrame);
+            colWrap->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+            auto* col = new QVBoxLayout(colWrap);
+            col->setContentsMargins(0, 0, 0, 0);
+            col->setSpacing(4);
+
+            auto* monthLab = new QLabel(month, colWrap);
+            monthLab->setAlignment(Qt::AlignCenter);
+            monthLab->setStyleSheet(g_lightMode
+                ? "background:transparent;color:#1e2340;font-size:11px;font-weight:700;"
+                : "background:transparent;color:#e7ecff;font-size:11px;font-weight:700;");
+            col->addWidget(monthLab);
+
+            for (int idx : monthRows.value(month)) {
+                auto* item = new QWidget(colWrap);
+                item->setLayoutDirection(Qt::LeftToRight);
+                auto* row = new QHBoxLayout(item);
+                row->setContentsMargins(0, 0, 0, 0);
+                row->setSpacing(6);
+                auto* swatch = new QFrame(item);
+                swatch->setFixedSize(10, 10);
+                swatch->setStyleSheet(QString("background:%1;border:1px solid #d4dbea;border-radius:2px;").arg(colors[idx]));
+
+                QString text = labels[idx].mid(labels[idx].indexOf(monthSeparator) + monthSeparator.size()).trimmed();
+                auto* lab = new QLabel(text, item);
+                lab->setWordWrap(true);
+                lab->setAlignment(Qt::AlignCenter);
+                lab->setStyleSheet(g_lightMode
+                    ? "background:transparent;color:#1e2340;font-size:11px;"
+                    : "background:transparent;color:#c8d0ed;font-size:11px;");
+                row->addStretch();
+                row->addWidget(swatch, 0, Qt::AlignTop);
+                row->addWidget(lab, 0, Qt::AlignTop);
+                row->addStretch();
+                col->addWidget(item);
+            }
+            col->addStretch();
+            hl->addWidget(colWrap, 1);
+        }
+        return wrap;
+    }
+
     auto* wrap = new QWidget(parent);
+    wrap->setLayoutDirection(Qt::LeftToRight);
     auto* grid = new QGridLayout(wrap);
     grid->setContentsMargins(8, 4, 8, 8);
     grid->setHorizontalSpacing(10);
@@ -117,6 +240,7 @@ static QWidget* makeLegendWidget(QWidget* parent, const QStringList& labels, con
     const int cols = labels.size() > 4 ? 2 : 3;
     for (int i = 0; i < labels.size() && i < colors.size(); ++i) {
         auto* item = new QWidget(wrap);
+        item->setLayoutDirection(Qt::LeftToRight);
         auto* hl = new QHBoxLayout(item);
         hl->setContentsMargins(0, 0, 0, 0);
         hl->setSpacing(6);
@@ -176,8 +300,19 @@ DraggableChartCard::DraggableChartCard(const QString& title,
         view->viewport()->installEventFilter(this);
     vl->addWidget(view);
 
-    const QStringList legendLabels = m_view->property("legendLabels").toStringList();
-    const QStringList legendColors = m_view->property("legendColors").toStringList();
+    QStringList legendLabels = m_view->property("legendLabels").toStringList();
+    QStringList legendColors = m_view->property("legendColors").toStringList();
+    bool hasMonthGroupedLegend = !legendLabels.isEmpty();
+    for (const QString& label : legendLabels) {
+        if (!label.contains(QStringLiteral(" — "))) {
+            hasMonthGroupedLegend = false;
+            break;
+        }
+    }
+    if (!hasMonthGroupedLegend && m_view->property("chartPercentsMulti").isValid() &&
+        m_view->property("chartLabels").isValid() && m_view->property("chartSeriesNames").isValid()) {
+        rebuildPerMonthLegendFromView(m_view, legendLabels, legendColors);
+    }
     if (auto* legend = makeLegendWidget(this, legendLabels, legendColors))
         vl->addWidget(legend);
 }

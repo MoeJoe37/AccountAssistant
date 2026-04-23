@@ -33,6 +33,7 @@ signals:
     void removeRequested(int cardIndex);
     void insertSeparatorRequested(int afterFlowIndex);
     void editRequested(int cardIndex);
+    void duplicateRequested(int cardIndex);
 
 protected:
     void mousePressEvent(QMouseEvent* e) override;
