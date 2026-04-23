@@ -473,6 +473,71 @@ static double computeTotalPercentageAgainstBase(const QList<double>& values, con
     return totalB < 0.000001 ? 0.0 : (totalV / totalB) * 100.0;
 }
 
+static QString cleanLegendSeriesName(QString name);
+
+static QList<QList<double>> ensurePerMonthPercentLists(const QList<QList<double>>& percentLists,
+                                                       const QList<QList<double>>& valueLists,
+                                                       int monthCount)
+{
+    QList<QList<double>> out = percentLists;
+    if (monthCount < 0)
+        monthCount = 0;
+    if (out.size() < valueLists.size())
+        out.resize(valueLists.size());
+
+    bool recomputeFromValues = !valueLists.isEmpty();
+    if (recomputeFromValues) {
+        for (int i = 0; i < valueLists.size(); ++i) {
+            const QList<double> pcts = out.value(i);
+            if (pcts.size() != monthCount) {
+                recomputeFromValues = true;
+                goto done_check;
+            }
+        }
+        {
+            bool allZero = true;
+            for (int i = 0; i < valueLists.size(); ++i) {
+                for (double pct : out.value(i)) {
+                    if (qAbs(pct) > 0.000001) {
+                        allZero = false;
+                        break;
+                    }
+                }
+                if (!allZero) break;
+            }
+            recomputeFromValues = allZero;
+        }
+    }
+done_check:
+    if (recomputeFromValues) {
+        QList<QList<double>> rebuilt;
+        rebuilt.resize(valueLists.size());
+        for (int month = 0; month < monthCount; ++month) {
+            double total = 0.0;
+            for (const auto& vals : valueLists) {
+                if (month < vals.size())
+                    total += qAbs(vals[month]);
+            }
+            for (int i = 0; i < valueLists.size(); ++i) {
+                const double v = (month < valueLists[i].size()) ? qAbs(valueLists[i][month]) : 0.0;
+                rebuilt[i] << (total <= 0.000001 ? 0.0 : (v / total) * 100.0);
+            }
+        }
+        out = rebuilt;
+    }
+
+    for (int i = 0; i < valueLists.size(); ++i) {
+        QList<double> pcts = out.value(i);
+        if (pcts.size() < monthCount)
+            pcts.resize(monthCount);
+        else if (pcts.size() > monthCount)
+            pcts = pcts.mid(0, monthCount);
+        out[i] = pcts;
+    }
+    return out;
+}
+
+
 static double totalAbsValue(const QList<double>& values)
 {
     double total = 0.0;
@@ -2623,19 +2688,22 @@ QChartView* ResultsWidget::makeMultiCompareBarChart(const QString& title,
     view->setProperty("chartTitle", title);
     view->setProperty("chartSeriesNames", names);
     QVariantList valuesProp;
-    QVariantList percentProp;
+    QList<QList<double>> rawValueLists;
     for (const auto& vals : seriesList) {
         QVariantList one; for (double x : vals) one << x;
         valuesProp << one;
-        QVariantList pp; for (double x : computePercentages(vals)) pp << x;
+        rawValueLists << vals;
+    }
+    const QList<QList<double>> pctLists = ensurePerMonthPercentLists({}, rawValueLists, labels.size());
+    QVariantList percentProp;
+    for (const auto& pctVals : pctLists) {
+        QVariantList pp; for (double x : pctVals) pp << x;
         percentProp << pp;
     }
     view->setProperty("chartValuesMulti", valuesProp);
     view->setProperty("chartPercentsMulti", percentProp);
     QStringList legendLabels;
     QStringList legendColors;
-    QList<QList<double>> pctLists;
-    for (const QVariant& v : percentProp) pctLists << toDoubleList(v);
     buildPerMonthLegend(labels, names, pctLists, legendLabels, legendColors);
     if (legendLabels.isEmpty()) {
         for (int i = 0; i < names.size(); ++i) {
@@ -2703,19 +2771,22 @@ QChartView* ResultsWidget::makeMultiCompareLineChart(const QString& title,
     view->setProperty("chartTitle", title);
     view->setProperty("chartSeriesNames", names);
     QVariantList valuesProp;
-    QVariantList percentProp;
+    QList<QList<double>> rawValueLists;
     for (const auto& vals : seriesList) {
         QVariantList one; for (double x : vals) one << x;
         valuesProp << one;
-        QVariantList pp; for (double x : computePercentages(vals)) pp << x;
+        rawValueLists << vals;
+    }
+    const QList<QList<double>> pctLists = ensurePerMonthPercentLists({}, rawValueLists, labels.size());
+    QVariantList percentProp;
+    for (const auto& pctVals : pctLists) {
+        QVariantList pp; for (double x : pctVals) pp << x;
         percentProp << pp;
     }
     view->setProperty("chartValuesMulti", valuesProp);
     view->setProperty("chartPercentsMulti", percentProp);
     QStringList legendLabels;
     QStringList legendColors;
-    QList<QList<double>> pctLists;
-    for (const QVariant& v : percentProp) pctLists << toDoubleList(v);
     buildPerMonthLegend(labels, names, pctLists, legendLabels, legendColors);
     if (legendLabels.isEmpty()) {
         for (int i = 0; i < names.size(); ++i) {
@@ -2825,19 +2896,22 @@ QChartView* ResultsWidget::makeMultiCompareCandleChart(const QString& title,
     view->setProperty("chartTitle", title);
     view->setProperty("chartSeriesNames", names);
     QVariantList valuesProp;
-    QVariantList percentProp;
+    QList<QList<double>> rawValueLists;
     for (const auto& vals : seriesList) {
         QVariantList one; for (double x : vals) one << x;
         valuesProp << one;
-        QVariantList pp; for (double x : computePercentages(vals)) pp << x;
+        rawValueLists << vals;
+    }
+    const QList<QList<double>> pctLists = ensurePerMonthPercentLists({}, rawValueLists, labels.size());
+    QVariantList percentProp;
+    for (const auto& pctVals : pctLists) {
+        QVariantList pp; for (double x : pctVals) pp << x;
         percentProp << pp;
     }
     view->setProperty("chartValuesMulti", valuesProp);
     view->setProperty("chartPercentsMulti", percentProp);
     QStringList legendLabels;
     QStringList legendColors;
-    QList<QList<double>> pctLists;
-    for (const QVariant& v : percentProp) pctLists << toDoubleList(v);
     buildPerMonthLegend(labels, names, pctLists, legendLabels, legendColors);
     if (legendLabels.isEmpty()) {
         for (int i = 0; i < names.size(); ++i) {

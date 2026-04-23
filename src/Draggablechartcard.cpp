@@ -91,6 +91,39 @@ static QList<QList<double>> toDoubleLists(const QVariant& v)
     return out;
 }
 
+static QList<double> computePercentagesLocal(const QList<double>& values)
+{
+    QList<double> out;
+    double total = 0.0;
+    for (double v : values) total += qAbs(v);
+    if (total <= 0.000001) {
+        for (int i = 0; i < values.size(); ++i) out << 0.0;
+        return out;
+    }
+    for (double v : values) out << ((qAbs(v) / total) * 100.0);
+    return out;
+}
+
+static QList<QList<double>> computePerMonthPercentListsLocal(const QList<QList<double>>& valueLists, int monthCount)
+{
+    QList<QList<double>> out;
+    if (monthCount < 0)
+        monthCount = 0;
+    out.resize(valueLists.size());
+    for (int month = 0; month < monthCount; ++month) {
+        double total = 0.0;
+        for (const auto& vals : valueLists) {
+            if (month < vals.size())
+                total += qAbs(vals[month]);
+        }
+        for (int s = 0; s < valueLists.size(); ++s) {
+            const double v = (month < valueLists[s].size()) ? qAbs(valueLists[s][month]) : 0.0;
+            out[s] << (total <= 0.000001 ? 0.0 : (v / total) * 100.0);
+        }
+    }
+    return out;
+}
+
 static void rebuildPerMonthLegendFromView(QChartView* view, QStringList& labels, QStringList& colors)
 {
     if (!view)
@@ -98,24 +131,61 @@ static void rebuildPerMonthLegendFromView(QChartView* view, QStringList& labels,
 
     const QStringList months = view->property("chartLabels").toStringList();
     const QStringList seriesNames = view->property("chartSeriesNames").toStringList();
-    const QList<QList<double>> pctLists = toDoubleLists(view->property("chartPercentsMulti"));
-    if (months.isEmpty() || seriesNames.isEmpty() || pctLists.isEmpty())
+    QList<QList<double>> pctLists = toDoubleLists(view->property("chartPercentsMulti"));
+    const QList<QList<double>> valueLists = toDoubleLists(view->property("chartValuesMulti"));
+    if (months.isEmpty() || seriesNames.isEmpty())
         return;
+
+    const int seriesCount = seriesNames.size();
+    if (pctLists.size() < seriesCount)
+        pctLists.resize(seriesCount);
+
+    bool needRecompute = (pctLists.size() != seriesCount);
+    if (!needRecompute) {
+        for (int i = 0; i < seriesCount; ++i) {
+            if (pctLists[i].size() != months.size()) {
+                needRecompute = true;
+                break;
+            }
+        }
+    }
+    if (!needRecompute && !valueLists.isEmpty()) {
+        bool allZero = true;
+        for (int i = 0; i < seriesCount; ++i) {
+            for (double pct : pctLists.value(i)) {
+                if (qAbs(pct) > 0.000001) {
+                    allZero = false;
+                    break;
+                }
+            }
+            if (!allZero) break;
+        }
+        if (allZero)
+            needRecompute = true;
+    }
+
+    if (needRecompute && !valueLists.isEmpty())
+        pctLists = computePerMonthPercentListsLocal(valueLists, months.size());
+
+    for (int i = 0; i < seriesCount; ++i) {
+        if (pctLists[i].size() > months.size())
+            pctLists[i] = pctLists[i].mid(0, months.size());
+        while (pctLists[i].size() < months.size())
+            pctLists[i] << 0.0;
+    }
 
     labels.clear();
     colors.clear();
+    static const QString fallbackPalette[] = {
+        QStringLiteral("#4f86f7"), QStringLiteral("#f0a500"), QStringLiteral("#e05c6a"), QStringLiteral("#3ecf8e"),
+        QStringLiteral("#9b6cf9"), QStringLiteral("#f06c6c"), QStringLiteral("#62c4e3"), QStringLiteral("#b0e96a")
+    };
     for (int month = 0; month < months.size(); ++month) {
-        for (int s = 0; s < seriesNames.size() && s < pctLists.size(); ++s) {
+        for (int s = 0; s < seriesCount; ++s) {
             const auto& pcts = pctLists[s];
-            if (month >= pcts.size())
-                continue;
             labels << (months.value(month) + QStringLiteral(" — ") +
                        seriesNames.value(s) + QStringLiteral(": ") +
                        QString::number(pcts.value(month), 'f', 1) + QStringLiteral("%"));
-            static const QString fallbackPalette[] = {
-                QStringLiteral("#4f86f7"), QStringLiteral("#f0a500"), QStringLiteral("#e05c6a"), QStringLiteral("#3ecf8e"),
-                QStringLiteral("#9b6cf9"), QStringLiteral("#f06c6c"), QStringLiteral("#62c4e3"), QStringLiteral("#b0e96a")
-            };
             colors << fallbackPalette[s % 8];
         }
     }
@@ -309,8 +379,9 @@ DraggableChartCard::DraggableChartCard(const QString& title,
             break;
         }
     }
-    if (!hasMonthGroupedLegend && m_view->property("chartPercentsMulti").isValid() &&
-        m_view->property("chartLabels").isValid() && m_view->property("chartSeriesNames").isValid()) {
+    if (!hasMonthGroupedLegend &&
+        m_view->property("chartLabels").isValid() && m_view->property("chartSeriesNames").isValid() &&
+        (m_view->property("chartPercentsMulti").isValid() || m_view->property("chartValuesMulti").isValid())) {
         rebuildPerMonthLegendFromView(m_view, legendLabels, legendColors);
     }
     if (auto* legend = makeLegendWidget(this, legendLabels, legendColors))
