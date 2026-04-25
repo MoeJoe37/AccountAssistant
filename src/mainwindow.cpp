@@ -1555,7 +1555,9 @@ void MainWindow::buildUI()
         m_results = new ResultsWidget;
         connect(m_results, &ResultsWidget::editChartsRequested, this, &MainWindow::onEditCharts);
         connect(m_results, &ResultsWidget::duplicateChartRequested, this, &MainWindow::onDuplicateChart);
+        connect(m_results, &ResultsWidget::chartRemoved, this, &MainWindow::onChartRemoved);
         connect(m_results, &ResultsWidget::resultsStateChanged, this, &MainWindow::syncResultsState);
+        connect(m_results, &ResultsWidget::clearResultsRequested, this, &MainWindow::onClearResultsTab);
         m_tabs->addTab(m_results, "");
     }
 
@@ -1570,8 +1572,23 @@ void MainWindow::onCalculate()
         popup->hide();
     AppData working = collectAllData();
     working.calculate();
-    working.chartRequests = m_lastChartRequests;
-    working.hiddenChartRequests = m_lastHiddenChartRequests;
+
+    QList<ChartRequest> preservedExternalCharts;
+    QList<ChartRequest> preservedExternalHiddenCharts;
+    QList<ChartRequest> editableCalculationCharts;
+    for (const ChartRequest& req : m_lastChartRequests) {
+        if (req.origin == ChartOrigin::Accounts || req.origin == ChartOrigin::Suppliers)
+            preservedExternalCharts << req;
+        else
+            editableCalculationCharts << req;
+    }
+    for (const ChartRequest& req : m_lastHiddenChartRequests) {
+        if (req.origin == ChartOrigin::Accounts || req.origin == ChartOrigin::Suppliers)
+            preservedExternalHiddenCharts << req;
+    }
+
+    working.chartRequests = editableCalculationCharts;
+    working.hiddenChartRequests.clear();
     working.resultFlowOrder = m_lastFlowOrder;
 
     ChartSelectionDialog dlg(working, this);
@@ -1580,6 +1597,9 @@ void MainWindow::onCalculate()
 
     working.sel = dlg.selections();
     working.chartRequests = dlg.chartRequests();
+    for (const ChartRequest& req : preservedExternalCharts)
+        working.chartRequests << req;
+    working.hiddenChartRequests = preservedExternalHiddenCharts;
     m_data = working;
     m_hasResults = true;
 
@@ -1611,6 +1631,13 @@ void MainWindow::onEditCharts(int cardIndex)
             m_pendingGraphReplaceCardIndex = cardIndex;
             m_pendingGraphReplaceOrigin = focused.origin;
             m_tabs->setCurrentIndex(focused.origin == ChartOrigin::Accounts ? 1 : 2);
+            if (focused.origin == ChartOrigin::Suppliers && m_suppliers) {
+                const bool accepted = m_suppliers->showGraphSelectionForRequest(focused);
+                if (!accepted) {
+                    m_pendingGraphReplaceCardIndex = -1;
+                    m_pendingGraphReplaceOrigin = ChartOrigin::Custom;
+                }
+            }
             return;
         }
         if (focused.metricA != M_COUNT || !focused.title.isEmpty()) {
@@ -1696,6 +1723,9 @@ void MainWindow::onAccountGraphRequested(ChartKind kind, AccountTypeFilter accou
     case ChartKind::Pie:
         req.title += QStringLiteral(" — ") + tr_pie_97ce50();
         break;
+    case ChartKind::Candle:
+        req.title += QStringLiteral(" — ") + tr_candle_77e8b9();
+        break;
     case ChartKind::RankedBar:
         req.title += QStringLiteral(" — ") + tr_bar_6dda02();
         break;
@@ -1748,18 +1778,24 @@ void MainWindow::onSupplierGraphRequested(const ChartRequest& request)
     req.title = metricsTitle + QStringLiteral(" — ") + tr_suppliers_7beff3();
     switch (req.kind) {
     case ChartKind::Pie:
+    case ChartKind::ComparePie:
+        req.kind = ChartKind::ComparePie;
         req.title += QStringLiteral(" — ") + tr_pie_97ce50();
         break;
     case ChartKind::MetricLine:
     case ChartKind::CompareLine:
-        req.kind = ChartKind::MetricLine;
+        req.kind = ChartKind::CompareLine;
         req.title += QStringLiteral(" — ") + tr_line_a566e8();
+        break;
+    case ChartKind::Candle:
+        req.kind = ChartKind::Candle;
+        req.title += QStringLiteral(" — ") + tr_candle_77e8b9();
         break;
     case ChartKind::RankedBar:
     case ChartKind::MetricBar:
     case ChartKind::CompareBar:
     default:
-        req.kind = ChartKind::RankedBar;
+        req.kind = ChartKind::CompareBar;
         req.title += QStringLiteral(" — ") + tr_bar_6dda02();
         break;
     }
@@ -1773,6 +1809,77 @@ void MainWindow::onSupplierGraphRequested(const ChartRequest& request)
     m_results->appendChart(m_data, req);
     syncResultsState();
     m_tabs->setCurrentIndex(3);
+}
+
+
+static bool sameChartRequestForRemoval(const ChartRequest& a, const ChartRequest& b)
+{
+    return a.origin == b.origin
+        && a.kind == b.kind
+        && a.metricA == b.metricA
+        && a.metricB == b.metricB
+        && a.compareMetrics == b.compareMetrics
+        && a.months == b.months
+        && a.accountFilter == b.accountFilter
+        && a.comparePieBaseMetric == b.comparePieBaseMetric
+        && a.includeSummaryPoint == b.includeSummaryPoint
+        && a.title == b.title;
+}
+
+void MainWindow::onChartRemoved(const ChartRequest& removed)
+{
+    if (removed.origin != ChartOrigin::Custom)
+        return;
+
+    auto removeOne = [&](QList<ChartRequest>& list) {
+        for (int i = 0; i < list.size(); ++i) {
+            if (sameChartRequestForRemoval(list[i], removed)) {
+                list.removeAt(i);
+                return true;
+            }
+        }
+        return false;
+    };
+
+    bool changed = removeOne(m_lastChartRequests);
+    changed = removeOne(m_lastHiddenChartRequests) || changed;
+    changed = removeOne(m_data.chartRequests) || changed;
+    changed = removeOne(m_data.hiddenChartRequests) || changed;
+
+    if (changed && m_results) {
+        m_lastChartRequests = m_results->chartRequests();
+        m_lastHiddenChartRequests = m_results->hiddenChartRequests();
+        m_lastFlowOrder = m_results->flowOrder();
+        m_data.chartRequests = m_lastChartRequests;
+        m_data.hiddenChartRequests = m_lastHiddenChartRequests;
+        m_data.resultFlowOrder = m_lastFlowOrder;
+    }
+}
+
+void MainWindow::onClearResultsTab()
+{
+    QMessageBox box(this);
+    box.setIcon(QMessageBox::Warning);
+    box.setWindowTitle(tr_auto_clear_results_118d7c());
+    box.setText(tr_auto_clear_results_warning_778aa1());
+    QPushButton* clearBtn = box.addButton(tr_auto_clear_results_118d7c(), QMessageBox::AcceptRole);
+    QPushButton* cancelBtn = box.addButton(tr_cancel_8d40ef(), QMessageBox::RejectRole);
+    box.setDefaultButton(cancelBtn);
+    box.exec();
+    if (box.clickedButton() != clearBtn)
+        return;
+
+    m_hasResults = false;
+    m_data.chartRequests.clear();
+    m_data.hiddenChartRequests.clear();
+    m_data.resultFlowOrder.clear();
+    m_lastChartRequests.clear();
+    m_lastHiddenChartRequests.clear();
+    m_lastFlowOrder.clear();
+    m_pendingGraphReplaceCardIndex = -1;
+    m_pendingGraphReplaceOrigin = ChartOrigin::Custom;
+    if (m_results)
+        m_results->resetAllResults();
 }
 
 void MainWindow::syncResultsState()

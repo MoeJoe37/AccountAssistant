@@ -7,6 +7,7 @@
 #include <QVector>
 #include <QLabel>
 #include <QToolButton>
+#include <QPushButton>
 #include <QMenu>
 #include <QTableWidget>
 #include <QImage>
@@ -26,6 +27,7 @@ public:
     void appendChart(const AppData& data, const ChartRequest& request);
     void removeCardByIndex(int cardIndex);
     void clearResults();
+    void resetAllResults();
     void applyTheme();
     void retranslate();
 
@@ -42,7 +44,9 @@ public:
 signals:
     void editChartsRequested(int cardIndex);
     void duplicateChartRequested(int cardIndex);
+    void chartRemoved(const ChartRequest& request);
     void resultsStateChanged();
+    void clearResultsRequested();
 
 private slots:
     void onSwapFlowItems(int fromIdx, int toIdx);
@@ -139,6 +143,7 @@ private:
     QMenu* m_monthMenu{};
     QToolButton* m_orientBtn{};
     QMenu* m_orientMenu{};
+    QToolButton* m_clearResultsBtn{};
     QLabel* m_reportTitle{};
     QLabel* m_reportSub{};
     QLabel* m_pageBreakLabel{};

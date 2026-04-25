@@ -18,6 +18,9 @@
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QMessageBox>
+#include <QCheckBox>
+#include <QComboBox>
+#include <QAbstractItemView>
 
 static const char* kRootDark = "QWidget#suppliersRoot{background:#0d1020;} QLabel{background:transparent;}";
 static const char* kRootLight = "QWidget#suppliersRoot{background:#f4f6fb;} QLabel{background:transparent;}";
@@ -97,20 +100,54 @@ static QString supplierMonthSummaryText(const QList<int>& months)
 
 class SupplierGraphSelectionDialog : public QDialog {
 public:
-    SupplierGraphSelectionDialog(ChartKind kind, const AppData& data, QWidget* parent = nullptr)
+    SupplierGraphSelectionDialog(ChartKind kind, const AppData& data, QWidget* parent = nullptr, const ChartRequest* existing = nullptr)
         : QDialog(parent), m_kind(kind)
     {
         setWindowTitle(tr_show_graphs_26cf20());
         setModal(true);
         setMinimumWidth(520);
         setStyleSheet(g_lightMode
-            ? QStringLiteral("QDialog{background:#f4f6fb;} QLabel{color:#1e2340;background:transparent;} QToolButton,QPushButton{background:#ffffff;color:#1e2340;border:1px solid #cfd7ea;border-radius:7px;padding:7px 12px;font-weight:700;} QToolButton:hover,QPushButton:hover{background:#eef0fa;} QMenu{background:#ffffff;color:#1e2340;border:1px solid #dde2f0;} QMenu::item{padding:6px 18px;} QMenu::item:selected{background:#eef0fa;} QCheckBox{color:#1e2340;background:transparent;}")
-            : QStringLiteral("QDialog{background:#12152a;} QLabel{color:#e6ebff;background:transparent;} QToolButton,QPushButton{background:#1a1f38;color:#e7ecff;border:1px solid #343c63;border-radius:7px;padding:7px 12px;font-weight:700;} QToolButton:hover,QPushButton:hover{background:#1e2445;} QMenu{background:#1a1f38;color:#e7ecff;border:1px solid #343c63;} QMenu::item{padding:6px 18px;} QMenu::item:selected{background:#4f86f7;color:#ffffff;} QCheckBox{color:#e6ebff;background:transparent;}")
+            ? QStringLiteral("QDialog{background:#f4f6fb;} QLabel{color:#1e2340;background:transparent;} QToolButton,QPushButton,QComboBox{background:#ffffff;color:#1e2340;border:1px solid #cfd7ea;border-radius:7px;padding:7px 12px;font-weight:700;} QToolButton:hover,QPushButton:hover,QComboBox:hover{background:#eef0fa;} QMenu{background:#ffffff;color:#1e2340;border:1px solid #dde2f0;} QMenu::item{padding:6px 18px;} QMenu::item:selected{background:#eef0fa;} QCheckBox{color:#1e2340;background:transparent;font-weight:700;} QCheckBox::indicator{width:17px;height:17px;border:1px solid #8fa1c2;border-radius:4px;background:#ffffff;} QCheckBox::indicator:checked{background:#4f86f7;border:1px solid #356ed6;} QCheckBox::indicator:disabled{background:#eef0fa;border:1px solid #cfd7ea;}")
+            : QStringLiteral("QDialog{background:#12152a;} QLabel{color:#e6ebff;background:transparent;} QToolButton,QPushButton,QComboBox{background:#1a1f38;color:#e7ecff;border:1px solid #343c63;border-radius:7px;padding:7px 12px;font-weight:700;} QToolButton:hover,QPushButton:hover,QComboBox:hover{background:#1e2445;} QMenu{background:#1a1f38;color:#e7ecff;border:1px solid #343c63;} QMenu::item{padding:6px 18px;} QMenu::item:selected{background:#4f86f7;color:#ffffff;} QCheckBox{color:#e6ebff;background:transparent;font-weight:700;} QCheckBox::indicator{width:17px;height:17px;border:1px solid #59648c;border-radius:4px;background:#12152a;} QCheckBox::indicator:checked{background:#4f86f7;border:1px solid #7ba7ff;} QCheckBox::indicator:disabled{background:#1a1f38;border:1px solid #343c63;}")
         );
 
         auto* root = new QVBoxLayout(this);
         root->setContentsMargins(18, 16, 18, 16);
         root->setSpacing(12);
+
+        auto styleComboPopup = [](QComboBox* box) {
+            if (!box || !box->view()) return;
+            box->view()->setAttribute(Qt::WA_StyledBackground, true);
+            box->view()->setStyleSheet(g_lightMode
+                ? QStringLiteral("QListView{background:#ffffff;color:#1e2340;selection-background-color:#eef0fa;selection-color:#1e2340;border:1px solid #dde2f0;} QListView::item{padding:6px 8px;} QListView::item:selected{background:#eef0fa;color:#1e2340;}")
+                : QStringLiteral("QListView{background:#1a1f38;color:#c8d0ed;selection-background-color:#4f86f7;selection-color:#ffffff;border:1px solid #252b52;} QListView::item{padding:6px 8px;} QListView::item:selected{background:#4f86f7;color:#ffffff;}")
+            );
+        };
+
+        auto* chartTypeLabel = new QLabel(tr_chart_type_bd42b2());
+        chartTypeLabel->setStyleSheet(QStringLiteral("font-weight:800;"));
+        root->addWidget(chartTypeLabel);
+
+        m_chartTypeCombo = new QComboBox(this);
+        styleComboPopup(m_chartTypeCombo);
+        m_chartTypeCombo->setMinimumWidth(220);
+        m_chartTypeCombo->addItem(tr_pie_chart_9d4e04(), int(ChartKind::ComparePie));
+        m_chartTypeCombo->addItem(tr_bar_chart_a5f324(), int(ChartKind::CompareBar));
+        m_chartTypeCombo->addItem(tr_line_chart_932796(), int(ChartKind::CompareLine));
+        m_chartTypeCombo->addItem(tr_candle_chart_f7a9c2(), int(ChartKind::Candle));
+        int typeIndex = m_chartTypeCombo->findData(int(m_kind));
+        if (typeIndex < 0)
+            typeIndex = m_chartTypeCombo->findData(int(ChartKind::CompareBar));
+        if (typeIndex < 0)
+            typeIndex = 0;
+        m_chartTypeCombo->setCurrentIndex(typeIndex);
+        m_kind = static_cast<ChartKind>(m_chartTypeCombo->currentData().toInt());
+        connect(m_chartTypeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this](int) {
+            if (!m_chartTypeCombo) return;
+            m_kind = static_cast<ChartKind>(m_chartTypeCombo->currentData().toInt());
+            updateSummaryAvailability();
+        });
+        root->addWidget(m_chartTypeCombo);
 
         auto* title = new QLabel(tr_auto_graph_metrics_b363616c());
         title->setObjectName("section");
@@ -129,7 +166,7 @@ public:
             QAction* action = metricsMenu->addAction(metricDisplayName(id));
             action->setCheckable(true);
             action->setData(int(id));
-            action->setChecked(id == M_SUPPLIER_BALANCE);
+            action->setChecked(existing ? ((!existing->compareMetrics.isEmpty() && existing->compareMetrics.contains(id)) || (existing->compareMetrics.isEmpty() && id == existing->metricA)) : id == M_SUPPLIER_BALANCE);
             m_metricActions << action;
             connect(action, &QAction::toggled, this, [this]() { updateMetricButton(); });
         }
@@ -145,6 +182,15 @@ public:
         });
         m_metricsBtn->setMenu(metricsMenu);
         root->addWidget(m_metricsBtn);
+
+        auto* countAsLabel = new QLabel(tr_count_as_100_percent_4b3a11());
+        countAsLabel->setStyleSheet(QStringLiteral("font-weight:800;"));
+        root->addWidget(countAsLabel);
+
+        m_countAs100 = new QComboBox(this);
+        styleComboPopup(m_countAs100);
+        m_countAs100->setMinimumWidth(220);
+        root->addWidget(m_countAs100);
 
         auto* monthsLabel = new QLabel(tr_choose_months_ff1808());
         monthsLabel->setStyleSheet(QStringLiteral("font-weight:800;"));
@@ -165,7 +211,7 @@ public:
             QAction* action = monthsMenu->addAction(months.value(i));
             action->setCheckable(true);
             action->setData(i);
-            action->setChecked(useDataMonths ? dataMonths.contains(i) : true);
+            action->setChecked(existing ? (existing->months.isEmpty() || existing->months.contains(i)) : (useDataMonths ? dataMonths.contains(i) : true));
             m_monthActions << action;
             connect(action, &QAction::toggled, this, [this]() { updateMonthButton(); });
         }
@@ -181,6 +227,13 @@ public:
         });
         m_monthsBtn->setMenu(monthsMenu);
         root->addWidget(m_monthsBtn);
+
+        m_summaryCheck = new QCheckBox(tr_auto_summary_7c91cb2b(), this);
+        m_summaryCheck->setToolTip(tr_auto_add_a_summary_total_at_the_end_of_the_grap_fc422aba());
+        if (existing)
+            m_summaryCheck->setChecked(existing->includeSummaryPoint);
+        updateSummaryAvailability();
+        root->addWidget(m_summaryCheck);
 
         auto* buttons = new QDialogButtonBox(QDialogButtonBox::Cancel | QDialogButtonBox::Ok, this);
         if (QPushButton* ok = buttons->button(QDialogButtonBox::Ok))
@@ -198,6 +251,11 @@ public:
         root->addWidget(buttons);
 
         updateMetricButton();
+        if (existing && m_countAs100) {
+            int idx = m_countAs100->findData(int(existing->comparePieBaseMetric));
+            if (idx < 0) idx = 0;
+            m_countAs100->setCurrentIndex(idx);
+        }
         updateMonthButton();
     }
 
@@ -225,6 +283,21 @@ public:
         return out;
     }
 
+    bool includeSummaryPoint() const
+    {
+        return m_summaryCheck && m_summaryCheck->isChecked() && m_kind != ChartKind::Pie && m_kind != ChartKind::ComparePie;
+    }
+
+    MetricId countAs100Metric() const
+    {
+        if (!m_countAs100)
+            return M_COUNT;
+        const int idx = m_countAs100->currentIndex();
+        if (idx < 0)
+            return M_COUNT;
+        return MetricId(m_countAs100->currentData().toInt());
+    }
+
 private:
     void updateMetricButton()
     {
@@ -232,6 +305,36 @@ private:
         m_metricsBtn->setText(count <= 0
             ? QStringLiteral("+  ") + tr_auto_graph_metrics_b363616c()
             : QStringLiteral("+  ") + tr_auto_graph_metrics_b363616c() + QStringLiteral(" (") + QString::number(count) + QStringLiteral(")"));
+        syncCountAs100Options();
+    }
+
+    void updateSummaryAvailability()
+    {
+        if (!m_summaryCheck)
+            return;
+        const bool isPie = (m_kind == ChartKind::Pie || m_kind == ChartKind::ComparePie);
+        m_summaryCheck->setEnabled(!isPie);
+        if (isPie)
+            m_summaryCheck->setChecked(false);
+    }
+
+    void syncCountAs100Options()
+    {
+        if (!m_countAs100)
+            return;
+        const MetricId previous = countAs100Metric();
+        const bool blocked = m_countAs100->blockSignals(true);
+        m_countAs100->clear();
+        m_countAs100->addItem(tr_total_a52764(), int(M_COUNT));
+        const QList<MetricId> metrics = selectedMetrics();
+        for (MetricId id : metrics)
+            m_countAs100->addItem(metricDisplayName(id), int(id));
+        int idx = m_countAs100->findData(int(previous));
+        if (idx < 0)
+            idx = 0;
+        m_countAs100->setCurrentIndex(idx);
+        m_countAs100->setEnabled(!metrics.isEmpty());
+        m_countAs100->blockSignals(blocked);
     }
 
     void updateMonthButton()
@@ -247,6 +350,9 @@ private:
     ChartKind m_kind;
     QToolButton* m_metricsBtn{};
     QToolButton* m_monthsBtn{};
+    QComboBox* m_chartTypeCombo{};
+    QComboBox* m_countAs100{};
+    QCheckBox* m_summaryCheck{};
     QVector<QAction*> m_metricActions;
     QVector<QAction*> m_monthActions;
 };
@@ -750,41 +856,61 @@ void SuppliersWidget::updateGraphButtonMenu()
 {
     if (!m_graphBtn)
         return;
-    if (m_graphBtn->menu())
-        m_graphBtn->menu()->deleteLater();
+    if (QMenu* menu = m_graphBtn->menu()) {
+        m_graphBtn->setMenu(nullptr);
+        menu->deleteLater();
+    }
+    m_graphBtn->setPopupMode(QToolButton::DelayedPopup);
+}
 
-    auto* menu = new QMenu(m_graphBtn);
-    QAction* pie = menu->addAction(tr_pie_chart_9d4e04());
-    pie->setData(int(ChartKind::Pie));
-    QAction* bar = menu->addAction(tr_bar_chart_a5f324());
-    bar->setData(int(ChartKind::RankedBar));
-    QAction* line = menu->addAction(tr_line_chart_932796());
-    line->setData(int(ChartKind::MetricLine));
-    connect(menu, &QMenu::triggered, this, [this](QAction* act) {
-        if (!act) return;
-        AppData data = collectData();
-        data.calculate();
-        SupplierGraphSelectionDialog dlg(static_cast<ChartKind>(act->data().toInt()), data, this);
-        if (dlg.exec() != QDialog::Accepted)
-            return;
+bool SuppliersWidget::showGraphSelectionForRequest(const ChartRequest& request)
+{
+    AppData data = collectData();
+    data.calculate();
 
-        ChartRequest req;
-        req.origin = ChartOrigin::Suppliers;
-        req.kind = dlg.kind();
-        req.compareMetrics = dlg.selectedMetrics();
-        req.metricA = req.compareMetrics.value(0, M_SUPPLIER_BALANCE);
-        req.metricB = req.compareMetrics.value(1, req.metricA);
-        req.months = dlg.selectedMonths();
-        emit graphRequested(req);
-    });
-    m_graphBtn->setMenu(menu);
-    m_graphBtn->setPopupMode(QToolButton::InstantPopup);
+    ChartKind kind = request.kind;
+    if (kind == ChartKind::Pie)
+        kind = ChartKind::ComparePie;
+    else if (kind == ChartKind::MetricBar || kind == ChartKind::RankedBar)
+        kind = ChartKind::CompareBar;
+    else if (kind == ChartKind::MetricLine)
+        kind = ChartKind::CompareLine;
+    if (kind != ChartKind::ComparePie &&
+        kind != ChartKind::CompareBar &&
+        kind != ChartKind::CompareLine &&
+        kind != ChartKind::Candle) {
+        kind = ChartKind::CompareBar;
+    }
+
+    const bool hasExistingSelection = !request.compareMetrics.isEmpty()
+        || !request.months.isEmpty()
+        || request.includeSummaryPoint
+        || request.comparePieBaseMetric != M_COUNT
+        || !request.title.trimmed().isEmpty();
+    const ChartRequest* existing = hasExistingSelection ? &request : nullptr;
+    SupplierGraphSelectionDialog dlg(kind, data, this, existing);
+    if (dlg.exec() != QDialog::Accepted)
+        return false;
+
+    ChartRequest req;
+    req.origin = ChartOrigin::Suppliers;
+    req.kind = dlg.kind();
+    req.compareMetrics = dlg.selectedMetrics();
+    req.metricA = req.compareMetrics.value(0, M_SUPPLIER_BALANCE);
+    req.metricB = req.compareMetrics.value(1, req.metricA);
+    req.months = dlg.selectedMonths();
+    req.comparePieBaseMetric = dlg.countAs100Metric();
+    req.includeSummaryPoint = dlg.includeSummaryPoint();
+    emit graphRequested(req);
+    return true;
 }
 
 void SuppliersWidget::onShowGraphs()
 {
-    if (m_graphBtn)
-        m_graphBtn->showMenu();
+    ChartRequest req;
+    req.origin = ChartOrigin::Suppliers;
+    req.kind = ChartKind::CompareBar;
+    showGraphSelectionForRequest(req);
 }
 
 void SuppliersWidget::ensureGlobalSupplierCount(int count)

@@ -389,7 +389,7 @@ void ChartsWidget::addLineChart(const QString& title,
     auto* cv = makeLine(title, labels, values, metricId);
     m_views << cv;
     auto* wrap = wrapChartWithLegend(m_container, cv,
-                                     QStringList{title + QStringLiteral(": 100.0%")},
+                                     QStringList{title},
                                      QList<QColor>{metricColor(metricId)});
     m_layout->insertWidget(m_layout->count()-1, wrap);
 }
@@ -517,8 +517,7 @@ QChartView* ChartsWidget::makeCandle(const QString& title,
     for (double v : values) candleTotal += qAbs(v);
     if (candleTotal < 0.001) candleTotal = 1.0;
     for (int i = 0; i < labels.size() && i < values.size(); ++i) {
-        const double pct = (qAbs(values[i]) / candleTotal) * 100.0;
-        candleLegendLabels << (labels[i] + QStringLiteral(" — ") + title + QStringLiteral(": ") + QString::number(pct, 'f', 1) + QStringLiteral("%"));
+        candleLegendLabels << (labels[i] + QStringLiteral(" — ") + title);
         candleLegendColors << ((values[i] >= 0.0) ? metricColor(metricId).name() : metricColor(metricId).darker(130).name());
     }
     view->setProperty("legendLabels", candleLegendLabels);
@@ -576,7 +575,7 @@ QChartView* ChartsWidget::makeLine(const QString& title,
     if (lineTotal < 0.001) lineTotal = 1.0;
     for (int i = 0; i < labels.size() && i < values.size(); ++i) {
         const double pct = (qAbs(values[i]) / lineTotal) * 100.0;
-        lineLegendLabels << (labels[i] + QStringLiteral(" — ") + title + QStringLiteral(": ") + QString::number(pct, 'f', 1) + QStringLiteral("%"));
+        lineLegendLabels << (labels[i] + QStringLiteral(" — ") + title);
         lineLegendColors << metricColor(metricId).name();
     }
     view->setProperty("legendLabels", lineLegendLabels);

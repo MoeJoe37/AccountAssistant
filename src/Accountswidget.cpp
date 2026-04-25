@@ -300,6 +300,8 @@ void Accountswidget::updateGraphButtonMenu()
     bar->setData(int(ChartKind::RankedBar));
     QAction* line = menu->addAction(tr_line_chart_932796());
     line->setData(int(ChartKind::MetricLine));
+    QAction* candle = menu->addAction(tr_candle_chart_f7a9c2());
+    candle->setData(int(ChartKind::Candle));
     connect(menu, &QMenu::triggered, this, [this](QAction* act) {
         if (!act) return;
         emit graphRequested(static_cast<ChartKind>(act->data().toInt()), currentGroupFilter());

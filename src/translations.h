@@ -60,6 +60,7 @@ inline QString tr_calculate_36f437() { return T("▶  Calculate", "\u25B6  \u062
 inline QString tr_cancel_8d40ef() { return T("Cancel", "إلغاء"); }
 inline QString tr_cancel_b879b2() { return T("Cancel", "\u0625\u0644\u063a\u0627\u0621"); }
 inline QString tr_candle_77e8b9() { return T("Candle", "شمعة"); }
+inline QString tr_candle_chart_f7a9c2() { return T("Candle chart", "مخطط شموع"); }
 inline QString tr_chart_block_583f01() { return T("Chart block", "كتلة الرسم"); }
 inline QString tr_chart_preview_9abc22() { return T("Chart preview", "\u0645\u0639\u0627\u064A\u0646\u0629 \u0627\u0644\u0631\u0633\u0645"); }
 inline QString tr_chart_type_bd42b2() { return T("Chart type", "نوع الرسم"); }
@@ -287,6 +288,8 @@ inline QStringList monthNames()
     };
 }
 // Centralized translations moved from UI/source files.
+inline QString tr_auto_clear_results_118d7c() { return T("Clear Results", "\u0645\u0633\u062D \u0627\u0644\u0646\u062A\u0627\u0626\u062C"); }
+inline QString tr_auto_clear_results_warning_778aa1() { return T("This will clear all result numbers and all charts. Are you sure you want to continue?", "\u0633\u064A\u062A\u0645 \u0645\u0633\u062D \u062C\u0645\u064A\u0639 \u0623\u0631\u0642\u0627\u0645 \u0627\u0644\u0646\u062A\u0627\u0626\u062C \u0648\u062C\u0645\u064A\u0639 \u0627\u0644\u0631\u0633\u0648\u0645. \u0647\u0644 \u0623\u0646\u062A \u0645\u062A\u0623\u0643\u062F \u0623\u0646\u0643 \u062A\u0631\u064A\u062F \u0627\u0644\u0645\u062A\u0627\u0628\u0639\u0629\u061F"); }
 inline QString tr_auto_summary_7c91cb2b() { return T("Summary", "الملخص"); }
 inline QString tr_auto_add_a_summary_total_at_the_end_of_the_grap_fc422aba() { return T("Add a summary total at the end of the graph.", "إضافة مجموع ملخص في نهاية الرسم البياني."); }
 inline QString tr_auto_graph_metrics_b363616c() { return T("Graph metrics", "مقاييس الرسم"); }

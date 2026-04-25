@@ -376,7 +376,8 @@ DraggableChartCard::DraggableChartCard(const QString& title,
             break;
         }
     }
-    if (!hasMonthGroupedLegend &&
+    const bool legendLabelsLocked = m_view->property("legendLabelsLocked").toBool();
+    if (!legendLabelsLocked && !hasMonthGroupedLegend &&
         m_view->property("chartLabels").isValid() && m_view->property("chartSeriesNames").isValid() &&
         (m_view->property("chartPercentsMulti").isValid() || m_view->property("chartValuesMulti").isValid())) {
         rebuildPerMonthLegendFromView(m_view, legendLabels, legendColors);

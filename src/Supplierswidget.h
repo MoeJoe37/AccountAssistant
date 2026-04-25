@@ -111,6 +111,7 @@ public:
     void applyTheme();
     void retranslate();
     void updateCurrencyPrefix();
+    bool showGraphSelectionForRequest(const ChartRequest& request);
 
 signals:
     void graphRequested(const ChartRequest& request);
