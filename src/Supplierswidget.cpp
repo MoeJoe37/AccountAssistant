@@ -328,7 +328,7 @@ QList<SupplierEntry> SupplierMonthCard::entries() const
 
 void SupplierMonthCard::setEntries(const QList<SupplierEntry>& entries)
 {
-    setRowCount(entries.size());
+    setRowCount(qMax(1, entries.size()));
     for (int i = 0; i < m_rows.size(); ++i) {
         const SupplierEntry e = i < entries.size() ? entries[i] : SupplierEntry{};
         auto& r = m_rows[i];
@@ -598,11 +598,15 @@ AppData SuppliersWidget::collectData() const
 
 void SuppliersWidget::setData(const AppData& data)
 {
+    bool hasAnySupplierEntries = false;
     int maxRows = 1;
-    for (int i = 0; i < 12; ++i)
+    for (int i = 0; i < 12; ++i) {
         maxRows = qMax(maxRows, data.supplierEntries[i].size());
+        if (!data.supplierEntries[i].isEmpty())
+            hasAnySupplierEntries = true;
+    }
     ensureGlobalSupplierCount(maxRows);
-    if (!data.supplierEntries[0].isEmpty()) {
+    if (hasAnySupplierEntries) {
         for (int i = 0; i < 12; ++i)
             m_cards[i]->setEntries(data.supplierEntries[i]);
     } else {

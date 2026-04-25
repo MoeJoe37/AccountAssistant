@@ -41,8 +41,11 @@ private:
         QFrame*      frame{};
         QVBoxLayout* layout{};
         QCheckBox*   enabled{};
-        QComboBox*   left{};
-        QComboBox*   right{};
+        QToolButton* axisBtn{};
+        QMenu*       axisMenu{};
+        QVector<QAction*> axisActions;
+        bool         axisAuto{true};
+        QList<MetricId> axisMetrics;
         QToolButton* moreBtn{};
         QMenu*       moreMenu{};
         QVector<QAction*> moreActions;
@@ -66,6 +69,7 @@ private:
     QVBoxLayout*          m_compareSuppliersLayout{};
     QLabel*               m_comparePieBaseHdr{};
     CompareGroup          m_nextCompareGroup{CompareGroup::General};
+    AppData               m_data;
 
     void buildUI(const AppData& data);
     void appendMetricRow(MetricId id, ChartKind kind, const QList<int>& months = {}, int insertAt = -1);

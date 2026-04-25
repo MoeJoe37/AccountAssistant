@@ -3012,20 +3012,46 @@ static void buildPerMonthLegend(const QStringList& monthLabels,
     }
 }
 
+
+static QStringList comparisonAxisLabels(const AppData& data, MetricId xMetric, const QList<int>* months, AccountTypeFilter accountFilter)
+{
+    QStringList labels;
+    metricSeriesValues(data, xMetric, &labels, months, accountFilter);
+    if (xMetric == M_SUPPLIER_NAME && months) {
+        const auto monthNamesList = monthNames();
+        int outIdx = 0;
+        for (int monthIdx : *months) {
+            if (monthIdx < 0 || monthIdx >= 12 || outIdx >= labels.size()) continue;
+            QString supplier = labels[outIdx].trimmed();
+            const QString monthName = monthNamesList.value(monthIdx);
+            labels[outIdx] = supplier.isEmpty() || supplier == monthName
+                ? monthName
+                : monthName + QStringLiteral(" — ") + supplier;
+            ++outIdx;
+        }
+    }
+    return labels;
+}
+
 QChartView* ResultsWidget::createChartView(const AppData& data, const ChartRequest& request)
 {
     QStringList labels;
     const QList<int>* months = request.months.isEmpty() ? nullptr : &request.months;
-    QList<double> a = metricSeriesValues(data, request.metricA, &labels, months, request.accountFilter);
+    const MetricId effectiveXAxisMetric = (!request.axisMetricsAuto && request.xAxisMetric >= M_SALES && request.xAxisMetric < M_COUNT) ? request.xAxisMetric : M_COUNT;
+    const MetricId effectiveYAxisMetric = (!request.axisMetricsAuto && request.yAxisMetric >= M_SALES && request.yAxisMetric < M_COUNT) ? request.yAxisMetric : request.metricA;
+    if (effectiveXAxisMetric != M_COUNT)
+        labels = comparisonAxisLabels(data, effectiveXAxisMetric, months, request.accountFilter);
+    QList<double> a = metricSeriesValues(data, effectiveYAxisMetric, effectiveXAxisMetric == M_COUNT ? &labels : nullptr, months, request.accountFilter);
     QList<double> b;
     QString title = request.title.isEmpty() ? metricDisplayName(request.metricA) : request.title;
     const bool includeSummaryPoint = request.includeSummaryPoint && request.kind != ChartKind::Pie && request.kind != ChartKind::ComparePie;
     const bool usePercentBase = request.comparePieBaseMetric >= M_SALES && request.comparePieBaseMetric < M_COUNT;
 
     QList<MetricId> compareMetrics = request.compareMetrics;
-    if (compareMetrics.size() < 2 && (request.kind == ChartKind::CompareBar || request.kind == ChartKind::CompareLine || request.kind == ChartKind::ComparePie || request.kind == ChartKind::Candle)) {
-        compareMetrics.clear();
-        compareMetrics << request.metricA << request.metricB;
+    if (compareMetrics.isEmpty() && (request.kind == ChartKind::CompareBar || request.kind == ChartKind::CompareLine || request.kind == ChartKind::ComparePie || request.kind == ChartKind::Candle)) {
+        compareMetrics << effectiveYAxisMetric;
+        if (request.metricB >= M_SALES && request.metricB < M_COUNT && request.metricB != effectiveYAxisMetric)
+            compareMetrics << request.metricB;
     }
 
     if (compareMetrics.size() > 2 && (request.kind == ChartKind::CompareBar || request.kind == ChartKind::CompareLine || request.kind == ChartKind::ComparePie || request.kind == ChartKind::Candle)) {
@@ -3081,6 +3107,20 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
         return makeMultiCompareBarChart(title, labels, seriesList, names);
     }
 
+    if (compareMetrics.size() == 1 && (request.kind == ChartKind::CompareBar || request.kind == ChartKind::CompareLine || request.kind == ChartKind::Candle)) {
+        if (includeSummaryPoint) {
+            appendSummaryLabel(labels);
+            appendSummaryValue(a);
+        }
+        if (request.kind == ChartKind::CompareLine)
+            return makeSingleLineChart(title, labels, a);
+        if (request.kind == ChartKind::CompareBar)
+            return makeRankedBarChart(title, labels, a);
+        if (effectiveYAxisMetric == M_EXPENSES)
+            return makeRankedBarChart(title, labels, a);
+        return makeCandleChart(title, labels, a);
+    }
+
     switch (request.kind) {
     case ChartKind::Pie:
         return makePieChart(title, labels, a);
@@ -3093,11 +3133,11 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
                 appendSummaryValue(a);
                 appendSummaryValue(b);
             }
-            QString nameA = request.seriesA.isEmpty() ? metricDisplayName(request.metricA) : request.seriesA;
+            QString nameA = request.seriesA.isEmpty() ? metricDisplayName(effectiveYAxisMetric) : request.seriesA;
             QString nameB = request.seriesB.isEmpty() ? metricDisplayName(request.metricB) : request.seriesB;
             if (usePercentBase) {
                 QList<double> baseSeries;
-                if (request.comparePieBaseMetric == request.metricA) baseSeries = a;
+                if (request.comparePieBaseMetric == effectiveYAxisMetric) baseSeries = a;
                 else if (request.comparePieBaseMetric == request.metricB) baseSeries = b;
                 if (!baseSeries.isEmpty()) {
                     a = computePercentagesAgainstBase(a, baseSeries);
@@ -3115,7 +3155,7 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
             appendSummaryLabel(labels);
             appendSummaryValue(a);
         }
-        if (request.metricA == M_EXPENSES)
+        if (effectiveYAxisMetric == M_EXPENSES)
             return makeRankedBarChart(title, labels, a);
         return makeCandleChart(title, labels, a);
     case ChartKind::RankedBar:
@@ -3139,11 +3179,11 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
             appendSummaryValue(a);
             appendSummaryValue(b);
         }
-        QString nameA = request.seriesA.isEmpty() ? metricDisplayName(request.metricA) : request.seriesA;
+        QString nameA = request.seriesA.isEmpty() ? metricDisplayName(effectiveYAxisMetric) : request.seriesA;
         QString nameB = request.seriesB.isEmpty() ? metricDisplayName(request.metricB) : request.seriesB;
         if (usePercentBase) {
             QList<double> baseSeries;
-            if (request.comparePieBaseMetric == request.metricA) baseSeries = a;
+            if (request.comparePieBaseMetric == effectiveYAxisMetric) baseSeries = a;
             else if (request.comparePieBaseMetric == request.metricB) baseSeries = b;
             if (!baseSeries.isEmpty()) {
                 a = computePercentagesAgainstBase(a, baseSeries);
@@ -3165,11 +3205,11 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
             appendSummaryValue(a);
             appendSummaryValue(b);
         }
-        QString nameA = request.seriesA.isEmpty() ? metricDisplayName(request.metricA) : request.seriesA;
+        QString nameA = request.seriesA.isEmpty() ? metricDisplayName(effectiveYAxisMetric) : request.seriesA;
         QString nameB = request.seriesB.isEmpty() ? metricDisplayName(request.metricB) : request.seriesB;
         if (usePercentBase) {
             QList<double> baseSeries;
-            if (request.comparePieBaseMetric == request.metricA) baseSeries = a;
+            if (request.comparePieBaseMetric == effectiveYAxisMetric) baseSeries = a;
             else if (request.comparePieBaseMetric == request.metricB) baseSeries = b;
             if (!baseSeries.isEmpty()) {
                 a = computePercentagesAgainstBase(a, baseSeries);
@@ -3192,11 +3232,11 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
         QStringList pieLabels;
         QList<double> pieValues;
         const QStringList names{
-            request.seriesA.isEmpty() ? metricDisplayName(request.metricA) : request.seriesA,
+            request.seriesA.isEmpty() ? metricDisplayName(effectiveYAxisMetric) : request.seriesA,
             request.seriesB.isEmpty() ? metricDisplayName(request.metricB) : request.seriesB
         };
         const QList<double> totals{va, vb};
-        const int baseIdx = (request.comparePieBaseMetric == request.metricA) ? 0 : (request.comparePieBaseMetric == request.metricB ? 1 : -1);
+        const int baseIdx = (request.comparePieBaseMetric == effectiveYAxisMetric) ? 0 : (request.comparePieBaseMetric == request.metricB ? 1 : -1);
         buildComparePieSlices(names, totals, baseIdx, pieLabels, pieValues);
         return makeMultiComparePieChart(title, pieLabels, pieValues, 100.0);
     }

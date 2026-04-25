@@ -370,6 +370,25 @@ static QList<QPair<MetricId, QString>> compareMetrics()
         { M_PROFIT_MARGIN,     metricDisplayName(M_PROFIT_MARGIN) },
     };
 }
+static QList<int> monthsWithAnyData(const AppData& data)
+{
+    QList<int> out;
+    for (int i = 0; i < 12; ++i) {
+        const auto& m = data.months[i];
+        const bool monthHasData =
+            m.sales != 0.0 || m.salesReturn != 0.0 || m.supplierPurchases != 0.0 ||
+            m.supplierPayments != 0.0 || !m.supplierName.trimmed().isEmpty() ||
+            !m.expenseAccount.trimmed().isEmpty() || m.expenseAmount != 0.0 ||
+            m.inventoryFirst != 0.0 || m.inventoryLast != 0.0 || m.cogsInput != 0.0 ||
+            !data.suppliers[i].supplierName.trimmed().isEmpty() || data.suppliers[i].purchases != 0.0 ||
+            data.suppliers[i].payments != 0.0 || !data.supplierEntries[i].isEmpty();
+        if (monthHasData)
+            out << i;
+    }
+    return out;
+}
+
+
 
 static const MetricDef* metricDefForId(MetricId id)
 {
@@ -496,7 +515,7 @@ static CompareGroup compareGroupForPreset(const ChartRequest* preset)
 }
 
 ChartSelectionDialog::ChartSelectionDialog(const AppData& data, QWidget* parent)
-    : QDialog(parent)
+    : QDialog(parent), m_data(data)
 {
     setStyleSheet(g_lightMode ? kDialogSSLight : kDialogSS);
     setWindowTitle(tr_select_charts_d37b65());
@@ -592,32 +611,8 @@ void ChartSelectionDialog::buildUI(const AppData& data)
     m_compareLayout->setContentsMargins(0, 0, 0, 0);
     m_compareLayout->setSpacing(10);
 
-    auto addCompareSection = [&](const QString& txt, QVBoxLayout*& outLayout, CompareGroup group) {
-        auto* header = new QHBoxLayout;
-        header->setContentsMargins(0, 0, 0, 0);
-        header->setSpacing(8);
-        auto* lbl = new QLabel(txt);
-        lbl->setObjectName("section");
-        auto* addBtn = new QPushButton(tr_add_comparison_1c963e());
-        addBtn->setObjectName("sectionAddBtn");
-        addBtn->setCursor(Qt::PointingHandCursor);
-        header->addWidget(lbl);
-        header->addStretch();
-        header->addWidget(addBtn);
-        m_compareLayout->addLayout(header);
-        outLayout = new QVBoxLayout;
-        outLayout->setContentsMargins(0, 0, 0, 0);
-        outLayout->setSpacing(8);
-        m_compareLayout->addLayout(outLayout);
-        QObject::connect(addBtn, &QPushButton::clicked, this, [this, group]() {
-            m_nextCompareGroup = group;
-            appendCompareRow(nullptr);
-            m_nextCompareGroup = CompareGroup::General;
-        });
-    };
-
-    addCompareSection(tr_accounts_08f9e5(), m_compareAccountsLayout, CompareGroup::Accounts);
-    addCompareSection(tr_suppliers_7beff3(), m_compareSuppliersLayout, CompareGroup::Suppliers);
+    m_compareAccountsLayout = nullptr;
+    m_compareSuppliersLayout = nullptr;
 
     auto* generalHeader = new QHBoxLayout;
     generalHeader->setContentsMargins(0, 0, 0, 0);
@@ -910,8 +905,6 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset)
         return l;
     };
 
-    auto* left = new QComboBox;
-    auto* right = new QComboBox;
     auto styleComboPopup = [](QComboBox* box) {
         if (!box || !box->view()) return;
         box->view()->setAttribute(Qt::WA_StyledBackground, true);
@@ -924,22 +917,12 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset)
               "QListView::item:selected{background:#4f86f7;color:#ffffff;}");
     };
 
-    const auto metrics = compareMetrics();
-    for (const auto& m : metrics) {
-        left->addItem(m.second, int(m.first));
-        right->addItem(m.second, int(m.first));
-    }
-    if (left->count() > 0) left->setCurrentIndex(0);
-    if (right->count() > 1) right->setCurrentIndex(1);
-    styleComboPopup(left);
-    styleComboPopup(right);
-
     auto* moreBtn = new QToolButton;
     moreBtn->setObjectName("monthBtn");
     moreBtn->setPopupMode(QToolButton::InstantPopup);
     moreBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     moreBtn->setArrowType(Qt::DownArrow);
-    moreBtn->setToolTip(tr_more_metrics_000000());
+    moreBtn->setToolTip(T("Graph metrics", "مقاييس الرسم"));
     auto* moreMenu = new StayOpenMenu(moreBtn);
     moreBtn->setMenu(moreMenu);
     moreMenu->setStyleSheet(g_lightMode
@@ -971,19 +954,7 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset)
     QList<MetricId> presetMoreMetrics;
     MetricId presetBase = M_COUNT;
     if (preset) {
-        if (preset->compareMetrics.size() >= 2) {
-            if (preset->compareMetrics[0] >= M_SALES && preset->compareMetrics[0] < M_COUNT)
-                left->setCurrentIndex(left->findData(int(preset->compareMetrics[0])));
-            if (preset->compareMetrics[1] >= M_SALES && preset->compareMetrics[1] < M_COUNT)
-                right->setCurrentIndex(right->findData(int(preset->compareMetrics[1])));
-            for (int i = 2; i < preset->compareMetrics.size(); ++i)
-                presetMoreMetrics << preset->compareMetrics[i];
-        } else {
-            if (preset->metricA >= M_SALES && preset->metricA < M_COUNT)
-                left->setCurrentIndex(left->findData(int(preset->metricA)));
-            if (preset->metricB >= M_SALES && preset->metricB < M_COUNT)
-                right->setCurrentIndex(right->findData(int(preset->metricB)));
-        }
+        presetMoreMetrics = preset->compareMetrics;
         const int typeIndex = type->findData(int(preset->kind));
         if (typeIndex >= 0) type->setCurrentIndex(typeIndex);
         presetMonths = preset->months;
@@ -992,6 +963,7 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset)
             presetBase = preset->comparePieBaseMetric;
     }
 
+    if (!preset && presetMonths.isEmpty()) presetMonths = monthsWithAnyData(m_data);
     auto* monthMenu = makeMonthMenu(monthBtn, presetMonths, presetMonths.isEmpty(), &cmpMonthActs);
     monthMenu->setStyleSheet(g_lightMode
         ? "QMenu{background:#ffffff;color:#1e2340;border:1px solid #dde2f0;} QMenu::item{padding:6px 18px;} QMenu::item:selected{background:#eef0fa;} QMenu::separator{height:1px;background:#dde2f0;margin:4px 0;}"
@@ -1054,26 +1026,22 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset)
         }
     });
 
-    grid->addWidget(makeHdr(tr_left_metric_c474b3()),  0, 0);
-    grid->addWidget(makeHdr(tr_right_metric_1d236d()), 0, 1);
-    grid->addWidget(makeHdr(tr_more_metrics_000000()), 0, 2);
-    grid->addWidget(makeHdr(tr_chart_type_bd42b2()),    0, 3);
+    grid->addWidget(makeHdr(T("Graph metrics", "مقاييس الرسم")), 0, 0);
+    grid->addWidget(makeHdr(tr_chart_type_bd42b2()),    0, 1);
     m_comparePieBaseHdr = makeHdr(tr_count_as_100_percent_4b3a11());
-    grid->addWidget(m_comparePieBaseHdr, 0, 4);
+    grid->addWidget(m_comparePieBaseHdr, 0, 2);
     auto* summaryCheck = new QCheckBox(T("Summary", "الملخص"));
     summaryCheck->setToolTip(T("Add a summary total at the end of the graph.", "إضافة مجموع ملخص في نهاية الرسم البياني."));
-    grid->addWidget(makeHdr(tr_month_460756()),         0, 5);
-    grid->addWidget(makeHdr(T("Summary", "الملخص")), 0, 6);
-    grid->addWidget(makeHdr(tr_title_c1c427()),         0, 7);
-    grid->addWidget(left,         1, 0);
-    grid->addWidget(right,        1, 1);
-    grid->addWidget(moreBtn,      1, 2);
-    grid->addWidget(type,         1, 3);
-    grid->addWidget(countAs100,   1, 4);
-    grid->addWidget(monthBtn,     1, 5);
-    grid->addWidget(summaryCheck, 1, 6);
-    grid->addWidget(title,        1, 7);
-    grid->setColumnStretch(7, 1);
+    grid->addWidget(makeHdr(tr_month_460756()),         0, 3);
+    grid->addWidget(makeHdr(T("Summary", "الملخص")), 0, 4);
+    grid->addWidget(makeHdr(tr_title_c1c427()),         0, 5);
+    grid->addWidget(moreBtn,      1, 0);
+    grid->addWidget(type,         1, 1);
+    grid->addWidget(countAs100,   1, 2);
+    grid->addWidget(monthBtn,     1, 3);
+    grid->addWidget(summaryCheck, 1, 4);
+    grid->addWidget(title,        1, 5);
+    grid->setColumnStretch(5, 1);
 
     QVBoxLayout* targetLayout = m_compareGeneralLayout ? m_compareGeneralLayout : m_compareLayout;
     const CompareGroup forcedGroup = m_nextCompareGroup;
@@ -1095,12 +1063,15 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset)
     CompareRow item;
     item.frame = row;
     item.layout = targetLayout;
-    item.left = left;
-    item.right = right;
+    item.axisBtn = nullptr;
+    item.axisMenu = nullptr;
+    item.axisActions.clear();
+    item.axisAuto = true;
     item.moreBtn = moreBtn;
     item.moreMenu = moreMenu;
     item.moreActions = moreActs;
     item.moreMetrics = presetMoreMetrics;
+    item.axisMetrics.clear();
     item.countAs100 = countAs100;
     item.comparePieBase = presetBase;
     item.type = type;
@@ -1113,26 +1084,11 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset)
         item.summaryCheck->setChecked(preset->includeSummaryPoint);
     m_compareRows.push_back(item);
 
+
     syncCompareMoreButton(m_compareRows.last());
     syncComparePieBaseControls(m_compareRows.last());
     syncComparePieBaseVisibility();
 
-    connect(left, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this, row]() {
-        for (auto& r : m_compareRows) {
-            if (r.frame != row) continue;
-            syncComparePieBaseControls(r);
-            syncComparePieBaseVisibility();
-            return;
-        }
-    });
-    connect(right, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this, row]() {
-        for (auto& r : m_compareRows) {
-            if (r.frame != row) continue;
-            syncComparePieBaseControls(r);
-            syncComparePieBaseVisibility();
-            return;
-        }
-    });
     connect(countAs100, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this, row](int) {
         for (auto& r : m_compareRows) {
             if (r.frame != row || !r.countAs100) continue;
@@ -1185,14 +1141,15 @@ void ChartSelectionDialog::duplicateCompareRow(int rowIndex)
 
     ChartRequest preset;
     const QList<MetricId> metrics = selectedCompareMetrics(src);
+    preset.compareMetrics = src.moreMetrics;
     if (!metrics.isEmpty()) {
         preset.metricA = metrics.value(0, M_SALES);
         preset.metricB = metrics.value(1, preset.metricA);
-        preset.compareMetrics = metrics;
-    } else {
-        preset.metricA = src.left ? MetricId(src.left->currentData().toInt()) : M_SALES;
-        preset.metricB = src.right ? MetricId(src.right->currentData().toInt()) : M_SALES_RETURN;
-        preset.compareMetrics = QList<MetricId>{preset.metricA, preset.metricB};
+    }
+    preset.axisMetricsAuto = src.axisAuto;
+    if (!src.axisAuto) {
+        preset.xAxisMetric = src.axisMetrics.value(0, M_COUNT);
+        preset.yAxisMetric = src.axisMetrics.value(1, M_COUNT);
     }
     preset.kind = src.type ? ChartKind(src.type->currentData().toInt()) : ChartKind::CompareBar;
     preset.months = selectedMonths(src);
@@ -1235,8 +1192,6 @@ QList<MetricId> ChartSelectionDialog::selectedCompareMetrics(const CompareRow& r
         if (id < M_SALES || id >= M_COUNT) return;
         if (!out.contains(id)) out << id;
     };
-    if (row.left) appendUnique(MetricId(row.left->currentData().toInt()));
-    if (row.right) appendUnique(MetricId(row.right->currentData().toInt()));
     for (MetricId id : row.moreMetrics) appendUnique(id);
     return out;
 }
@@ -1244,9 +1199,10 @@ QList<MetricId> ChartSelectionDialog::selectedCompareMetrics(const CompareRow& r
 void ChartSelectionDialog::syncCompareMoreButton(CompareRow& row)
 {
     if (!row.moreBtn) return;
+    const QString baseText = T("Graph metrics", "مقاييس الرسم");
     row.moreBtn->setText(row.moreMetrics.isEmpty()
-        ? QStringLiteral("+  ") + tr_more_metrics_000000()
-        : QStringLiteral("+  ") + tr_more_metrics_000000() + QStringLiteral(" (") + QString::number(row.moreMetrics.size()) + QStringLiteral(")"));
+        ? QStringLiteral("+  ") + baseText
+        : QStringLiteral("+  ") + baseText + QStringLiteral(" (") + QString::number(row.moreMetrics.size()) + QStringLiteral(")"));
     const auto defs = compareMetrics();
     for (int i = 0; i < row.moreActions.size() && i < defs.size(); ++i) {
         QAction* act = row.moreActions[i];
@@ -1349,18 +1305,22 @@ QList<ChartRequest> ChartSelectionDialog::chartRequests() const
     }
 
     for (const auto& row : m_compareRows) {
-        const QList<MetricId> metrics = selectedCompareMetrics(row);
+        QList<MetricId> metrics = selectedCompareMetrics(row);
+        if (metrics.isEmpty()) continue;
         if (metrics.size() < 2) continue;
-        if (metrics.first() == metrics.value(1) && metrics.size() == 2) continue;
+        if (metrics.size() == 2 && metrics.first() == metrics.value(1)) continue;
 
         ChartRequest req;
         const int typeVal = row.type ? row.type->currentData().toInt() : int(ChartKind::CompareBar);
         req.kind = static_cast<ChartKind>(typeVal);
         if (req.kind != ChartKind::CompareLine && req.kind != ChartKind::ComparePie && req.kind != ChartKind::Candle)
             req.kind = ChartKind::CompareBar;
+        req.compareMetrics = row.moreMetrics.isEmpty() ? metrics : row.moreMetrics;
+        req.axisMetricsAuto = true;
+        req.xAxisMetric = M_COUNT;
+        req.yAxisMetric = M_COUNT;
         req.metricA = metrics.value(0);
-        req.metricB = metrics.value(1);
-        req.compareMetrics = metrics;
+        req.metricB = metrics.value(1, req.metricA);
         req.comparePieBaseMetric = row.comparePieBase;
         req.months = selectedMonths(row);
         req.includeSummaryPoint = row.summaryCheck && row.summaryCheck->isChecked();

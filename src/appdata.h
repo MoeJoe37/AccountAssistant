@@ -110,6 +110,7 @@ enum MetricId {
     M_INVENTORY_OPENING,
     M_INVENTORY_CLOSING,
     M_COGS_VS_PROFIT,
+    M_SUPPLIER_NAME,
     M_COUNT
 };
 
@@ -139,7 +140,10 @@ struct ChartRequest {
     ChartKind kind = ChartKind::Candle;
     MetricId metricA = M_SALES;
     MetricId metricB = M_SALES_RETURN;
-    QList<MetricId> compareMetrics;  // Optional ordered list for 3+ metric comparisons.
+    QList<MetricId> compareMetrics;  // Ordered graph metrics for comparison charts.
+    bool axisMetricsAuto = true;
+    MetricId xAxisMetric = M_COUNT;
+    MetricId yAxisMetric = M_COUNT;
     MetricId comparePieBaseMetric = M_COUNT;  // Optional base metric for ComparePie (100%).
     QString title;
     QString seriesA;
@@ -327,6 +331,7 @@ inline QString metricDisplayName(MetricId id)
     case M_INVENTORY_OPENING:return tr_inventory_opening_ccde20();
     case M_INVENTORY_CLOSING:return tr_inventory_closing_d69943();
     case M_COGS_VS_PROFIT:   return tr_cogs_vs_profit_margin_fd48e9();
+    case M_SUPPLIER_NAME:    return T("Supplier name", "اسم المورد");
     case M_COUNT:            break;
     }
     return tr_unknown_0240b2();
@@ -513,6 +518,24 @@ inline QList<double> metricSeriesValues(const AppData& d, MetricId id, QStringLi
         }
         break;
     case M_COGS_VS_PROFIT:
+        break;
+    case M_SUPPLIER_NAME:
+        for (int i = 0; i < 12; ++i) if (includeMonth(i)) {
+            values << 0.0;
+        }
+        if (labels) {
+            const auto months = monthNames();
+            for (int i = 0; i < 12; ++i) if (includeMonth(i)) {
+                QString supplier = d.suppliers[i].supplierName.trimmed();
+                if (supplier.isEmpty()) {
+                    for (const auto& e : d.supplierEntries[i]) {
+                        if (!e.name.trimmed().isEmpty()) { supplier = e.name.trimmed(); break; }
+                    }
+                }
+                *labels << (supplier.isEmpty() ? months.value(i) : supplier);
+            }
+        }
+        break;
     case M_COUNT:
         break;
     }
@@ -542,6 +565,7 @@ inline QColor metricColor(MetricId id)
     case M_INVENTORY_OPENING: return QColor("#5b8def");
     case M_INVENTORY_CLOSING: return QColor("#8f97b4");
     case M_COGS_VS_PROFIT:    return QColor("#4f86f7");
+    case M_SUPPLIER_NAME:     return QColor("#8b5cf6");
     case M_COUNT:             break;
     }
     return QColor("#4f86f7");
