@@ -5,6 +5,7 @@
 #include <QVBoxLayout>
 #include <QGridLayout>
 #include <QAbstractSpinBox>
+#include <QAbstractButton>
 #include <QLocale>
 #include <QWheelEvent>
 #include <QSignalBlocker>
@@ -13,6 +14,10 @@
 #include <QMouseEvent>
 #include <QSizePolicy>
 #include <QMenu>
+#include <QAction>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QMessageBox>
 
 static const char* kRootDark = "QWidget#suppliersRoot{background:#0d1020;} QLabel{background:transparent;}";
 static const char* kRootLight = "QWidget#suppliersRoot{background:#f4f6fb;} QLabel{background:transparent;}";
@@ -26,6 +31,226 @@ static const char* kMonthLblDark = "color:#c8d0ed;font-weight:800;background:tra
 static const char* kMonthLblLight = "color:#1e2340;font-weight:800;background:transparent;";
 static const char* kChevronDark = "color:#8892b8;background:transparent;font-weight:800;";
 static const char* kChevronLight = "color:#6b7280;background:transparent;font-weight:800;";
+
+class SupplierStayOpenMenu : public QMenu {
+public:
+    using QMenu::QMenu;
+protected:
+    void mouseReleaseEvent(QMouseEvent* event) override
+    {
+        QAction* action = activeAction();
+        if (action && action->isEnabled() && action->isCheckable()) {
+            action->trigger();
+            return;
+        }
+        QMenu::mouseReleaseEvent(event);
+    }
+};
+
+static QList<MetricId> supplierGraphMetrics()
+{
+    return {
+        M_PURCHASES,
+        M_SUPPLIER_PAYMENTS,
+        M_SUPPLIER_PREVIOUS_BALANCE,
+        M_SUPPLIER_TOTAL_DEBT,
+        M_SUPPLIER_PAYMENT_PCT_PURCHASES,
+        M_SUPPLIER_PAYMENT_PCT_DEBT,
+        M_SUPPLIER_BALANCE
+    };
+}
+
+static QList<int> supplierMonthsWithData(const AppData& data)
+{
+    QList<int> out;
+    for (int month = 0; month < 12; ++month) {
+        bool hasData = false;
+        for (const SupplierEntry& entry : data.supplierEntries[month]) {
+            if (!entry.name.trimmed().isEmpty() || entry.previousBalance != 0.0 || entry.purchases != 0.0 ||
+                entry.totalDebt != 0.0 || entry.payments != 0.0) {
+                hasData = true;
+                break;
+            }
+        }
+        if (!hasData) {
+            const SupplierMonthData& legacy = data.suppliers[month];
+            hasData = !legacy.supplierName.trimmed().isEmpty() || legacy.purchases != 0.0 || legacy.payments != 0.0;
+        }
+        if (hasData)
+            out << month;
+    }
+    return out;
+}
+
+static QString supplierMonthSummaryText(const QList<int>& months)
+{
+    if (months.isEmpty() || months.size() == 12)
+        return tr_all_months_428b74();
+    const QStringList names = monthNames();
+    QStringList selected;
+    for (int month : months) {
+        if (month >= 0 && month < names.size())
+            selected << names.value(month);
+    }
+    return selected.isEmpty() ? tr_all_months_428b74() : selected.join(QStringLiteral(", "));
+}
+
+class SupplierGraphSelectionDialog : public QDialog {
+public:
+    SupplierGraphSelectionDialog(ChartKind kind, const AppData& data, QWidget* parent = nullptr)
+        : QDialog(parent), m_kind(kind)
+    {
+        setWindowTitle(tr_show_graphs_26cf20());
+        setModal(true);
+        setMinimumWidth(520);
+        setStyleSheet(g_lightMode
+            ? QStringLiteral("QDialog{background:#f4f6fb;} QLabel{color:#1e2340;background:transparent;} QToolButton,QPushButton{background:#ffffff;color:#1e2340;border:1px solid #cfd7ea;border-radius:7px;padding:7px 12px;font-weight:700;} QToolButton:hover,QPushButton:hover{background:#eef0fa;} QMenu{background:#ffffff;color:#1e2340;border:1px solid #dde2f0;} QMenu::item{padding:6px 18px;} QMenu::item:selected{background:#eef0fa;} QCheckBox{color:#1e2340;background:transparent;}")
+            : QStringLiteral("QDialog{background:#12152a;} QLabel{color:#e6ebff;background:transparent;} QToolButton,QPushButton{background:#1a1f38;color:#e7ecff;border:1px solid #343c63;border-radius:7px;padding:7px 12px;font-weight:700;} QToolButton:hover,QPushButton:hover{background:#1e2445;} QMenu{background:#1a1f38;color:#e7ecff;border:1px solid #343c63;} QMenu::item{padding:6px 18px;} QMenu::item:selected{background:#4f86f7;color:#ffffff;} QCheckBox{color:#e6ebff;background:transparent;}")
+        );
+
+        auto* root = new QVBoxLayout(this);
+        root->setContentsMargins(18, 16, 18, 16);
+        root->setSpacing(12);
+
+        auto* title = new QLabel(tr_auto_graph_metrics_b363616c());
+        title->setObjectName("section");
+        title->setStyleSheet(QStringLiteral("font-weight:800;font-size:15px;"));
+        root->addWidget(title);
+
+        m_metricsBtn = new QToolButton(this);
+        m_metricsBtn->setPopupMode(QToolButton::InstantPopup);
+        m_metricsBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+        m_metricsBtn->setArrowType(Qt::DownArrow);
+        auto* metricsMenu = new SupplierStayOpenMenu(m_metricsBtn);
+        QAction* selectAll = metricsMenu->addAction(tr_select_all_7812c3());
+        QAction* deselectAll = metricsMenu->addAction(tr_deselect_all_474bc1());
+        metricsMenu->addSeparator();
+        for (MetricId id : supplierGraphMetrics()) {
+            QAction* action = metricsMenu->addAction(metricDisplayName(id));
+            action->setCheckable(true);
+            action->setData(int(id));
+            action->setChecked(id == M_SUPPLIER_BALANCE);
+            m_metricActions << action;
+            connect(action, &QAction::toggled, this, [this]() { updateMetricButton(); });
+        }
+        connect(selectAll, &QAction::triggered, this, [this]() {
+            for (QAction* action : m_metricActions)
+                if (action) action->setChecked(true);
+            updateMetricButton();
+        });
+        connect(deselectAll, &QAction::triggered, this, [this]() {
+            for (QAction* action : m_metricActions)
+                if (action) action->setChecked(false);
+            updateMetricButton();
+        });
+        m_metricsBtn->setMenu(metricsMenu);
+        root->addWidget(m_metricsBtn);
+
+        auto* monthsLabel = new QLabel(tr_choose_months_ff1808());
+        monthsLabel->setStyleSheet(QStringLiteral("font-weight:800;"));
+        root->addWidget(monthsLabel);
+
+        m_monthsBtn = new QToolButton(this);
+        m_monthsBtn->setPopupMode(QToolButton::InstantPopup);
+        m_monthsBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+        m_monthsBtn->setArrowType(Qt::DownArrow);
+        auto* monthsMenu = new SupplierStayOpenMenu(m_monthsBtn);
+        QAction* selectAllMonths = monthsMenu->addAction(tr_select_all_7812c3());
+        QAction* deselectAllMonths = monthsMenu->addAction(tr_deselect_all_474bc1());
+        monthsMenu->addSeparator();
+        const QList<int> dataMonths = supplierMonthsWithData(data);
+        const bool useDataMonths = !dataMonths.isEmpty();
+        const QStringList months = monthNames();
+        for (int i = 0; i < 12; ++i) {
+            QAction* action = monthsMenu->addAction(months.value(i));
+            action->setCheckable(true);
+            action->setData(i);
+            action->setChecked(useDataMonths ? dataMonths.contains(i) : true);
+            m_monthActions << action;
+            connect(action, &QAction::toggled, this, [this]() { updateMonthButton(); });
+        }
+        connect(selectAllMonths, &QAction::triggered, this, [this]() {
+            for (QAction* action : m_monthActions)
+                if (action) action->setChecked(true);
+            updateMonthButton();
+        });
+        connect(deselectAllMonths, &QAction::triggered, this, [this]() {
+            for (QAction* action : m_monthActions)
+                if (action) action->setChecked(false);
+            updateMonthButton();
+        });
+        m_monthsBtn->setMenu(monthsMenu);
+        root->addWidget(m_monthsBtn);
+
+        auto* buttons = new QDialogButtonBox(QDialogButtonBox::Cancel | QDialogButtonBox::Ok, this);
+        if (QPushButton* ok = buttons->button(QDialogButtonBox::Ok))
+            ok->setText(tr_show_graphs_26cf20());
+        if (QPushButton* cancel = buttons->button(QDialogButtonBox::Cancel))
+            cancel->setText(tr_cancel_8d40ef());
+        connect(buttons, &QDialogButtonBox::accepted, this, [this]() {
+            if (selectedMetrics().isEmpty()) {
+                QMessageBox::warning(this, tr_show_graphs_26cf20(), tr_no_charts_selected_7a4c8f());
+                return;
+            }
+            accept();
+        });
+        connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+        root->addWidget(buttons);
+
+        updateMetricButton();
+        updateMonthButton();
+    }
+
+    ChartKind kind() const { return m_kind; }
+
+    QList<MetricId> selectedMetrics() const
+    {
+        QList<MetricId> out;
+        for (QAction* action : m_metricActions) {
+            if (action && action->isChecked())
+                out << MetricId(action->data().toInt());
+        }
+        return out;
+    }
+
+    QList<int> selectedMonths() const
+    {
+        QList<int> out;
+        for (QAction* action : m_monthActions) {
+            if (action && action->isChecked())
+                out << action->data().toInt();
+        }
+        if (out.isEmpty() || out.size() == 12)
+            return {};
+        return out;
+    }
+
+private:
+    void updateMetricButton()
+    {
+        const int count = selectedMetrics().size();
+        m_metricsBtn->setText(count <= 0
+            ? QStringLiteral("+  ") + tr_auto_graph_metrics_b363616c()
+            : QStringLiteral("+  ") + tr_auto_graph_metrics_b363616c() + QStringLiteral(" (") + QString::number(count) + QStringLiteral(")"));
+    }
+
+    void updateMonthButton()
+    {
+        QList<int> months;
+        for (QAction* action : m_monthActions) {
+            if (action && action->isChecked())
+                months << action->data().toInt();
+        }
+        m_monthsBtn->setText(tr_months_1_b69e08().arg(supplierMonthSummaryText(months)));
+    }
+
+    ChartKind m_kind;
+    QToolButton* m_metricsBtn{};
+    QToolButton* m_monthsBtn{};
+    QVector<QAction*> m_metricActions;
+    QVector<QAction*> m_monthActions;
+};
+
 
 SupplierSpinBox::SupplierSpinBox(QWidget* parent) : QDoubleSpinBox(parent)
 {
@@ -152,14 +377,14 @@ void SupplierMonthCard::appendRow()
         return lbl;
     };
 
-    rw.nameLabel = mkFieldLabel(T("Supplier name", "اسم المورد"));
-    rw.previousBalanceLabel = mkFieldLabel(T("Previous balance", "الرصيد السابق"));
-    rw.purchasesLabel = mkFieldLabel(T("Purchases", "المشتريات"));
-    rw.totalDebtLabel = mkFieldLabel(T("Total debt", "إجمالي الدين"));
-    rw.paymentsLabel = mkFieldLabel(T("Payments", "الدفعات"));
-    rw.pctPurchasesLabel = mkFieldLabel(T("Payment % of purchases", "نسبة الدفع من المشتريات"));
-    rw.pctDebtLabel = mkFieldLabel(T("Payment % of debt", "نسبة الدفع من الدين"));
-    rw.balanceLabel = mkFieldLabel(T("Supplier balance", "رصيد المورد"));
+    rw.nameLabel = mkFieldLabel(tr_auto_supplier_name_ac45e726());
+    rw.previousBalanceLabel = mkFieldLabel(tr_auto_previous_balance_d6da85a6());
+    rw.purchasesLabel = mkFieldLabel(tr_auto_purchases_eb5647b3());
+    rw.totalDebtLabel = mkFieldLabel(tr_auto_total_debt_b9772183());
+    rw.paymentsLabel = mkFieldLabel(tr_auto_payments_726d1e53());
+    rw.pctPurchasesLabel = mkFieldLabel(tr_auto_payment_of_purchases_81a9c0e3());
+    rw.pctDebtLabel = mkFieldLabel(tr_auto_payment_of_debt_ba7e4d60());
+    rw.balanceLabel = mkFieldLabel(tr_auto_supplier_balance_74852681());
 
     rw.name = new QLineEdit;
     rw.name->setMinimumWidth(180);
@@ -226,7 +451,7 @@ void SupplierMonthCard::setupRowContextMenu(RowWidgets& rw, int rowIndex)
         connect(w, &QWidget::customContextMenuRequested, this, [this, rowIndex, w](const QPoint& pos) {
             if (m_rows.size() <= 1) return;
             QMenu menu;
-            const QString removeText = T("Remove supplier", "حذف المورد");
+            const QString removeText = tr_auto_remove_supplier_e5807211();
             QAction* act = menu.addAction(removeText);
             if (menu.exec(w->mapToGlobal(pos)) == act)
                 emit removeSupplierRequested(rowIndex);
@@ -447,26 +672,26 @@ void SupplierMonthCard::retranslate()
 {
     const QStringList months = monthNames();
     if (m_monthLabel) m_monthLabel->setText(months.value(m_monthIndex));
-    if (m_addBtn) m_addBtn->setText(T("+ Add supplier", "+ إضافة مورد"));
+    if (m_addBtn) m_addBtn->setText(tr_auto_add_supplier_58130448());
 
     for (auto& r : m_rows) {
-        if (r.nameLabel) r.nameLabel->setText(T("Supplier name", "اسم المورد"));
-        if (r.previousBalanceLabel) r.previousBalanceLabel->setText(T("Previous balance", "الرصيد السابق"));
-        if (r.purchasesLabel) r.purchasesLabel->setText(T("Purchases", "المشتريات"));
-        if (r.totalDebtLabel) r.totalDebtLabel->setText(T("Total debt", "إجمالي الدين"));
-        if (r.paymentsLabel) r.paymentsLabel->setText(T("Payments", "الدفعات"));
-        if (r.pctPurchasesLabel) r.pctPurchasesLabel->setText(T("Payment % of purchases", "نسبة الدفع من المشتريات"));
-        if (r.pctDebtLabel) r.pctDebtLabel->setText(T("Payment % of debt", "نسبة الدفع من الدين"));
-        if (r.balanceLabel) r.balanceLabel->setText(T("Supplier balance", "رصيد المورد"));
+        if (r.nameLabel) r.nameLabel->setText(tr_auto_supplier_name_ac45e726());
+        if (r.previousBalanceLabel) r.previousBalanceLabel->setText(tr_auto_previous_balance_d6da85a6());
+        if (r.purchasesLabel) r.purchasesLabel->setText(tr_auto_purchases_eb5647b3());
+        if (r.totalDebtLabel) r.totalDebtLabel->setText(tr_auto_total_debt_b9772183());
+        if (r.paymentsLabel) r.paymentsLabel->setText(tr_auto_payments_726d1e53());
+        if (r.pctPurchasesLabel) r.pctPurchasesLabel->setText(tr_auto_payment_of_purchases_81a9c0e3());
+        if (r.pctDebtLabel) r.pctDebtLabel->setText(tr_auto_payment_of_debt_ba7e4d60());
+        if (r.balanceLabel) r.balanceLabel->setText(tr_auto_supplier_balance_74852681());
 
-        r.name->setPlaceholderText(T("Supplier name", "اسم المورد"));
-        r.previousBalance->setToolTip(T("Previous balance", "الرصيد السابق"));
-        r.purchases->setToolTip(T("Purchases", "المشتريات"));
-        r.totalDebt->setToolTip(T("Total debt", "إجمالي الدين"));
-        r.payments->setToolTip(T("Payments", "الدفعات"));
-        r.pctPurchases->setToolTip(T("Payment % of monthly purchases", "نسبة الدفع من مشتريات الشهر"));
-        r.pctDebt->setToolTip(T("Payment % of total debt", "نسبة الدفع من إجمالي الدين"));
-        r.balance->setToolTip(T("Supplier balance", "رصيد المورد"));
+        r.name->setPlaceholderText(tr_auto_supplier_name_ac45e726());
+        r.previousBalance->setToolTip(tr_auto_previous_balance_d6da85a6());
+        r.purchases->setToolTip(tr_auto_purchases_eb5647b3());
+        r.totalDebt->setToolTip(tr_auto_total_debt_b9772183());
+        r.payments->setToolTip(tr_auto_payments_726d1e53());
+        r.pctPurchases->setToolTip(tr_auto_payment_of_monthly_purchases_9baf921e());
+        r.pctDebt->setToolTip(tr_auto_payment_of_total_debt_444c6cc5());
+        r.balance->setToolTip(tr_auto_supplier_balance_74852681());
     }
 }
 
@@ -486,11 +711,22 @@ SuppliersWidget::SuppliersWidget(QWidget* parent) : QWidget(parent)
     vl->setContentsMargins(20,16,20,24);
     vl->setSpacing(10);
 
+    auto* titleRow = new QHBoxLayout;
+    titleRow->setContentsMargins(0, 0, 0, 0);
+    titleRow->setSpacing(10);
     m_title = new QLabel;
+    m_graphBtn = new QToolButton;
+    m_graphBtn->setObjectName("showGraphsBtn");
+    m_graphBtn->setCursor(Qt::PointingHandCursor);
+    m_graphBtn->setFixedHeight(34);
+    titleRow->addWidget(m_title);
+    titleRow->addStretch();
+    titleRow->addWidget(m_graphBtn, 0, Qt::AlignRight);
     m_subtitle = new QLabel;
     m_subtitle->setWordWrap(true);
-    vl->addWidget(m_title);
+    vl->addLayout(titleRow);
     vl->addWidget(m_subtitle);
+    connect(m_graphBtn, &QAbstractButton::clicked, this, &SuppliersWidget::onShowGraphs);
 
     for (int i = 0; i < 12; ++i) {
         m_cards[i] = new SupplierMonthCard(i, container);
@@ -508,6 +744,47 @@ SuppliersWidget::SuppliersWidget(QWidget* parent) : QWidget(parent)
     retranslate();
     applyTheme();
     refreshAllComputedValues();
+}
+
+void SuppliersWidget::updateGraphButtonMenu()
+{
+    if (!m_graphBtn)
+        return;
+    if (m_graphBtn->menu())
+        m_graphBtn->menu()->deleteLater();
+
+    auto* menu = new QMenu(m_graphBtn);
+    QAction* pie = menu->addAction(tr_pie_chart_9d4e04());
+    pie->setData(int(ChartKind::Pie));
+    QAction* bar = menu->addAction(tr_bar_chart_a5f324());
+    bar->setData(int(ChartKind::RankedBar));
+    QAction* line = menu->addAction(tr_line_chart_932796());
+    line->setData(int(ChartKind::MetricLine));
+    connect(menu, &QMenu::triggered, this, [this](QAction* act) {
+        if (!act) return;
+        AppData data = collectData();
+        data.calculate();
+        SupplierGraphSelectionDialog dlg(static_cast<ChartKind>(act->data().toInt()), data, this);
+        if (dlg.exec() != QDialog::Accepted)
+            return;
+
+        ChartRequest req;
+        req.origin = ChartOrigin::Suppliers;
+        req.kind = dlg.kind();
+        req.compareMetrics = dlg.selectedMetrics();
+        req.metricA = req.compareMetrics.value(0, M_SUPPLIER_BALANCE);
+        req.metricB = req.compareMetrics.value(1, req.metricA);
+        req.months = dlg.selectedMonths();
+        emit graphRequested(req);
+    });
+    m_graphBtn->setMenu(menu);
+    m_graphBtn->setPopupMode(QToolButton::InstantPopup);
+}
+
+void SuppliersWidget::onShowGraphs()
+{
+    if (m_graphBtn)
+        m_graphBtn->showMenu();
 }
 
 void SuppliersWidget::ensureGlobalSupplierCount(int count)
@@ -645,14 +922,25 @@ void SuppliersWidget::applyTheme()
         m_scroll->viewport()->setStyleSheet(g_lightMode ? "background:#f4f6fb;" : "background:#0d1020;");
     if (m_title) m_title->setStyleSheet(g_lightMode ? "font-size:18px;font-weight:900;color:#1e2340;" : "font-size:18px;font-weight:900;color:#c8d0ed;");
     if (m_subtitle) m_subtitle->setStyleSheet(g_lightMode ? "color:#6b7280;" : "color:#8892b8;");
+    if (m_graphBtn) {
+        m_graphBtn->setStyleSheet(g_lightMode
+            ? "QToolButton#showGraphsBtn{background:#4f86f7;color:white;border:none;border-radius:7px;padding:8px 14px;font-weight:700;}"
+              "QToolButton#showGraphsBtn:hover{background:#5e91f8;}"
+              "QToolButton#showGraphsBtn:pressed{background:#3a6fe0;}"
+            : "QToolButton#showGraphsBtn{background:#4f86f7;color:white;border:none;border-radius:7px;padding:8px 14px;font-weight:700;}"
+              "QToolButton#showGraphsBtn:hover{background:#5e91f8;}"
+              "QToolButton#showGraphsBtn:pressed{background:#3a6fe0;}");
+    }
     for (int i = 0; i < 12; ++i)
         m_cards[i]->applyTheme();
 }
 
 void SuppliersWidget::retranslate()
 {
-    if (m_title) m_title->setText(T("Suppliers", "الموردون"));
-    if (m_subtitle) m_subtitle->setText(T("Each row tracks one supplier across all months. Previous balance rolls forward automatically.", "كل صف يتابع مورداً واحداً عبر جميع الأشهر. يتم ترحيل الرصيد السابق تلقائياً."));
+    if (m_title) m_title->setText(tr_auto_suppliers_7beff393());
+    if (m_subtitle) m_subtitle->setText(tr_auto_each_row_tracks_one_supplier_across_all_mo_c594a14b());
+    if (m_graphBtn) m_graphBtn->setText(tr_show_graphs_26cf20());
+    updateGraphButtonMenu();
     for (int i = 0; i < 12; ++i)
         m_cards[i]->retranslate();
 }

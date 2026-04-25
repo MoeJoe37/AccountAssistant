@@ -916,12 +916,12 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
 
     auto parseRequiredNumber = [&](const QMap<int, QString>& row, int col, double& target, const QString& fieldName) -> bool {
         if (col < 0) {
-            g_lastImportError = T("Import failed: the workbook format does not match the exported template.", "فشل الاستيراد: تنسيق ملف العمل لا يطابق قالب التصدير.") + QStringLiteral(" ") + fieldName;
+            g_lastImportError = tr_auto_import_failed_the_workbook_format_does_not_ac2d8f1c() + QStringLiteral(" ") + fieldName;
             return false;
         }
         double v = 0.0;
         if (!strictToDouble(row.value(col), &v)) {
-            g_lastImportError = T("Import error: a numeric field contains text.", "خطأ في الاستيراد: أحد الحقول الرقمية يحتوي على نص.") + QStringLiteral(" ") + fieldName;
+            g_lastImportError = tr_auto_import_error_a_numeric_field_contains_text_ba89d1c8() + QStringLiteral(" ") + fieldName;
             return false;
         }
         target = v;
@@ -941,7 +941,7 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
 
         if (cMonth < 0 || cSales < 0 || cSalesReturn < 0 || cSupplierPurchases < 0 || cSupplierPayments < 0 ||
             (ongoingMode && cCogsInput < 0) || (!ongoingMode && (cInventoryFirst < 0 || cInventoryLast < 0))) {
-            g_lastImportError = T("Import failed: the DATA_ENTRY sheet does not match the exported template.", "فشل الاستيراد: ورقة إدخال البيانات لا تطابق قالب التصدير.");
+            g_lastImportError = tr_auto_import_failed_the_data_entry_sheet_does_no_57ac18f5();
             return false;
         }
 
@@ -982,12 +982,12 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
         const int cType = findColumn(cols, {"Account Type", "Type"});
         const int cAmount = findColumn(cols, {"Amount", "Expense Amount"});
         if (cName < 0 || cType < 0 || cAmount < 0) {
-            g_lastImportError = T("Import failed: the EXPENSES sheet does not match the exported template.", "فشل الاستيراد: ورقة المصروفات لا تطابق قالب التصدير.");
+            g_lastImportError = tr_auto_import_failed_the_expenses_sheet_does_not__1996b8cb();
             return false;
         }
         auto parseType = [](const QString& text) {
             const QString k = text.trimmed().toCaseFolded();
-            if (k.contains(QString::fromUtf8("مدين")) || k.contains(QStringLiteral("receivable"))) return AccountType::Receivable;
+            if (k.contains(tr_import_account_type_receivable_ar_keyword()) || k.contains(QStringLiteral("receivable"))) return AccountType::Receivable;
             return AccountType::Payable;
         };
         for (int r = dataStartRowIndex; r < rows.size(); ++r) {
@@ -1012,7 +1012,7 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
         const int cTotalDebt = findColumn(cols, {"Total Debt"});
         const int cPayments = findColumn(cols, {"Payments"});
         if (cMonth < 0 || cName < 0 || cPrevious < 0 || cPurchases < 0 || cTotalDebt < 0 || cPayments < 0) {
-            g_lastImportError = T("Import failed: the SUPPLIERS sheet does not match the exported template.", "فشل الاستيراد: ورقة الموردين لا تطابق قالب التصدير.");
+            g_lastImportError = tr_auto_import_failed_the_suppliers_sheet_does_not_c5805d00();
             return false;
         }
 
@@ -1063,7 +1063,7 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
         const int cValue9 = findColumn(cols, {"Value 9"});
         const int cValue10 = findColumn(cols, {"Value 10"});
         if (cSection < 0 || cKey1 < 0) {
-            g_lastImportError = T("Import failed: the workbook format does not match the exported template.", "فشل الاستيراد: تنسيق ملف العمل لا يطابق قالب التصدير.");
+            g_lastImportError = tr_auto_import_failed_the_workbook_format_does_not_ac2d8f1c();
             return false;
         }
 
@@ -1072,7 +1072,7 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
         for (int i = 0; i < months.size(); ++i) monthLookup[normalizedHeaderCell(months[i])] = i;
         auto parseType = [](const QString& text) {
             const QString k = text.trimmed().toCaseFolded();
-            if (k.contains(QString::fromUtf8("مدين")) || k.contains(QStringLiteral("receivable"))) return AccountType::Receivable;
+            if (k.contains(tr_import_account_type_receivable_ar_keyword()) || k.contains(QStringLiteral("receivable"))) return AccountType::Receivable;
             return AccountType::Payable;
         };
         for (int r = dataStartRowIndex; r < rows.size(); ++r) {
@@ -1134,7 +1134,7 @@ static bool loadAppDataXlsx(const QString& path, AppData* data)
     }
 
     const QStringList sheetPaths = workbookSheetPaths(entries);
-    if (sheetPaths.isEmpty()) { g_lastImportError = T("Missing sheet marker or headers.", "ملف الاستيراد لا يحتوي على فهرس أو عناوين."); return false; }
+    if (sheetPaths.isEmpty()) { g_lastImportError = tr_auto_missing_sheet_marker_or_headers_b00ed7c6(); return false; }
 
     *data = AppData{};
     bool loadedAny = false;
@@ -1171,7 +1171,7 @@ static bool loadAppDataXlsx(const QString& path, AppData* data)
     }
 
     if (!loadedAny) {
-        g_lastImportError = T("Import failed: the workbook format does not match the exported template.", "فشل الاستيراد: تنسيق ملف العمل لا يطابق قالب التصدير.");
+        g_lastImportError = tr_auto_import_failed_the_workbook_format_does_not_ac2d8f1c();
         return false;
     }
 
@@ -1546,6 +1546,7 @@ void MainWindow::buildUI()
     // Tab 2: Suppliers
     {
         m_suppliers = new SuppliersWidget;
+        connect(m_suppliers, &SuppliersWidget::graphRequested, this, &MainWindow::onSupplierGraphRequested);
         m_tabs->addTab(m_suppliers, "");
     }
 
@@ -1606,6 +1607,12 @@ void MainWindow::onEditCharts(int cardIndex)
 
     if (cardIndex >= 0 && m_results) {
         const ChartRequest focused = m_results->requestForCard(cardIndex);
+        if (focused.origin == ChartOrigin::Accounts || focused.origin == ChartOrigin::Suppliers) {
+            m_pendingGraphReplaceCardIndex = cardIndex;
+            m_pendingGraphReplaceOrigin = focused.origin;
+            m_tabs->setCurrentIndex(focused.origin == ChartOrigin::Accounts ? 1 : 2);
+            return;
+        }
         if (focused.metricA != M_COUNT || !focused.title.isEmpty()) {
             auto sameReq = [&](const ChartRequest& req) {
                 return req.kind == focused.kind
@@ -1682,6 +1689,7 @@ void MainWindow::onAccountGraphRequested(ChartKind kind, AccountTypeFilter accou
     ChartRequest req;
     req.kind = kind;
     req.metricA = M_EXPENSES;
+    req.origin = ChartOrigin::Accounts;
     req.accountFilter = accountFilter;
     req.title = metricDisplayName(M_EXPENSES);
     switch (kind) {
@@ -1696,6 +1704,70 @@ void MainWindow::onAccountGraphRequested(ChartKind kind, AccountTypeFilter accou
         req.kind = ChartKind::MetricLine;
         req.title += QStringLiteral(" — ") + tr_line_a566e8();
         break;
+    }
+
+    if (m_pendingGraphReplaceOrigin == ChartOrigin::Accounts && m_pendingGraphReplaceCardIndex >= 0) {
+        m_results->removeCardByIndex(m_pendingGraphReplaceCardIndex);
+        m_pendingGraphReplaceCardIndex = -1;
+        m_pendingGraphReplaceOrigin = ChartOrigin::Custom;
+    }
+
+    m_results->appendChart(m_data, req);
+    syncResultsState();
+    m_tabs->setCurrentIndex(3);
+}
+
+void MainWindow::onSupplierGraphRequested(const ChartRequest& request)
+{
+    AppData working = collectAllData();
+    working.calculate();
+    working.chartRequests = m_lastChartRequests;
+    working.hiddenChartRequests = m_lastHiddenChartRequests;
+    working.resultFlowOrder = m_lastFlowOrder;
+    m_data = working;
+    m_hasResults = true;
+
+    if (!m_results)
+        return;
+
+    if (m_results->flowOrder().isEmpty())
+        m_results->buildResults(m_data);
+
+    ChartRequest req = request;
+    req.origin = ChartOrigin::Suppliers;
+    if (req.compareMetrics.isEmpty())
+        req.compareMetrics << M_SUPPLIER_BALANCE;
+    req.compareMetrics.removeAll(M_SUPPLIER_NAME);
+    req.metricA = req.compareMetrics.value(0, M_SUPPLIER_BALANCE);
+    req.metricB = req.compareMetrics.value(1, req.metricA);
+
+    QStringList metricNames;
+    for (MetricId id : req.compareMetrics)
+        metricNames << metricDisplayName(id);
+    const QString metricsTitle = metricNames.isEmpty() ? metricDisplayName(M_SUPPLIER_BALANCE) : metricNames.join(QStringLiteral(" vs "));
+    req.title = metricsTitle + QStringLiteral(" — ") + tr_suppliers_7beff3();
+    switch (req.kind) {
+    case ChartKind::Pie:
+        req.title += QStringLiteral(" — ") + tr_pie_97ce50();
+        break;
+    case ChartKind::MetricLine:
+    case ChartKind::CompareLine:
+        req.kind = ChartKind::MetricLine;
+        req.title += QStringLiteral(" — ") + tr_line_a566e8();
+        break;
+    case ChartKind::RankedBar:
+    case ChartKind::MetricBar:
+    case ChartKind::CompareBar:
+    default:
+        req.kind = ChartKind::RankedBar;
+        req.title += QStringLiteral(" — ") + tr_bar_6dda02();
+        break;
+    }
+
+    if (m_pendingGraphReplaceOrigin == ChartOrigin::Suppliers && m_pendingGraphReplaceCardIndex >= 0) {
+        m_results->removeCardByIndex(m_pendingGraphReplaceCardIndex);
+        m_pendingGraphReplaceCardIndex = -1;
+        m_pendingGraphReplaceOrigin = ChartOrigin::Custom;
     }
 
     m_results->appendChart(m_data, req);
@@ -1724,7 +1796,7 @@ void MainWindow::onInventoryModeChanged(int index)
 
     if (appDataHasUserEntries(current)) {
         QDialog dialog(this);
-        dialog.setWindowTitle(T("Switch inventory mode", "تبديل وضع الجرد"));
+        dialog.setWindowTitle(tr_auto_switch_inventory_mode_1fb086f6());
         dialog.setModal(true);
         dialog.setSizeGripEnabled(false);
         dialog.setWindowFlag(Qt::MSWindowsFixedSizeDialogHint, true);
@@ -1774,7 +1846,7 @@ void MainWindow::onInventoryModeChanged(int index)
         auto* textCol = new QVBoxLayout;
         textCol->setSpacing(8);
 
-        auto* mainText = new QLabel(T("Switching the inventory mode will clear the current data.", "تبديل وضع الجرد سيؤدي إلى مسح البيانات الحالية."), &dialog);
+        auto* mainText = new QLabel(tr_auto_switching_the_inventory_mode_will_clear_th_9988b06e(), &dialog);
         mainText->setWordWrap(true);
         mainText->setTextFormat(Qt::PlainText);
         mainText->setAlignment(g_lang == AppLanguage::Arabic ? Qt::AlignRight : Qt::AlignLeft);
@@ -1782,7 +1854,7 @@ void MainWindow::onInventoryModeChanged(int index)
         mainFont.setPointSize(mainFont.pointSize() + 2);
         mainText->setFont(mainFont);
 
-        auto* infoText = new QLabel(T("Choose how to continue.", "اختر كيف تريد المتابعة."), &dialog);
+        auto* infoText = new QLabel(tr_auto_choose_how_to_continue_1e9d6832(), &dialog);
         infoText->setWordWrap(true);
         infoText->setTextFormat(Qt::PlainText);
         infoText->setAlignment(g_lang == AppLanguage::Arabic ? Qt::AlignRight : Qt::AlignLeft);
@@ -1798,9 +1870,9 @@ void MainWindow::onInventoryModeChanged(int index)
         if (g_lang == AppLanguage::Arabic)
             buttons->setDirection(QBoxLayout::RightToLeft);
 
-        auto* clearBtn = new QPushButton(T("Clear them", "مسحها"), &dialog);
-        auto* saveClearBtn = new QPushButton(T("Save data and clear", "حفظ البيانات ومسحها"), &dialog);
-        auto* cancelBtn = new QPushButton(T("Cancel", "إلغاء"), &dialog);
+        auto* clearBtn = new QPushButton(tr_auto_clear_them_c4858318(), &dialog);
+        auto* saveClearBtn = new QPushButton(tr_auto_save_data_and_clear_91f861f8(), &dialog);
+        auto* cancelBtn = new QPushButton(tr_auto_cancel_8d40ef3e(), &dialog);
 
         const QFontMetrics btnFm(dialog.font());
         const auto buttonWidthForText = [&](const QString& s, int minWidth) {
@@ -1880,13 +1952,13 @@ void MainWindow::onSaveData()
     QMessageBox box(this);
     box.setIcon(QMessageBox::Question);
     box.setWindowTitle(tr_save_data_ee42b8());
-    box.setText(T("Choose what to export.", "اختر ما تريد تصديره."));
-    auto* currentBtn = box.addButton(T("Current tab", "التبويب الحالي"), QMessageBox::AcceptRole);
-    auto* allBtn = box.addButton(T("All data", "كل البيانات"), QMessageBox::ActionRole);
+    box.setText(tr_auto_choose_what_to_export_a3c74f3f());
+    auto* currentBtn = box.addButton(tr_auto_current_tab_341e1745(), QMessageBox::AcceptRole);
+    auto* allBtn = box.addButton(tr_auto_all_data_2e629e38(), QMessageBox::ActionRole);
     currentBtn->setMinimumWidth(isArabic() ? 220 : 150);
     allBtn->setMinimumWidth(isArabic() ? 180 : 120);
     box.setMinimumWidth(isArabic() ? 520 : 420);
-    box.addButton(T("Cancel", "إلغاء"), QMessageBox::RejectRole);
+    box.addButton(tr_auto_cancel_8d40ef3e(), QMessageBox::RejectRole);
     ThemeBox::applyDialogTheme(&box);
     box.exec();
     if (box.clickedButton() != currentBtn && box.clickedButton() != allBtn) return;
@@ -1929,7 +2001,7 @@ void MainWindow::onImportData()
     }
 
     if (!appDataHasUserEntries(imported) && g_lastImportMarker.trimmed().isEmpty() && m_tabs) {
-        ThemeBox::critical(this, tr_import_data_8de4db(), T("The workbook did not contain any importable rows.", "ملف العمل لا يحتوي على صفوف قابلة للاستيراد."));
+        ThemeBox::critical(this, tr_import_data_8de4db(), tr_auto_the_workbook_did_not_contain_any_importabl_5d9e29f7());
         return;
     }
 
@@ -1995,13 +2067,12 @@ void MainWindow::onImportData()
             conflicts.removeDuplicates();
             QMessageBox box(QMessageBox::Warning,
                             tr_import_data_8de4db(),
-                            T("One or more expense accounts already exist with different data. Press I know to replace them, or Cancel to stop the import.",
-                              "يوجد حساب مصروفات واحد أو أكثر بنفس الاسم لكن ببيانات مختلفة. اضغط أعرف لاستبدالها، أو إلغاء لإيقاف الاستيراد."),
+                            tr_auto_one_or_more_expense_accounts_already_exist_ecc8b7fa(),
                             QMessageBox::NoButton,
                             this);
             box.setInformativeText(conflicts.join(QStringLiteral("\n")));
-            QPushButton* knowBtn = box.addButton(T("I know", "أعرف"), QMessageBox::AcceptRole);
-            QPushButton* cancelBtn = box.addButton(T("Cancel", "إلغاء"), QMessageBox::RejectRole);
+            QPushButton* knowBtn = box.addButton(tr_auto_i_know_96d277a3(), QMessageBox::AcceptRole);
+            QPushButton* cancelBtn = box.addButton(tr_auto_cancel_8d40ef3e(), QMessageBox::RejectRole);
             box.setDefaultButton(cancelBtn);
             ThemeBox::applyDialogTheme(&box);
             box.exec();

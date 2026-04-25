@@ -327,27 +327,25 @@ QPushButton#removeBtn:hover { color:#e05c6a; }
 
 struct MetricDef {
     MetricId id;
-    const char* en;
-    const char* ar;
     bool pie;
     bool candle;
 };
 
 static const MetricDef kMetricDefs[] = {
-    { M_SALES,             "Sales",             "المبيعات",              true,  true  },
-    { M_SALES_RETURN,      "Sales Return",      "مرتجعات المبيعات",      true,  true  },
-    { M_PURCHASES,         "Purchases",         "المشتريات",             true,  true  },
-    { M_SUPPLIER_PAYMENTS, "Supplier Payments",  "دفعات الموردين",        false, true  },
-    { M_SUPPLIER_PREVIOUS_BALANCE, "Supplier previous balance", "الرصيد السابق للمورد", false, true },
-    { M_SUPPLIER_TOTAL_DEBT, "Supplier total debt", "إجمالي دين المورد", false, true },
-    { M_SUPPLIER_PAYMENT_PCT_PURCHASES, "Supplier payment % of purchases", "نسبة دفع المورد من المشتريات", false, true },
-    { M_SUPPLIER_PAYMENT_PCT_DEBT, "Supplier payment % of debt", "نسبة دفع المورد من الدين", false, true },
-    { M_SUPPLIER_BALANCE, "Supplier balance", "رصيد المورد", false, true },
-    { M_EXPENSES,          "Expenses",          "المصروفات",             false, true  },
-    { M_INVENTORY,         "Inventory",         "المخزون",               true,  true  },
-    { M_NET_SALES,         "Net Sales",         "صافي المبيعات",         true,  true  },
-    { M_COGS,              "COGS",              "تكلفة البضاعة",         true,  true  },
-    { M_PROFIT_MARGIN,     "Profit Margin",     "هامش الربح",            true,  true  },
+    { M_SALES,                          true,  true  },
+    { M_SALES_RETURN,                   true,  true  },
+    { M_PURCHASES,                      true,  true  },
+    { M_SUPPLIER_PAYMENTS,              false, true  },
+    { M_SUPPLIER_PREVIOUS_BALANCE,      false, true  },
+    { M_SUPPLIER_TOTAL_DEBT,            false, true  },
+    { M_SUPPLIER_PAYMENT_PCT_PURCHASES, false, true  },
+    { M_SUPPLIER_PAYMENT_PCT_DEBT,      false, true  },
+    { M_SUPPLIER_BALANCE,               false, true  },
+    { M_EXPENSES,                       false, true  },
+    { M_INVENTORY,                      true,  true  },
+    { M_NET_SALES,                      true,  true  },
+    { M_COGS,                           true,  true  },
+    { M_PROFIT_MARGIN,                  true,  true  },
 };
 
 static QList<QPair<MetricId, QString>> compareMetrics()
@@ -801,8 +799,8 @@ void ChartSelectionDialog::appendMetricRow(MetricId id, ChartKind kind, const QL
     { QList<int> sel; for (int i = 0; i < 12 && i < monthActs.size(); ++i) if (monthActs[i]->isChecked()) sel << i; updateMonthButtonText(monthsBtn, monthActs); }
     hl->addWidget(monthsBtn);
 
-    auto* summaryCheck = new QCheckBox(T("Summary", "الملخص"));
-    summaryCheck->setToolTip(T("Add a summary total at the end of the graph.", "إضافة مجموع ملخص في نهاية الرسم البياني."));
+    auto* summaryCheck = new QCheckBox(tr_auto_summary_7c91cb2b());
+    summaryCheck->setToolTip(tr_auto_add_a_summary_total_at_the_end_of_the_grap_fc422aba());
     hl->addWidget(summaryCheck);
 
     auto* duplicateBtn = new QPushButton(tr_duplicate_47648b());
@@ -922,7 +920,7 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset)
     moreBtn->setPopupMode(QToolButton::InstantPopup);
     moreBtn->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
     moreBtn->setArrowType(Qt::DownArrow);
-    moreBtn->setToolTip(T("Graph metrics", "مقاييس الرسم"));
+    moreBtn->setToolTip(tr_auto_graph_metrics_b363616c());
     auto* moreMenu = new StayOpenMenu(moreBtn);
     moreBtn->setMenu(moreMenu);
     moreMenu->setStyleSheet(g_lightMode
@@ -955,6 +953,7 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset)
     MetricId presetBase = M_COUNT;
     if (preset) {
         presetMoreMetrics = preset->compareMetrics;
+        presetMoreMetrics.removeAll(M_SUPPLIER_NAME);
         const int typeIndex = type->findData(int(preset->kind));
         if (typeIndex >= 0) type->setCurrentIndex(typeIndex);
         presetMonths = preset->months;
@@ -1026,14 +1025,14 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset)
         }
     });
 
-    grid->addWidget(makeHdr(T("Graph metrics", "مقاييس الرسم")), 0, 0);
+    grid->addWidget(makeHdr(tr_auto_graph_metrics_b363616c()), 0, 0);
     grid->addWidget(makeHdr(tr_chart_type_bd42b2()),    0, 1);
     m_comparePieBaseHdr = makeHdr(tr_count_as_100_percent_4b3a11());
     grid->addWidget(m_comparePieBaseHdr, 0, 2);
-    auto* summaryCheck = new QCheckBox(T("Summary", "الملخص"));
-    summaryCheck->setToolTip(T("Add a summary total at the end of the graph.", "إضافة مجموع ملخص في نهاية الرسم البياني."));
+    auto* summaryCheck = new QCheckBox(tr_auto_summary_7c91cb2b());
+    summaryCheck->setToolTip(tr_auto_add_a_summary_total_at_the_end_of_the_grap_fc422aba());
     grid->addWidget(makeHdr(tr_month_460756()),         0, 3);
-    grid->addWidget(makeHdr(T("Summary", "الملخص")), 0, 4);
+    grid->addWidget(makeHdr(tr_auto_summary_7c91cb2b()), 0, 4);
     grid->addWidget(makeHdr(tr_title_c1c427()),         0, 5);
     grid->addWidget(moreBtn,      1, 0);
     grid->addWidget(type,         1, 1);
@@ -1189,7 +1188,7 @@ QList<MetricId> ChartSelectionDialog::selectedCompareMetrics(const CompareRow& r
 {
     QList<MetricId> out;
     auto appendUnique = [&](MetricId id) {
-        if (id < M_SALES || id >= M_COUNT) return;
+        if (id < M_SALES || id >= M_COUNT || id == M_SUPPLIER_NAME) return;
         if (!out.contains(id)) out << id;
     };
     for (MetricId id : row.moreMetrics) appendUnique(id);
@@ -1199,7 +1198,7 @@ QList<MetricId> ChartSelectionDialog::selectedCompareMetrics(const CompareRow& r
 void ChartSelectionDialog::syncCompareMoreButton(CompareRow& row)
 {
     if (!row.moreBtn) return;
-    const QString baseText = T("Graph metrics", "مقاييس الرسم");
+    const QString baseText = tr_auto_graph_metrics_b363616c();
     row.moreBtn->setText(row.moreMetrics.isEmpty()
         ? QStringLiteral("+  ") + baseText
         : QStringLiteral("+  ") + baseText + QStringLiteral(" (") + QString::number(row.moreMetrics.size()) + QStringLiteral(")"));
@@ -1316,6 +1315,7 @@ QList<ChartRequest> ChartSelectionDialog::chartRequests() const
         if (req.kind != ChartKind::CompareLine && req.kind != ChartKind::ComparePie && req.kind != ChartKind::Candle)
             req.kind = ChartKind::CompareBar;
         req.compareMetrics = row.moreMetrics.isEmpty() ? metrics : row.moreMetrics;
+        req.compareMetrics.removeAll(M_SUPPLIER_NAME);
         req.axisMetricsAuto = true;
         req.xAxisMetric = M_COUNT;
         req.yAxisMetric = M_COUNT;

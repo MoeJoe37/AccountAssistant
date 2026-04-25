@@ -136,6 +136,12 @@ enum class CompareGroup {
     Suppliers = 2
 };
 
+enum class ChartOrigin {
+    Custom = 0,
+    Accounts = 1,
+    Suppliers = 2
+};
+
 struct ChartRequest {
     ChartKind kind = ChartKind::Candle;
     MetricId metricA = M_SALES;
@@ -151,6 +157,7 @@ struct ChartRequest {
     QList<int> months;   // Empty means all months
     AccountTypeFilter accountFilter = AccountTypeFilter::All;
     bool includeSummaryPoint = false;
+    ChartOrigin origin = ChartOrigin::Custom;
 };
 
 enum class ResultFlowItemKind {
@@ -322,16 +329,16 @@ inline QString metricDisplayName(MetricId id)
     case M_COGS:             return tr_cost_of_goods_sold_55196f();
     case M_PROFIT_MARGIN:    return tr_profit_margin_56b595();
     case M_SUPPLIER_PAYMENTS:return tr_supplier_payments_bb713e();
-    case M_SUPPLIER_PREVIOUS_BALANCE:return T("Supplier previous balance", "الرصيد السابق للمورد");
-    case M_SUPPLIER_TOTAL_DEBT:return T("Supplier total debt", "إجمالي دين المورد");
-    case M_SUPPLIER_PAYMENT_PCT_PURCHASES:return T("Supplier payment % of purchases", "نسبة دفع المورد من المشتريات");
-    case M_SUPPLIER_PAYMENT_PCT_DEBT:return T("Supplier payment % of debt", "نسبة دفع المورد من الدين");
-    case M_SUPPLIER_BALANCE:return T("Supplier balance", "رصيد المورد");
+    case M_SUPPLIER_PREVIOUS_BALANCE:return tr_auto_supplier_previous_balance_bd51822f();
+    case M_SUPPLIER_TOTAL_DEBT:return tr_auto_supplier_total_debt_26cc7be2();
+    case M_SUPPLIER_PAYMENT_PCT_PURCHASES:return tr_auto_supplier_payment_of_purchases_76125d4c();
+    case M_SUPPLIER_PAYMENT_PCT_DEBT:return tr_auto_supplier_payment_of_debt_869d769d();
+    case M_SUPPLIER_BALANCE:return tr_auto_supplier_balance_74852681();
     case M_EXPENSE_AMOUNT:   return tr_expense_amount_1ad3d5();
     case M_INVENTORY_OPENING:return tr_inventory_opening_ccde20();
     case M_INVENTORY_CLOSING:return tr_inventory_closing_d69943();
     case M_COGS_VS_PROFIT:   return tr_cogs_vs_profit_margin_fd48e9();
-    case M_SUPPLIER_NAME:    return T("Supplier name", "اسم المورد");
+    case M_SUPPLIER_NAME:    return tr_auto_supplier_name_ac45e726();
     case M_COUNT:            break;
     }
     return tr_unknown_0240b2();

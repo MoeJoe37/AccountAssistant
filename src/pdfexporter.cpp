@@ -24,6 +24,7 @@
 #include <QVector>
 #include <QFileInfo>
 #include <QtMath>
+#include <QMap>
 #include <algorithm>
 #include <cmath>
 
@@ -230,6 +231,30 @@ static QList<double> seriesForMetric(const AppData& d, MetricId id, QStringList*
     return metricSeriesValues(d, id, labels, months, accountFilter);
 }
 
+
+static void supplierAccountGraphSeriesForPdf(const AppData& data, QStringList& labels, QList<double>& values)
+{
+    labels.clear();
+    values.clear();
+    QStringList orderedNames;
+    QMap<QString, double> balanceByName;
+    for (int month = 0; month < 12; ++month) {
+        for (const SupplierEntry& entry : data.supplierEntries[month]) {
+            const QString name = entry.name.trimmed();
+            if (name.isEmpty())
+                continue;
+            if (!orderedNames.contains(name, Qt::CaseInsensitive))
+                orderedNames << name;
+            const double debt = entry.totalDebt > 0.0 ? entry.totalDebt : (entry.previousBalance + entry.purchases);
+            balanceByName[name.toCaseFolded()] = debt - entry.payments;
+        }
+    }
+    for (const QString& name : orderedNames) {
+        labels << name;
+        values << balanceByName.value(name.toCaseFolded(), 0.0);
+    }
+}
+
 static ChartMeta metaForRequest(const AppData& d, const ChartRequest& req)
 {
     ChartMeta m;
@@ -237,6 +262,29 @@ static ChartMeta metaForRequest(const AppData& d, const ChartRequest& req)
     m.nameA = req.seriesA.isEmpty() ? metricDisplayName(req.metricA) : req.seriesA;
     m.nameB = req.seriesB.isEmpty() ? metricDisplayName(req.metricB) : req.seriesB;
     const QList<int>* months = req.months.isEmpty() ? nullptr : &req.months;
+
+    if (req.origin == ChartOrigin::Suppliers) {
+        supplierAccountGraphSeriesForPdf(d, m.labels, m.values);
+        switch (req.kind) {
+        case ChartKind::Pie:
+            m.type = "pie";
+            m.values = normalizePercentValues(m.values);
+            m.referenceValue = 100.0;
+            break;
+        case ChartKind::MetricLine:
+        case ChartKind::CompareLine:
+            m.type = "compareline";
+            m.valuesMulti << m.values;
+            m.seriesNames << m.nameA;
+            break;
+        case ChartKind::RankedBar:
+        case ChartKind::MetricBar:
+        default:
+            m.type = "rankedbar";
+            break;
+        }
+        return m;
+    }
 
     switch (req.kind) {
     case ChartKind::Pie:
@@ -759,11 +807,11 @@ static QImage renderCoverPage(const AppData& data, const QSize& size)
     p.drawText(QRect(size.width() - 300, 20, 252, 40), Qt::AlignVCenter | Qt::AlignRight,
                QDateTime::currentDateTime().toString("yyyy-MM-dd  hh:mm"));
 
-    struct Card { const char* enLbl; const char* arLbl; double val; QColor col; };
+    struct Card { QString label; double val; QColor col; };
     QList<Card> cards = {
-        { "Net Sales", "\u0635\u0627\u0641\u064A \u0627\u0644\u0645\u0628\u064A\u0639\u0627\u062A", data.totalNetSales, kGreen },
-        { "COGS", "\u062A\u0643\u0644\u0641\u0629 \u0627\u0644\u0628\u0636\u0627\u0639\u0629", data.totalCOGS, kAmber },
-        { "Profit Margin", "\u0647\u0627\u0645\u0634 \u0627\u0644\u0631\u0628\u062D", data.totalProfit, data.totalProfit >= 0 ? kGreen : kRed },
+        { tr_net_sales_90f56d(), data.totalNetSales, kGreen },
+        { tr_cost_of_goods_sold_55196f(), data.totalCOGS, kAmber },
+        { tr_profit_margin_56b595(), data.totalProfit, data.totalProfit >= 0 ? kGreen : kRed },
     };
     const int mg = 48;
     const int y = 104;
@@ -776,7 +824,7 @@ static QImage renderCoverPage(const AppData& data, const QSize& size)
         p.fillRect(QRect(cx, y, 4, 90), cards[i].col);
         p.setFont(QFont("Segoe UI", 8, QFont::Bold));
         p.setPen(kMuted);
-        p.drawText(QRect(cx + 14, y + 12, cw - 20, 20), Qt::AlignLeft | Qt::AlignVCenter, T(cards[i].enLbl, cards[i].arLbl));
+        p.drawText(QRect(cx + 14, y + 12, cw - 20, 20), Qt::AlignLeft | Qt::AlignVCenter, cards[i].label);
         p.setFont(QFont("Segoe UI", 17, QFont::Black));
         p.setPen(cards[i].col);
         p.drawText(QRect(cx + 14, y + 34, cw - 20, 46), Qt::AlignLeft | Qt::AlignVCenter, money(cards[i].val));

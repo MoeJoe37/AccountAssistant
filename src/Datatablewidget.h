@@ -70,8 +70,8 @@ private:
     void updateModeVisibility();
 
     NavigableSpinBox* makeSpin(bool redTint = false);
-    QWidget* makeFieldRow(const QString& labelText, QWidget* input);
-    QWidget* makeColumn(const QString& sectionTitle, QList<QWidget*> rows);
+    QWidget* makeFieldRow(QLabel*& label, const QString& labelText, QWidget* input);
+    QWidget* makeColumn(QLabel*& titleLabel, const QString& sectionTitle, QList<QWidget*> rows);
     static QString moneyText(double v);
 
     int m_monthIndex;
@@ -95,6 +95,22 @@ private:
     NavigableSpinBox* m_cogsInput{};
     QLabel*           m_netSalesValue{};
     QLabel*           m_profitValue{};
+
+    QLabel* m_salesTitle{};
+    QLabel* m_supplierTitle{};
+    QLabel* m_inventoryTitle{};
+    QLabel* m_ongoingTitle{};
+    QLabel* m_resultsTitle{};
+
+    QLabel* m_salesAmountLabel{};
+    QLabel* m_salesReturnLabel{};
+    QLabel* m_supplierPurchasesLabel{};
+    QLabel* m_supplierPaymentsLabel{};
+    QLabel* m_openingStockLabel{};
+    QLabel* m_closingStockLabel{};
+    QLabel* m_cogsInputLabel{};
+    QLabel* m_netSalesLabel{};
+    QLabel* m_profitMarginLabel{};
 
     QWidget* m_salesCol{};
     QWidget* m_supplierCol{};

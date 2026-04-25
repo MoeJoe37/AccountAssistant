@@ -286,3 +286,44 @@ inline QStringList monthNames()
         QStringLiteral("ديسمبر")
     };
 }
+// Centralized translations moved from UI/source files.
+inline QString tr_auto_summary_7c91cb2b() { return T("Summary", "الملخص"); }
+inline QString tr_auto_add_a_summary_total_at_the_end_of_the_grap_fc422aba() { return T("Add a summary total at the end of the graph.", "إضافة مجموع ملخص في نهاية الرسم البياني."); }
+inline QString tr_auto_graph_metrics_b363616c() { return T("Graph metrics", "مقاييس الرسم"); }
+inline QString tr_auto_supplier_name_ac45e726() { return T("Supplier name", "اسم المورد"); }
+inline QString tr_auto_previous_balance_d6da85a6() { return T("Previous balance", "الرصيد السابق"); }
+inline QString tr_auto_purchases_eb5647b3() { return T("Purchases", "المشتريات"); }
+inline QString tr_auto_total_debt_b9772183() { return T("Total debt", "إجمالي الدين"); }
+inline QString tr_auto_payments_726d1e53() { return T("Payments", "الدفعات"); }
+inline QString tr_auto_payment_of_purchases_81a9c0e3() { return T("Payment % of purchases", "نسبة الدفع من المشتريات"); }
+inline QString tr_auto_payment_of_debt_ba7e4d60() { return T("Payment % of debt", "نسبة الدفع من الدين"); }
+inline QString tr_auto_supplier_balance_74852681() { return T("Supplier balance", "رصيد المورد"); }
+inline QString tr_auto_remove_supplier_e5807211() { return T("Remove supplier", "حذف المورد"); }
+inline QString tr_auto_add_supplier_58130448() { return T("+ Add supplier", "+ إضافة مورد"); }
+inline QString tr_auto_payment_of_monthly_purchases_9baf921e() { return T("Payment % of monthly purchases", "نسبة الدفع من مشتريات الشهر"); }
+inline QString tr_auto_payment_of_total_debt_444c6cc5() { return T("Payment % of total debt", "نسبة الدفع من إجمالي الدين"); }
+inline QString tr_auto_suppliers_7beff393() { return T("Suppliers", "الموردون"); }
+inline QString tr_auto_each_row_tracks_one_supplier_across_all_mo_c594a14b() { return T("Each row tracks one supplier across all months. Previous balance rolls forward automatically.", "كل صف يتابع مورداً واحداً عبر جميع الأشهر. يتم ترحيل الرصيد السابق تلقائياً."); }
+inline QString tr_auto_supplier_previous_balance_bd51822f() { return T("Supplier previous balance", "الرصيد السابق للمورد"); }
+inline QString tr_auto_supplier_total_debt_26cc7be2() { return T("Supplier total debt", "إجمالي دين المورد"); }
+inline QString tr_auto_supplier_payment_of_purchases_76125d4c() { return T("Supplier payment % of purchases", "نسبة دفع المورد من المشتريات"); }
+inline QString tr_auto_supplier_payment_of_debt_869d769d() { return T("Supplier payment % of debt", "نسبة دفع المورد من الدين"); }
+inline QString tr_auto_import_failed_the_workbook_format_does_not_ac2d8f1c() { return T("Import failed: the workbook format does not match the exported template.", "فشل الاستيراد: تنسيق ملف العمل لا يطابق قالب التصدير."); }
+inline QString tr_auto_import_error_a_numeric_field_contains_text_ba89d1c8() { return T("Import error: a numeric field contains text.", "خطأ في الاستيراد: أحد الحقول الرقمية يحتوي على نص."); }
+inline QString tr_auto_import_failed_the_data_entry_sheet_does_no_57ac18f5() { return T("Import failed: the DATA_ENTRY sheet does not match the exported template.", "فشل الاستيراد: ورقة إدخال البيانات لا تطابق قالب التصدير."); }
+inline QString tr_auto_import_failed_the_expenses_sheet_does_not__1996b8cb() { return T("Import failed: the EXPENSES sheet does not match the exported template.", "فشل الاستيراد: ورقة المصروفات لا تطابق قالب التصدير."); }
+inline QString tr_auto_import_failed_the_suppliers_sheet_does_not_c5805d00() { return T("Import failed: the SUPPLIERS sheet does not match the exported template.", "فشل الاستيراد: ورقة الموردين لا تطابق قالب التصدير."); }
+inline QString tr_auto_missing_sheet_marker_or_headers_b00ed7c6() { return T("Missing sheet marker or headers.", "ملف الاستيراد لا يحتوي على فهرس أو عناوين."); }
+inline QString tr_auto_switch_inventory_mode_1fb086f6() { return T("Switch inventory mode", "تبديل وضع الجرد"); }
+inline QString tr_auto_switching_the_inventory_mode_will_clear_th_9988b06e() { return T("Switching the inventory mode will clear the current data.", "تبديل وضع الجرد سيؤدي إلى مسح البيانات الحالية."); }
+inline QString tr_auto_choose_how_to_continue_1e9d6832() { return T("Choose how to continue.", "اختر كيف تريد المتابعة."); }
+inline QString tr_auto_clear_them_c4858318() { return T("Clear them", "مسحها"); }
+inline QString tr_auto_save_data_and_clear_91f861f8() { return T("Save data and clear", "حفظ البيانات ومسحها"); }
+inline QString tr_auto_cancel_8d40ef3e() { return T("Cancel", "إلغاء"); }
+inline QString tr_auto_choose_what_to_export_a3c74f3f() { return T("Choose what to export.", "اختر ما تريد تصديره."); }
+inline QString tr_auto_current_tab_341e1745() { return T("Current tab", "التبويب الحالي"); }
+inline QString tr_auto_all_data_2e629e38() { return T("All data", "كل البيانات"); }
+inline QString tr_auto_the_workbook_did_not_contain_any_importabl_5d9e29f7() { return T("The workbook did not contain any importable rows.", "ملف العمل لا يحتوي على صفوف قابلة للاستيراد."); }
+inline QString tr_auto_one_or_more_expense_accounts_already_exist_ecc8b7fa() { return T("One or more expense accounts already exist with different data. Press I know to replace them, or Cancel to stop the import.", "يوجد حساب مصروفات واحد أو أكثر بنفس الاسم لكن ببيانات مختلفة. اضغط أعرف لاستبدالها، أو إلغاء لإيقاف الاستيراد."); }
+inline QString tr_auto_i_know_96d277a3() { return T("I know", "أعرف"); }
+inline QString tr_import_account_type_receivable_ar_keyword() { return QString::fromUtf8("مدين"); }

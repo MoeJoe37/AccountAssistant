@@ -33,6 +33,7 @@ private slots:
     void onEditCharts(int cardIndex = -1);
     void onDuplicateChart(int cardIndex);
     void onAccountGraphRequested(ChartKind kind, AccountTypeFilter accountFilter);
+    void onSupplierGraphRequested(const ChartRequest& request);
     void onInventoryModeChanged(int index);
     void syncResultsState();
 
@@ -78,6 +79,8 @@ private:
 
     AppData m_data;
     bool    m_hasResults{false};
+    int     m_pendingGraphReplaceCardIndex{-1};
+    ChartOrigin m_pendingGraphReplaceOrigin{ChartOrigin::Custom};
     QList<ChartRequest>   m_lastChartRequests;
     QList<ChartRequest>   m_lastHiddenChartRequests;
     QList<ResultFlowItem> m_lastFlowOrder;

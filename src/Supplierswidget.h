@@ -2,11 +2,13 @@
 #include <QWidget>
 #include <QScrollArea>
 #include <QVBoxLayout>
+#include <QGridLayout>
 #include <QLineEdit>
 #include <QDoubleSpinBox>
 #include <QLabel>
 #include <QFrame>
 #include <QPushButton>
+#include <QToolButton>
 #include <QVector>
 #include <QWheelEvent>
 #include <QFocusEvent>
@@ -110,19 +112,25 @@ public:
     void retranslate();
     void updateCurrencyPrefix();
 
+signals:
+    void graphRequested(const ChartRequest& request);
+
 private slots:
     void onAddSupplierRequested();
     void onSupplierNameEdited(int rowIndex, const QString& name);
     void onMonthChanged();
     void onRemoveSupplierRequested(int rowIndex);
+    void onShowGraphs();
 
 private:
     void ensureGlobalSupplierCount(int count);
     void refreshAllComputedValues();
     QStringList currentSupplierNames() const;
+    void updateGraphButtonMenu();
 
     QScrollArea* m_scroll{};
     QLabel*      m_title{};
     QLabel*      m_subtitle{};
+    QToolButton* m_graphBtn{};
     SupplierMonthCard* m_cards[12]{};
 };

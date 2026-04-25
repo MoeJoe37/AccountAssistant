@@ -43,6 +43,8 @@
 #include <QTableWidgetItem>
 #include <QPen>
 #include <algorithm>
+#include <QMap>
+#include <QRegularExpression>
 #include <cmath>
 
 using namespace Qt::StringLiterals;
@@ -372,7 +374,8 @@ static bool sameChartRequest(const ChartRequest& a, const ChartRequest& b)
         && a.seriesA == b.seriesA
         && a.seriesB == b.seriesB
         && a.months == b.months
-        && a.accountFilter == b.accountFilter;
+        && a.accountFilter == b.accountFilter
+        && a.origin == b.origin;
 }
 
 static QString money(double v)
@@ -1228,6 +1231,11 @@ void ResultsWidget::appendChart(const AppData& data, const ChartRequest& request
     rebuildFlow();
     rebuildHiddenMenu();
     emit resultsStateChanged();
+}
+
+void ResultsWidget::removeCardByIndex(int cardIndex)
+{
+    onRemoveCard(cardIndex);
 }
 
 void ResultsWidget::clearResults()
@@ -2969,7 +2977,7 @@ QChartView* ResultsWidget::makeComparePieChart(const QString& title,
 
 static void appendSummaryLabel(QStringList& labels)
 {
-    labels << T("Summary", "الملخص");
+    labels << tr_auto_summary_7c91cb2b();
 }
 
 static void appendSummaryValue(QList<double>& values)
@@ -3033,8 +3041,346 @@ static QStringList comparisonAxisLabels(const AppData& data, MetricId xMetric, c
     return labels;
 }
 
+static bool isSupplierComparisonMetric(MetricId id)
+{
+    return id == M_PURCHASES || id == M_SUPPLIER_PAYMENTS ||
+           id == M_SUPPLIER_PREVIOUS_BALANCE || id == M_SUPPLIER_TOTAL_DEBT ||
+           id == M_SUPPLIER_PAYMENT_PCT_PURCHASES || id == M_SUPPLIER_PAYMENT_PCT_DEBT ||
+           id == M_SUPPLIER_BALANCE;
+}
+
+static bool requestUsesSupplierComparisonMetric(const ChartRequest& request)
+{
+    for (MetricId id : request.compareMetrics) {
+        if (isSupplierComparisonMetric(id))
+            return true;
+    }
+    return isSupplierComparisonMetric(request.metricA) || isSupplierComparisonMetric(request.metricB) ||
+           isSupplierComparisonMetric(request.xAxisMetric) || isSupplierComparisonMetric(request.yAxisMetric);
+}
+
+static QList<int> effectiveLegendMonthIndexes(const QList<int>* months)
+{
+    QList<int> out;
+    if (months && !months->isEmpty()) {
+        for (int idx : *months) {
+            if (idx >= 0 && idx < 12)
+                out << idx;
+        }
+    } else {
+        for (int i = 0; i < 12; ++i)
+            out << i;
+    }
+    return out;
+}
+
+static QString supplierLegendNameForMonth(const AppData& data, int monthIndex)
+{
+    if (monthIndex < 0 || monthIndex >= 12)
+        return QString();
+
+    QStringList names;
+    for (const SupplierEntry& entry : data.supplierEntries[monthIndex]) {
+        const QString name = entry.name.trimmed();
+        if (!name.isEmpty() && !names.contains(name, Qt::CaseInsensitive))
+            names << name;
+    }
+
+    const QString summaryName = data.suppliers[monthIndex].supplierName.trimmed();
+    if (!summaryName.isEmpty() && !names.contains(summaryName, Qt::CaseInsensitive))
+        names << summaryName;
+
+    const QString legacyName = data.months[monthIndex].supplierName.trimmed();
+    if (!legacyName.isEmpty() && !names.contains(legacyName, Qt::CaseInsensitive))
+        names << legacyName;
+
+    if (names.isEmpty())
+        return QString();
+    return names.join(QStringLiteral(", "));
+}
+
+static void applySupplierComparisonLegend(QChartView* view,
+                                          const AppData& data,
+                                          const QList<int>* months,
+                                          const QStringList& axisLabels,
+                                          const QStringList& seriesNames,
+                                          const QList<QList<double>>& valueLists)
+{
+    if (!view || seriesNames.isEmpty() || valueLists.isEmpty())
+        return;
+
+    const QList<int> monthIndexes = effectiveLegendMonthIndexes(months);
+    const int pointCount = qMax(int(axisLabels.size()), int(monthIndexes.size()));
+    if (pointCount <= 0)
+        return;
+
+    const QList<QList<double>> pctLists = ensurePerMonthPercentLists({}, valueLists, pointCount);
+    QStringList legendLabels;
+    QStringList legendColors;
+
+    for (int point = 0; point < pointCount; ++point) {
+        QString prefix;
+        if (point < monthIndexes.size())
+            prefix = supplierLegendNameForMonth(data, monthIndexes.value(point));
+        if (prefix.isEmpty())
+            prefix = axisLabels.value(point);
+        if (prefix.isEmpty())
+            continue;
+
+        for (int s = 0; s < seriesNames.size() && s < pctLists.size(); ++s) {
+            const QList<double>& pcts = pctLists[s];
+            if (point >= pcts.size())
+                continue;
+            const QString cleanName = cleanLegendSeriesName(seriesNames.value(s));
+            legendLabels << (prefix + QStringLiteral(" — ") + cleanName + QStringLiteral(": ") + percentText(pcts.value(point)));
+            legendColors << seriesColorForName(cleanName, s).name();
+        }
+    }
+
+    if (!legendLabels.isEmpty()) {
+        view->setProperty("legendLabels", legendLabels);
+        view->setProperty("legendColors", legendColors);
+    }
+}
+
+
+
+static void supplierAccountGraphSeries(const AppData& data, QStringList& labels, QList<double>& values)
+{
+    labels.clear();
+    values.clear();
+
+    QStringList orderedNames;
+    QMap<QString, double> balanceByName;
+
+    for (int month = 0; month < 12; ++month) {
+        for (const SupplierEntry& entry : data.supplierEntries[month]) {
+            const QString name = entry.name.trimmed();
+            if (name.isEmpty())
+                continue;
+            if (!orderedNames.contains(name, Qt::CaseInsensitive))
+                orderedNames << name;
+            const double debt = entry.totalDebt > 0.0 ? entry.totalDebt : (entry.previousBalance + entry.purchases);
+            balanceByName[name.toCaseFolded()] = debt - entry.payments;
+        }
+    }
+
+    for (const QString& name : orderedNames) {
+        labels << name;
+        values << balanceByName.value(name.toCaseFolded(), 0.0);
+    }
+}
+
+
+static double supplierEntryMetricValue(const SupplierEntry& entry, MetricId metric)
+{
+    const double debt = entry.totalDebt > 0.0 ? entry.totalDebt : (entry.previousBalance + entry.purchases);
+    switch (metric) {
+    case M_PURCHASES:
+        return entry.purchases;
+    case M_SUPPLIER_PAYMENTS:
+        return entry.payments;
+    case M_SUPPLIER_PREVIOUS_BALANCE:
+        return entry.previousBalance;
+    case M_SUPPLIER_TOTAL_DEBT:
+        return debt;
+    case M_SUPPLIER_PAYMENT_PCT_PURCHASES:
+        return entry.purchases > 0.0 ? (entry.payments / entry.purchases) * 100.0 : 0.0;
+    case M_SUPPLIER_PAYMENT_PCT_DEBT:
+        return debt > 0.0 ? (entry.payments / debt) * 100.0 : 0.0;
+    case M_SUPPLIER_BALANCE:
+        return debt - entry.payments;
+    default:
+        return 0.0;
+    }
+}
+
+static QList<int> supplierGraphMonthIndexes(const ChartRequest& request)
+{
+    QList<int> months;
+    if (!request.months.isEmpty()) {
+        for (int month : request.months) {
+            if (month >= 0 && month < 12 && !months.contains(month))
+                months << month;
+        }
+    }
+    if (months.isEmpty()) {
+        for (int month = 0; month < 12; ++month)
+            months << month;
+    }
+    std::sort(months.begin(), months.end());
+    return months;
+}
+
+static QStringList supplierNamesForGraph(const AppData& data, const QList<int>& months)
+{
+    QStringList names;
+    for (int month : months) {
+        if (month < 0 || month >= 12)
+            continue;
+        for (const SupplierEntry& entry : data.supplierEntries[month]) {
+            const QString name = entry.name.trimmed();
+            if (!name.isEmpty() && !names.contains(name, Qt::CaseInsensitive))
+                names << name;
+        }
+        const QString legacy = data.suppliers[month].supplierName.trimmed();
+        if (!legacy.isEmpty() && !names.contains(legacy, Qt::CaseInsensitive))
+            names << legacy;
+    }
+    return names;
+}
+
+static bool supplierEntryValueForMonth(const AppData& data, int month, const QString& supplierName, MetricId metric, double& value)
+{
+    if (month < 0 || month >= 12)
+        return false;
+    const QString key = supplierName.trimmed();
+    for (const SupplierEntry& entry : data.supplierEntries[month]) {
+        const QString name = entry.name.trimmed();
+        if (!name.isEmpty() && name.compare(key, Qt::CaseInsensitive) == 0) {
+            value = supplierEntryMetricValue(entry, metric);
+            return true;
+        }
+    }
+    const SupplierMonthData& legacy = data.suppliers[month];
+    if (!legacy.supplierName.trimmed().isEmpty() && legacy.supplierName.trimmed().compare(key, Qt::CaseInsensitive) == 0) {
+        switch (metric) {
+        case M_PURCHASES:
+            value = legacy.purchases;
+            return true;
+        case M_SUPPLIER_PAYMENTS:
+            value = legacy.payments;
+            return true;
+        default:
+            value = 0.0;
+            return true;
+        }
+    }
+    value = 0.0;
+    return false;
+}
+
+static QString supplierSeriesName(const QString& supplier, MetricId metric, int supplierCount, int metricCount)
+{
+    const QString metricName = metricDisplayName(metric);
+    if (supplierCount == 1 && metricCount > 1)
+        return supplier + QStringLiteral(" — ") + metricName;
+    if (supplierCount > 1 && metricCount == 1)
+        return supplier;
+    if (supplierCount > 1 && metricCount > 1)
+        return supplier + QStringLiteral(" — ") + metricName;
+    return supplier.isEmpty() ? metricName : supplier;
+}
+
+static void supplierGraphSeries(const AppData& data,
+                                const ChartRequest& request,
+                                QStringList& monthLabels,
+                                QStringList& seriesNames,
+                                QList<QList<double>>& seriesValues)
+{
+    monthLabels.clear();
+    seriesNames.clear();
+    seriesValues.clear();
+
+    QList<MetricId> metrics = request.compareMetrics;
+    metrics.removeAll(M_SUPPLIER_NAME);
+    if (metrics.isEmpty())
+        metrics << (request.metricA == M_COUNT || request.metricA == M_SUPPLIER_NAME ? M_SUPPLIER_BALANCE : request.metricA);
+
+    const QList<int> months = supplierGraphMonthIndexes(request);
+    const QStringList monthNameList = monthNames();
+    for (int month : months)
+        monthLabels << monthNameList.value(month);
+
+    const QStringList suppliers = supplierNamesForGraph(data, months);
+    if (suppliers.isEmpty()) {
+        const QList<int>* monthFilter = request.months.isEmpty() ? nullptr : &request.months;
+        for (MetricId metric : metrics) {
+            QStringList labelsForMetric;
+            QList<double> values = metricSeriesValues(data, metric, &labelsForMetric, monthFilter);
+            if (monthLabels.isEmpty())
+                monthLabels = labelsForMetric;
+            seriesNames << metricDisplayName(metric);
+            seriesValues << values;
+        }
+        return;
+    }
+
+    for (MetricId metric : metrics) {
+        for (const QString& supplier : suppliers) {
+            QList<double> values;
+            for (int month : months) {
+                double value = 0.0;
+                supplierEntryValueForMonth(data, month, supplier, metric, value);
+                values << value;
+            }
+            seriesNames << supplierSeriesName(supplier, metric, suppliers.size(), metrics.size());
+            seriesValues << values;
+        }
+    }
+}
+
+static void applySeriesOnlyLegend(QChartView* view, const QStringList& seriesNames, const QList<QList<double>>& seriesValues)
+{
+    if (!view || seriesNames.isEmpty() || seriesValues.isEmpty())
+        return;
+
+    QList<double> totals;
+    double grandTotal = 0.0;
+    for (const QList<double>& values : seriesValues) {
+        double total = 0.0;
+        for (double value : values)
+            total += qAbs(value);
+        totals << total;
+        grandTotal += total;
+    }
+    if (grandTotal < 0.000001)
+        grandTotal = 1.0;
+
+    QStringList legendLabels;
+    QStringList legendColors;
+    for (int i = 0; i < seriesNames.size(); ++i) {
+        const QString name = cleanLegendSeriesName(seriesNames.value(i));
+        legendLabels << (name + QStringLiteral(": ") + percentText((totals.value(i) / grandTotal) * 100.0));
+        legendColors << seriesColorForName(name, i).name();
+    }
+    view->setProperty("legendLabels", legendLabels);
+    view->setProperty("legendColors", legendColors);
+}
 QChartView* ResultsWidget::createChartView(const AppData& data, const ChartRequest& request)
 {
+    if (request.origin == ChartOrigin::Suppliers) {
+        QStringList monthLabels;
+        QStringList seriesNames;
+        QList<QList<double>> seriesValues;
+        supplierGraphSeries(data, request, monthLabels, seriesNames, seriesValues);
+
+        const QString title = request.title.isEmpty() ? (tr_suppliers_7beff3() + QStringLiteral(" — ") + metricDisplayName(M_SUPPLIER_BALANCE)) : request.title;
+        if (seriesValues.isEmpty())
+            return makeRankedBarChart(title, monthLabels, QList<double>{});
+
+        if (request.kind == ChartKind::Pie) {
+            QStringList pieLabels;
+            QList<double> pieValues;
+            for (int i = 0; i < seriesValues.size(); ++i) {
+                double total = 0.0;
+                for (double value : seriesValues[i])
+                    total += qAbs(value);
+                pieLabels << seriesNames.value(i, metricDisplayName(M_SUPPLIER_BALANCE));
+                pieValues << total;
+            }
+            return makeMultiComparePieChart(title, pieLabels, pieValues, 100.0);
+        }
+
+        QChartView* view = nullptr;
+        if (request.kind == ChartKind::MetricLine || request.kind == ChartKind::CompareLine)
+            view = makeMultiCompareLineChart(title, monthLabels, seriesValues, seriesNames);
+        else
+            view = makeMultiCompareBarChart(title, monthLabels, seriesValues, seriesNames);
+        applySeriesOnlyLegend(view, seriesNames, seriesValues);
+        return view;
+    }
+
     QStringList labels;
     const QList<int>* months = request.months.isEmpty() ? nullptr : &request.months;
     const MetricId effectiveXAxisMetric = (!request.axisMetricsAuto && request.xAxisMetric >= M_SALES && request.xAxisMetric < M_COUNT) ? request.xAxisMetric : M_COUNT;
@@ -3046,6 +3392,7 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
     QString title = request.title.isEmpty() ? metricDisplayName(request.metricA) : request.title;
     const bool includeSummaryPoint = request.includeSummaryPoint && request.kind != ChartKind::Pie && request.kind != ChartKind::ComparePie;
     const bool usePercentBase = request.comparePieBaseMetric >= M_SALES && request.comparePieBaseMetric < M_COUNT;
+    const bool supplierMetricLegend = request.origin == ChartOrigin::Custom && requestUsesSupplierComparisonMetric(request);
 
     QList<MetricId> compareMetrics = request.compareMetrics;
     if (compareMetrics.isEmpty() && (request.kind == ChartKind::CompareBar || request.kind == ChartKind::CompareLine || request.kind == ChartKind::ComparePie || request.kind == ChartKind::Candle)) {
@@ -3088,8 +3435,12 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
                 title += QStringLiteral(" — ") + metricDisplayName(request.comparePieBaseMetric) + QStringLiteral(" = 100%");
             }
         }
-        if (request.kind == ChartKind::CompareLine)
-            return makeMultiCompareLineChart(title, labels, seriesList, names);
+        if (request.kind == ChartKind::CompareLine) {
+            auto* view = makeMultiCompareLineChart(title, labels, seriesList, names);
+            if (supplierMetricLegend)
+                applySupplierComparisonLegend(view, data, months, labels, names, seriesList);
+            return view;
+        }
         if (request.kind == ChartKind::ComparePie) {
             QList<double> totals;
             for (const auto& values : seriesList) {
@@ -3102,9 +3453,16 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
             buildComparePieSlices(names, totals, request.comparePieBaseMetric == M_COUNT ? -1 : compareMetrics.indexOf(request.comparePieBaseMetric), pieLabels, pieValues);
             return makeMultiComparePieChart(title, pieLabels, pieValues, 100.0);
         }
-        if (request.kind == ChartKind::Candle)
-            return makeMultiCompareCandleChart(title, labels, seriesList, names);
-        return makeMultiCompareBarChart(title, labels, seriesList, names);
+        if (request.kind == ChartKind::Candle) {
+            auto* view = makeMultiCompareCandleChart(title, labels, seriesList, names);
+            if (supplierMetricLegend)
+                applySupplierComparisonLegend(view, data, months, labels, names, seriesList);
+            return view;
+        }
+        auto* view = makeMultiCompareBarChart(title, labels, seriesList, names);
+        if (supplierMetricLegend)
+            applySupplierComparisonLegend(view, data, months, labels, names, seriesList);
+        return view;
     }
 
     if (compareMetrics.size() == 1 && (request.kind == ChartKind::CompareBar || request.kind == ChartKind::CompareLine || request.kind == ChartKind::Candle)) {
@@ -3112,13 +3470,26 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
             appendSummaryLabel(labels);
             appendSummaryValue(a);
         }
-        if (request.kind == ChartKind::CompareLine)
-            return makeSingleLineChart(title, labels, a);
-        if (request.kind == ChartKind::CompareBar)
-            return makeRankedBarChart(title, labels, a);
+        const QStringList names{metricDisplayName(effectiveYAxisMetric)};
+        const QList<QList<double>> values{a};
+        if (request.kind == ChartKind::CompareLine) {
+            auto* view = makeSingleLineChart(title, labels, a);
+            if (supplierMetricLegend)
+                applySupplierComparisonLegend(view, data, months, labels, names, values);
+            return view;
+        }
+        if (request.kind == ChartKind::CompareBar) {
+            auto* view = makeRankedBarChart(title, labels, a);
+            if (supplierMetricLegend)
+                applySupplierComparisonLegend(view, data, months, labels, names, values);
+            return view;
+        }
         if (effectiveYAxisMetric == M_EXPENSES)
             return makeRankedBarChart(title, labels, a);
-        return makeCandleChart(title, labels, a);
+        auto* view = makeCandleChart(title, labels, a);
+        if (supplierMetricLegend)
+            applySupplierComparisonLegend(view, data, months, labels, names, values);
+        return view;
     }
 
     switch (request.kind) {
@@ -3149,7 +3520,10 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
                 if (totalAB > 0.000001) {
                 }
             }
-            return makeCompareCandleChart(title, labels, a, b, nameA, nameB);
+            auto* view = makeCompareCandleChart(title, labels, a, b, nameA, nameB);
+            if (supplierMetricLegend)
+                applySupplierComparisonLegend(view, data, months, labels, QStringList{nameA, nameB}, QList<QList<double>>{a, b});
+            return view;
         }
         if (includeSummaryPoint) {
             appendSummaryLabel(labels);
@@ -3195,7 +3569,10 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
             if (totalAB > 0.000001) {
             }
         }
-        return makeCompareBarChart(title, labels, a, b, nameA, nameB);
+        auto* view = makeCompareBarChart(title, labels, a, b, nameA, nameB);
+        if (supplierMetricLegend)
+            applySupplierComparisonLegend(view, data, months, labels, QStringList{nameA, nameB}, QList<QList<double>>{a, b});
+        return view;
     }
     case ChartKind::CompareLine: {
         QStringList labelsB;
@@ -3221,7 +3598,10 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
             if (totalAB > 0.000001) {
             }
         }
-        return makeMultiCompareLineChart(title, labels, QList<QList<double>>{a, b}, QStringList{nameA, nameB});
+        auto* view = makeMultiCompareLineChart(title, labels, QList<QList<double>>{a, b}, QStringList{nameA, nameB});
+        if (supplierMetricLegend)
+            applySupplierComparisonLegend(view, data, months, labels, QStringList{nameA, nameB}, QList<QList<double>>{a, b});
+        return view;
     }
     case ChartKind::ComparePie: {
         QStringList labelsB;

@@ -24,6 +24,7 @@ public:
 
     void buildResults(const AppData& data);
     void appendChart(const AppData& data, const ChartRequest& request);
+    void removeCardByIndex(int cardIndex);
     void clearResults();
     void applyTheme();
     void retranslate();

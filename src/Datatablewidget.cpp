@@ -139,30 +139,30 @@ NavigableSpinBox* MonthCard::makeSpin(bool redTint)
     return s;
 }
 
-QWidget* MonthCard::makeFieldRow(const QString& labelText, QWidget* input)
+QWidget* MonthCard::makeFieldRow(QLabel*& label, const QString& labelText, QWidget* input)
 {
     auto* w = new QWidget;
     auto* vl = new QVBoxLayout(w);
     vl->setContentsMargins(0,0,0,0);
     vl->setSpacing(3);
-    auto* lbl = new QLabel(labelText);
-    lbl->setObjectName("fieldLabel");
-    lbl->setStyleSheet(g_lightMode ? kFieldLblLt : kFieldLblDk);
-    vl->addWidget(lbl);
+    label = new QLabel(labelText);
+    label->setObjectName("fieldLabel");
+    label->setStyleSheet(g_lightMode ? kFieldLblLt : kFieldLblDk);
+    vl->addWidget(label);
     vl->addWidget(input);
     return w;
 }
 
-QWidget* MonthCard::makeColumn(const QString& sectionTitle, QList<QWidget*> rows)
+QWidget* MonthCard::makeColumn(QLabel*& titleLabel, const QString& sectionTitle, QList<QWidget*> rows)
 {
     auto* w = new QWidget;
     auto* vl = new QVBoxLayout(w);
     vl->setContentsMargins(0,0,0,0);
     vl->setSpacing(10);
-    auto* title = new QLabel(sectionTitle);
-    title->setObjectName("sectionTitle");
-    title->setStyleSheet(g_lightMode ? kSecTitleLt : kSecTitleDk);
-    vl->addWidget(title);
+    titleLabel = new QLabel(sectionTitle);
+    titleLabel->setObjectName("sectionTitle");
+    titleLabel->setStyleSheet(g_lightMode ? kSecTitleLt : kSecTitleDk);
+    vl->addWidget(titleLabel);
     for (auto* r : rows) vl->addWidget(r);
     vl->addStretch();
     return w;
@@ -197,25 +197,25 @@ void MonthCard::buildContent()
     connectSpin(m_invFirst); connectSpin(m_invLast);
     connectSpin(m_cogsInput);
 
-    m_salesCol = makeColumn(tr_sales_revenue_41bc0b(), {
-        makeFieldRow(tr_sales_amount_0a3f3e(), m_sales),
-        makeFieldRow(tr_sales_return_27c2fd(), m_salesReturn)
+    m_salesCol = makeColumn(m_salesTitle, tr_sales_revenue_41bc0b(), {
+        makeFieldRow(m_salesAmountLabel, tr_sales_amount_0a3f3e(), m_sales),
+        makeFieldRow(m_salesReturnLabel, tr_sales_return_27c2fd(), m_salesReturn)
     });
-    m_supplierCol = makeColumn(tr_suppliers_7beff3(), {
-        makeFieldRow(tr_supplier_purchases_f5a1cd(), m_suppPurchases),
-        makeFieldRow(tr_supplier_payments_eeef31(), m_suppPayments)
+    m_supplierCol = makeColumn(m_supplierTitle, tr_suppliers_7beff3(), {
+        makeFieldRow(m_supplierPurchasesLabel, tr_supplier_purchases_f5a1cd(), m_suppPurchases),
+        makeFieldRow(m_supplierPaymentsLabel, tr_supplier_payments_eeef31(), m_suppPayments)
     });
-    m_inventoryCol = makeColumn(tr_inventory_22ffe2(), {
-        makeFieldRow(tr_opening_stock_first_period_ba1057(), m_invFirst),
-        makeFieldRow(tr_closing_stock_last_period_a0c5b2(), m_invLast)
+    m_inventoryCol = makeColumn(m_inventoryTitle, tr_inventory_22ffe2(), {
+        makeFieldRow(m_openingStockLabel, tr_opening_stock_first_period_ba1057(), m_invFirst),
+        makeFieldRow(m_closingStockLabel, tr_closing_stock_last_period_a0c5b2(), m_invLast)
     });
-    m_ongoingCol = makeColumn(tr_ongoing_inventory_4f9f2c(), {
-        makeFieldRow(tr_cogs_input_2a1b7e(), m_cogsInput)
+    m_ongoingCol = makeColumn(m_ongoingTitle, tr_ongoing_inventory_4f9f2c(), {
+        makeFieldRow(m_cogsInputLabel, tr_cogs_input_2a1b7e(), m_cogsInput)
     });
 
-    m_resultsCol = makeColumn(tr_results_87ae7f(), {
-        makeFieldRow(tr_net_sales_90f56d(), (m_netSalesValue = new QLabel("0.00"))),
-        makeFieldRow(tr_profit_margin_56b595(), (m_profitValue = new QLabel("0.00")))
+    m_resultsCol = makeColumn(m_resultsTitle, tr_results_87ae7f(), {
+        makeFieldRow(m_netSalesLabel, tr_net_sales_90f56d(), (m_netSalesValue = new QLabel("0.00"))),
+        makeFieldRow(m_profitMarginLabel, tr_profit_margin_56b595(), (m_profitValue = new QLabel("0.00")))
     });
     m_netSalesValue->setStyleSheet(g_lightMode ? "font-weight:700; color:#4f86f7;" : "font-weight:700; color:#7ab0ff;");
     m_profitValue->setStyleSheet(g_lightMode ? "font-weight:700; color:#10b981;" : "font-weight:700; color:#58d69a;");
@@ -395,26 +395,21 @@ void MonthCard::retranslate()
     m_monthLabel->setText(names.value(m_monthIndex));
     if (m_warnIcon) m_warnIcon->setToolTip(tr_data_warnings_exist_e01dcc());
     if (m_warnHdr) m_warnHdr->setText(QStringLiteral("⚠  ") + tr_warnings_5eb706());
-    QList<QLabel*> secTitles = m_content->findChildren<QLabel*>("sectionTitle");
-    if (secTitles.size() >= 5) {
-        secTitles[0]->setText(tr_sales_revenue_41bc0b());
-        secTitles[1]->setText(tr_suppliers_7beff3());
-        secTitles[2]->setText(tr_inventory_22ffe2());
-        secTitles[3]->setText(tr_ongoing_inventory_4f9f2c());
-        secTitles[4]->setText(tr_results_87ae7f());
-    }
-    QList<QLabel*> fieldLbls = m_content->findChildren<QLabel*>("fieldLabel");
-    if (fieldLbls.size() >= 9) {
-        fieldLbls[0]->setText(tr_sales_amount_0a3f3e());
-        fieldLbls[1]->setText(tr_sales_return_27c2fd());
-        fieldLbls[2]->setText(tr_supplier_purchases_f5a1cd());
-        fieldLbls[3]->setText(tr_supplier_payments_eeef31());
-        fieldLbls[4]->setText(tr_opening_stock_first_period_ba1057());
-        fieldLbls[5]->setText(tr_closing_stock_last_period_a0c5b2());
-        fieldLbls[6]->setText(tr_cogs_input_2a1b7e());
-        fieldLbls[7]->setText(tr_net_sales_90f56d());
-        fieldLbls[8]->setText(tr_profit_margin_56b595());
-    }
+    if (m_salesTitle) m_salesTitle->setText(tr_sales_revenue_41bc0b());
+    if (m_supplierTitle) m_supplierTitle->setText(tr_suppliers_7beff3());
+    if (m_inventoryTitle) m_inventoryTitle->setText(tr_inventory_22ffe2());
+    if (m_ongoingTitle) m_ongoingTitle->setText(tr_ongoing_inventory_4f9f2c());
+    if (m_resultsTitle) m_resultsTitle->setText(tr_results_87ae7f());
+
+    if (m_salesAmountLabel) m_salesAmountLabel->setText(tr_sales_amount_0a3f3e());
+    if (m_salesReturnLabel) m_salesReturnLabel->setText(tr_sales_return_27c2fd());
+    if (m_supplierPurchasesLabel) m_supplierPurchasesLabel->setText(tr_supplier_purchases_f5a1cd());
+    if (m_supplierPaymentsLabel) m_supplierPaymentsLabel->setText(tr_supplier_payments_eeef31());
+    if (m_openingStockLabel) m_openingStockLabel->setText(tr_opening_stock_first_period_ba1057());
+    if (m_closingStockLabel) m_closingStockLabel->setText(tr_closing_stock_last_period_a0c5b2());
+    if (m_cogsInputLabel) m_cogsInputLabel->setText(tr_cogs_input_2a1b7e());
+    if (m_netSalesLabel) m_netSalesLabel->setText(tr_net_sales_90f56d());
+    if (m_profitMarginLabel) m_profitMarginLabel->setText(tr_profit_margin_56b595());
     updateModeVisibility();
 }
 
