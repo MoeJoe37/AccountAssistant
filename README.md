@@ -3,13 +3,13 @@
 ![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)
 ![Qt 6](https://img.shields.io/badge/Qt-6.x-green.svg)
 ![CMake](https://img.shields.io/badge/Build-CMake-informational.svg)
+![License](https://img.shields.io/badge/License-AGPL--3.0--or--later-blue.svg)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)
 
 **Account Assistant** is a desktop financial reporting application built with **C++17** and **Qt 6**. It helps users enter monthly accounting data, manage expenses and suppliers, calculate financial results, visualize metrics through charts, and export professional reports to **PDF** and **XLSX**.
 
-> Runtime application version in `main.cpp`: **6.0.0**  
-> CMake project version in `CMakeLists.txt`: **5.3.0**  
-> Recommendation: update `project(AccountAssistant VERSION ...)` in `CMakeLists.txt` to keep build metadata consistent with the runtime version.
+> Current application version: **6.0.0**  
+> Runtime version in `main.cpp` and CMake project version in `CMakeLists.txt` are aligned.
 
 ---
 
@@ -552,18 +552,18 @@ The application uses Qt Widgets with custom stylesheets. It supports:
 
 ## Recommended Future Improvements
 
-- Align `CMakeLists.txt` version with `main.cpp`.
 - Add automated unit tests for calculation logic.
 - Add sample XLSX templates to the repository.
 - Add screenshots or GIFs to this README.
 - Add CI builds for Windows, Linux, and macOS.
-- Add a formal license file.
 - Add release packaging scripts.
 
 ---
 
 ## License
 
-No license file was included in the inspected source package.
+This project is licensed under the **GNU Affero General Public License v3.0 or later (AGPL-3.0-or-later)**.
 
-Until a license is added, this project should be treated as **All Rights Reserved** by default. Add a `LICENSE` file before publishing, distributing, or accepting external contributions.
+See the included [`LICENSE`](LICENSE) file for the full license text.
+
+The AGPL is a strong copyleft license. If the software is modified and made available to users over a network, the modified source code must also be made available under the same license terms.
