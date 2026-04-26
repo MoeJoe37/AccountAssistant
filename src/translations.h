@@ -71,6 +71,12 @@ inline QString tr_choose_what_appears_in_results_05286a() { return T("Choose wha
 inline QString tr_classic_table_view_spreadsheet_b69d40() { return T("Classic Table View (spreadsheet layout)", "\u0639\u0631\u0636 \u0627\u0644\u062c\u062f\u0648\u0644 \u0627\u0644\u0643\u0644\u0627\u0633\u064a\u0643\u064a"); }
 inline QString tr_clear_all_data_491f5d() { return T("Clear All Data", "مسح جميع البيانات"); }
 inline QString tr_clear_data_4fcd0d() { return T("🗑  Clear Data", "🗑  مسح البيانات"); }
+inline QString tr_auto_clear_data_entry_7e6a91f0() { return T("Clear Data Entry", "مسح إدخال البيانات"); }
+inline QString tr_auto_clear_expenses_6c70d1bb() { return T("Clear Expenses", "مسح المصروفات"); }
+inline QString tr_auto_clear_suppliers_fce9cf44() { return T("Clear Suppliers", "مسح الموردين"); }
+inline QString tr_auto_clear_data_entry_warning_29d42ac4() { return T("This will erase only the Data Entry tab values. Expenses and Suppliers will not be changed.\n\nAre you sure you want to continue?", "سيتم حذف قيم تبويب إدخال البيانات فقط. لن يتم تغيير المصروفات أو الموردين.\n\nهل أنت متأكد من المتابعة؟"); }
+inline QString tr_auto_clear_expenses_warning_7be9d308() { return T("This will erase only the Expenses tab accounts. Data Entry and Suppliers will not be changed.\n\nAre you sure you want to continue?", "سيتم حذف حسابات تبويب المصروفات فقط. لن يتم تغيير إدخال البيانات أو الموردين.\n\nهل أنت متأكد من المتابعة؟"); }
+inline QString tr_auto_clear_suppliers_warning_0c6309c6() { return T("This will erase only the Suppliers tab data. Data Entry and Expenses will not be changed.\n\nAre you sure you want to continue?", "سيتم حذف بيانات تبويب الموردين فقط. لن يتم تغيير إدخال البيانات أو المصروفات.\n\nهل أنت متأكد من المتابعة؟"); }
 inline QString tr_closing_stock_last_period_a0c5b2() { return T("Closing Stock (Last Period)", "اخر المدة"); }
 inline QString tr_cogs_d716f1() { return T("COGS", "تكلفة البضاعة"); }
 inline QString tr_cogs_vs_profit_margin_fd48e9() { return T("COGS vs Profit Margin", "\u062A\u0643\u0644\u0641\u0629 \u0645\u0642\u0627\u0628\u0644 \u0627\u0644\u0631\u0628\u062D"); }

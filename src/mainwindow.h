@@ -30,6 +30,8 @@ private slots:
     void onExportPdf();
     void onSettings();
     void onClearData();
+    void onClearExpensesData();
+    void onClearSuppliersData();
     void onEditCharts(int cardIndex = -1);
     void onDuplicateChart(int cardIndex);
     void onChartRemoved(const ChartRequest& removed);
@@ -76,6 +78,8 @@ private:
     QPushButton* m_exportBtn{};
     QPushButton* m_settingsBtn{};
     QPushButton* m_clearBtn{};
+    QPushButton* m_clearExpensesBtn{};
+    QPushButton* m_clearSuppliersBtn{};
     QComboBox*   m_inventoryModeCombo{};
     QLabel*      m_titleLabel{};
 

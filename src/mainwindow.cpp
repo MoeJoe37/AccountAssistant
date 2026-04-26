@@ -1538,16 +1538,78 @@ void MainWindow::buildUI()
 
     // Tab 1: Expenses
     {
-        m_accounts = new Accountswidget;
+        auto* expensesTab = new QWidget;
+        expensesTab->setObjectName("dataTab");
+        auto* vl = new QVBoxLayout(expensesTab);
+        vl->setContentsMargins(0,0,0,0);
+        vl->setSpacing(0);
+
+        auto* subHdr = new QWidget;
+        subHdr->setObjectName("dataSubHeader");
+        subHdr->setFixedHeight(44);
+        auto* shl = new QHBoxLayout(subHdr);
+        shl->setContentsMargins(24, 0, 20, 0);
+        shl->setSpacing(10);
+        shl->addStretch();
+
+        m_clearExpensesBtn = new QPushButton(tr_clear_data_4fcd0d());
+        m_clearExpensesBtn->setCursor(Qt::PointingHandCursor);
+        m_clearExpensesBtn->setFixedHeight(30);
+        m_clearExpensesBtn->setStyleSheet(g_lightMode
+            ? "QPushButton{border:1px solid #e74c3c; border-radius:6px; font-weight:700;"
+              " padding:0 16px; background:#fff5f5; color:#c0392b;}"
+              "QPushButton:hover{background:#fde8e8; color:#e74c3c;}"
+              "QPushButton:pressed{background:#f5d0d0;}"
+            : "QPushButton{border:1px solid #c0392b; border-radius:6px; font-weight:700;"
+              " padding:0 16px; background:#1e1010; color:#e74c3c;}"
+              "QPushButton:hover{background:#2c1515; color:#ff6b6b;}"
+              "QPushButton:pressed{background:#3a1a1a;}");
+        connect(m_clearExpensesBtn, &QPushButton::clicked, this, &MainWindow::onClearExpensesData);
+        shl->addWidget(m_clearExpensesBtn);
+        vl->addWidget(subHdr);
+
+        m_accounts = new Accountswidget(expensesTab);
         connect(m_accounts, &Accountswidget::graphRequested, this, &MainWindow::onAccountGraphRequested);
-        m_tabs->addTab(m_accounts, "");
+        vl->addWidget(m_accounts, 1);
+        m_tabs->addTab(expensesTab, "");
     }
 
     // Tab 2: Suppliers
     {
-        m_suppliers = new SuppliersWidget;
+        auto* suppliersTab = new QWidget;
+        suppliersTab->setObjectName("dataTab");
+        auto* vl = new QVBoxLayout(suppliersTab);
+        vl->setContentsMargins(0,0,0,0);
+        vl->setSpacing(0);
+
+        auto* subHdr = new QWidget;
+        subHdr->setObjectName("dataSubHeader");
+        subHdr->setFixedHeight(44);
+        auto* shl = new QHBoxLayout(subHdr);
+        shl->setContentsMargins(24, 0, 20, 0);
+        shl->setSpacing(10);
+        shl->addStretch();
+
+        m_clearSuppliersBtn = new QPushButton(tr_clear_data_4fcd0d());
+        m_clearSuppliersBtn->setCursor(Qt::PointingHandCursor);
+        m_clearSuppliersBtn->setFixedHeight(30);
+        m_clearSuppliersBtn->setStyleSheet(g_lightMode
+            ? "QPushButton{border:1px solid #e74c3c; border-radius:6px; font-weight:700;"
+              " padding:0 16px; background:#fff5f5; color:#c0392b;}"
+              "QPushButton:hover{background:#fde8e8; color:#e74c3c;}"
+              "QPushButton:pressed{background:#f5d0d0;}"
+            : "QPushButton{border:1px solid #c0392b; border-radius:6px; font-weight:700;"
+              " padding:0 16px; background:#1e1010; color:#e74c3c;}"
+              "QPushButton:hover{background:#2c1515; color:#ff6b6b;}"
+              "QPushButton:pressed{background:#3a1a1a;}");
+        connect(m_clearSuppliersBtn, &QPushButton::clicked, this, &MainWindow::onClearSuppliersData);
+        shl->addWidget(m_clearSuppliersBtn);
+        vl->addWidget(subHdr);
+
+        m_suppliers = new SuppliersWidget(suppliersTab);
         connect(m_suppliers, &SuppliersWidget::graphRequested, this, &MainWindow::onSupplierGraphRequested);
-        m_tabs->addTab(m_suppliers, "");
+        vl->addWidget(m_suppliers, 1);
+        m_tabs->addTab(suppliersTab, "");
     }
 
     // Tab 3: Results
@@ -2392,10 +2454,38 @@ void MainWindow::switchTableView(bool classic)
 void MainWindow::onClearData()
 {
     if (ThemeBox::confirm(this,
-            tr_clear_all_data_491f5d(),
-            tr_this_will_erase_all_entered_da_382bea()) == QMessageBox::Yes)
+            tr_auto_clear_data_entry_7e6a91f0(),
+            tr_auto_clear_data_entry_warning_29d42ac4()) == QMessageBox::Yes)
     {
-        clearTableData();
+        if (m_table)        m_table->clearData();
+        if (m_classicTable) m_classicTable->clearData();
+        m_data = collectAllData();
+        m_hasResults = false;
+        if (m_results) m_results->clearResults();
+    }
+}
+
+void MainWindow::onClearExpensesData()
+{
+    if (ThemeBox::confirm(this,
+            tr_auto_clear_expenses_6c70d1bb(),
+            tr_auto_clear_expenses_warning_7be9d308()) == QMessageBox::Yes)
+    {
+        if (m_accounts) m_accounts->clearData();
+        m_data = collectAllData();
+        m_hasResults = false;
+        if (m_results) m_results->clearResults();
+    }
+}
+
+void MainWindow::onClearSuppliersData()
+{
+    if (ThemeBox::confirm(this,
+            tr_auto_clear_suppliers_fce9cf44(),
+            tr_auto_clear_suppliers_warning_0c6309c6()) == QMessageBox::Yes)
+    {
+        if (m_suppliers) m_suppliers->clearData();
+        m_data = collectAllData();
         m_hasResults = false;
         if (m_results) m_results->clearResults();
     }
@@ -2464,17 +2554,18 @@ void MainWindow::applyTheme()
     if (m_importBtn)   m_importBtn->setStyleSheet(secondaryBtn);
     if (m_exportBtn)   m_exportBtn->setStyleSheet(secondaryBtn);
     if (m_settingsBtn) m_settingsBtn->setStyleSheet(secondaryBtn);
-    if (m_clearBtn) {
-        m_clearBtn->setStyleSheet(g_lightMode
-            ? "QPushButton{border:1px solid #e74c3c; border-radius:5px; font-weight:700;"
-              " padding:0 14px; background:#fff5f5; color:#c0392b;}"
-              "QPushButton:hover{background:#fde8e8; color:#e74c3c;}"
-              "QPushButton:pressed{background:#f5d0d0;}"
-            : "QPushButton{border:1px solid #c0392b; border-radius:5px; font-weight:700;"
-              " padding:0 14px; background:#1e1010; color:#e74c3c;}"
-              "QPushButton:hover{background:#2c1515; color:#ff6b6b;}"
-              "QPushButton:pressed{background:#3a1a1a;}");
-    }
+    const QString clearDataBtnStyle = g_lightMode
+        ? "QPushButton{border:1px solid #e74c3c; border-radius:5px; font-weight:700;"
+          " padding:0 14px; background:#fff5f5; color:#c0392b;}"
+          "QPushButton:hover{background:#fde8e8; color:#e74c3c;}"
+          "QPushButton:pressed{background:#f5d0d0;}"
+        : "QPushButton{border:1px solid #c0392b; border-radius:5px; font-weight:700;"
+          " padding:0 14px; background:#1e1010; color:#e74c3c;}"
+          "QPushButton:hover{background:#2c1515; color:#ff6b6b;}"
+          "QPushButton:pressed{background:#3a1a1a;}";
+    if (m_clearBtn)          m_clearBtn->setStyleSheet(clearDataBtnStyle);
+    if (m_clearExpensesBtn)  m_clearExpensesBtn->setStyleSheet(clearDataBtnStyle);
+    if (m_clearSuppliersBtn) m_clearSuppliersBtn->setStyleSheet(clearDataBtnStyle);
     if (m_inventoryModeCombo) {
         m_inventoryModeCombo->setStyleSheet(g_lightMode
             ? "QComboBox{background:#ffffff;color:#1e2340;border:1px solid #cfd7ea;border-radius:6px;padding:0 10px;font-weight:700;}"
@@ -2512,8 +2603,12 @@ void MainWindow::retranslate()
         tr_calculate_36f437());
     m_saveBtn->setText(
         tr_save_data_e6059e());
-    m_clearBtn->setText(
-        tr_clear_data_4fcd0d());
+    if (m_clearBtn)
+        m_clearBtn->setText(tr_clear_data_4fcd0d());
+    if (m_clearExpensesBtn)
+        m_clearExpensesBtn->setText(tr_clear_data_4fcd0d());
+    if (m_clearSuppliersBtn)
+        m_clearSuppliersBtn->setText(tr_clear_data_4fcd0d());
     m_importBtn->setText(
         tr_import_data_fbe7a5());
     m_exportBtn->setText(
