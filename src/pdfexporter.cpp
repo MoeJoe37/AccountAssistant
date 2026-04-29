@@ -226,9 +226,9 @@ static ValueStats statsFor(const QList<double>& values)
     return s;
 }
 
-static QList<double> seriesForMetric(const AppData& d, MetricId id, QStringList* labels = nullptr, const QList<int>* months = nullptr, AccountTypeFilter accountFilter = AccountTypeFilter::All)
+static QList<double> seriesForMetric(const AppData& d, MetricId id, QStringList* labels = nullptr, const QList<int>* months = nullptr, AccountTypeFilter accountFilter = AccountTypeFilter::All, int topAccountCount = 0)
 {
-    return metricSeriesValues(d, id, labels, months, accountFilter);
+    return metricSeriesValues(d, id, labels, months, accountFilter, topAccountCount);
 }
 
 
@@ -277,6 +277,9 @@ static ChartMeta metaForRequest(const AppData& d, const ChartRequest& req)
             m.valuesMulti << m.values;
             m.seriesNames << m.nameA;
             break;
+        case ChartKind::HorizontalBar:
+            m.type = "horizontalbar";
+            break;
         case ChartKind::RankedBar:
         case ChartKind::MetricBar:
         default:
@@ -289,28 +292,48 @@ static ChartMeta metaForRequest(const AppData& d, const ChartRequest& req)
     switch (req.kind) {
     case ChartKind::Pie:
         m.type = "pie";
-        m.values = normalizePercentValues(seriesForMetric(d, req.metricA, &m.labels, months, req.accountFilter));
+        m.values = normalizePercentValues(seriesForMetric(d, req.metricA, &m.labels, months, req.accountFilter, req.topAccountCount));
         m.referenceValue = 100.0;
         break;
     case ChartKind::Candle:
         if (!req.seriesB.isEmpty()) {
             m.type = "comparecandle";
-            m.values = seriesForMetric(d, req.metricA, &m.labels, months, req.accountFilter);
-            m.values2 = seriesForMetric(d, req.metricB, &m.labels2, months, req.accountFilter);
+            m.values = seriesForMetric(d, req.metricA, &m.labels, months, req.accountFilter, req.topAccountCount);
+            m.values2 = seriesForMetric(d, req.metricB, &m.labels2, months, req.accountFilter, req.topAccountCount);
             if (m.labels2.isEmpty()) m.labels2 = m.labels;
         } else {
             m.type = (req.metricA == M_EXPENSES) ? "rankedbar" : "candle";
-            m.values = seriesForMetric(d, req.metricA, &m.labels, months, req.accountFilter);
+            m.values = seriesForMetric(d, req.metricA, &m.labels, months, req.accountFilter, req.topAccountCount);
         }
         break;
     case ChartKind::RankedBar:
         m.type = "rankedbar";
-        m.values = seriesForMetric(d, req.metricA, &m.labels, months, req.accountFilter);
+        m.values = seriesForMetric(d, req.metricA, &m.labels, months, req.accountFilter, req.topAccountCount);
+        break;
+    case ChartKind::HorizontalBar:
+        if (req.compareMetrics.size() > 2) {
+            m.type = "horizontalbarcompare";
+            for (MetricId id : req.compareMetrics) {
+                QStringList labelsForMetric;
+                const QList<double> values = seriesForMetric(d, id, &labelsForMetric, months, req.accountFilter, req.topAccountCount);
+                if (m.labels.isEmpty()) m.labels = labelsForMetric;
+                m.valuesMulti << values;
+                m.seriesNames << metricDisplayName(id);
+            }
+        } else if (req.compareMetrics.size() >= 2 || !req.seriesB.isEmpty()) {
+            m.type = "horizontalbarcompare";
+            m.values = seriesForMetric(d, req.metricA, &m.labels, months, req.accountFilter, req.topAccountCount);
+            m.values2 = seriesForMetric(d, req.metricB, &m.labels2, months, req.accountFilter, req.topAccountCount);
+            if (m.labels2.isEmpty()) m.labels2 = m.labels;
+        } else {
+            m.type = "horizontalbar";
+            m.values = seriesForMetric(d, req.metricA, &m.labels, months, req.accountFilter, req.topAccountCount);
+        }
         break;
     case ChartKind::CompareBar:
         m.type = "comparebar";
-        m.values = seriesForMetric(d, req.metricA, &m.labels, months, req.accountFilter);
-        m.values2 = seriesForMetric(d, req.metricB, &m.labels2, months, req.accountFilter);
+        m.values = seriesForMetric(d, req.metricA, &m.labels, months, req.accountFilter, req.topAccountCount);
+        m.values2 = seriesForMetric(d, req.metricB, &m.labels2, months, req.accountFilter, req.topAccountCount);
         if (m.labels2.isEmpty()) m.labels2 = m.labels;
         break;
     case ChartKind::CompareLine:
@@ -318,14 +341,14 @@ static ChartMeta metaForRequest(const AppData& d, const ChartRequest& req)
         if (req.compareMetrics.size() > 2) {
             for (MetricId id : req.compareMetrics) {
                 QStringList labelsForMetric;
-                const QList<double> values = seriesForMetric(d, id, &labelsForMetric, months, req.accountFilter);
+                const QList<double> values = seriesForMetric(d, id, &labelsForMetric, months, req.accountFilter, req.topAccountCount);
                 if (m.labels.isEmpty()) m.labels = labelsForMetric;
                 m.valuesMulti << values;
                 m.seriesNames << metricDisplayName(id);
             }
         } else {
-            m.values = seriesForMetric(d, req.metricA, &m.labels, months, req.accountFilter);
-            m.values2 = seriesForMetric(d, req.metricB, &m.labels2, months, req.accountFilter);
+            m.values = seriesForMetric(d, req.metricA, &m.labels, months, req.accountFilter, req.topAccountCount);
+            m.values2 = seriesForMetric(d, req.metricB, &m.labels2, months, req.accountFilter, req.topAccountCount);
             if (m.labels2.isEmpty()) m.labels2 = m.labels;
         }
         break;
@@ -337,7 +360,7 @@ static ChartMeta metaForRequest(const AppData& d, const ChartRequest& req)
             for (int i = 0; i < req.compareMetrics.size(); ++i) {
                 const MetricId id = req.compareMetrics[i];
                 QStringList labelsForMetric;
-                const QList<double> values = seriesForMetric(d, id, &labelsForMetric, months, req.accountFilter);
+                const QList<double> values = seriesForMetric(d, id, &labelsForMetric, months, req.accountFilter, req.topAccountCount);
                 double total = 0.0;
                 for (double v : values) total += qAbs(v);
                 names << metricDisplayName(id);
@@ -347,8 +370,8 @@ static ChartMeta metaForRequest(const AppData& d, const ChartRequest& req)
             buildComparePieSlices(names, totals, req.comparePieBaseMetric == M_COUNT ? -1 : baseIdx, m.labels, m.values);
             m.referenceValue = 100.0;
         } else {
-            const QList<double> a = seriesForMetric(d, req.metricA, &m.labels, months, req.accountFilter);
-            const QList<double> b = seriesForMetric(d, req.metricB, &m.labels2, months, req.accountFilter);
+            const QList<double> a = seriesForMetric(d, req.metricA, &m.labels, months, req.accountFilter, req.topAccountCount);
+            const QList<double> b = seriesForMetric(d, req.metricB, &m.labels2, months, req.accountFilter, req.topAccountCount);
             double ta = 0.0, tb = 0.0;
             for (double v : a) ta += qAbs(v);
             for (double v : b) tb += qAbs(v);
@@ -665,10 +688,58 @@ static void drawRankedBars(QPainter& p, const QRect& rect, const ChartMeta& meta
         p.setPen(kText);
         p.drawText(QRect(chart.left() + 4, y, 120, rowH), Qt::AlignVCenter | Qt::AlignLeft, QString::number(i + 1) + QStringLiteral(". ") + meta.labels.value(i));
         QRectF bar(barsX, y + 4, barsW * (qAbs(meta.values[i]) / maxV), rowH - 8);
-        p.fillRect(bar, kAccent);
+        p.fillRect(bar, kPal.value(i % kPal.size(), kAccent));
         p.setPen(kMuted);
         p.drawText(QRect(barsX + 6, y, barsW - 6, rowH), Qt::AlignVCenter | Qt::AlignLeft, money(meta.values[i]));
     }
+}
+
+static void drawHorizontalCompareBars(QPainter& p, const QRect& rect, const ChartMeta& meta)
+{
+    QList<QList<double>> seriesList = meta.valuesMulti;
+    QStringList names = meta.seriesNames;
+    if (seriesList.isEmpty() && (!meta.values.isEmpty() || !meta.values2.isEmpty())) {
+        seriesList << meta.values;
+        if (!meta.values2.isEmpty())
+            seriesList << meta.values2;
+        names << (meta.nameA.isEmpty() ? tr_series_a_2b8d21() : meta.nameA);
+        if (!meta.values2.isEmpty())
+            names << (meta.nameB.isEmpty() ? tr_series_b_b63de0() : meta.nameB);
+    }
+    if (seriesList.isEmpty()) return;
+
+    double maxV = 0.0;
+    for (const auto& values : seriesList)
+        for (double v : values)
+            maxV = qMax(maxV, qAbs(v));
+    if (maxV < 0.001) maxV = 1.0;
+
+    QRect chart = rect.adjusted(16, 16, -16, -24);
+    const int n = meta.labels.size();
+    const int seriesCount = qMax(1, seriesList.size());
+    const int rowH = qMax(20, chart.height() / qMax(1, n));
+    const int barsX = chart.left() + 130;
+    const int barsW = chart.width() - 140;
+    const int barH = qMax(4, (rowH - 8) / seriesCount);
+
+    p.setFont(QFont("Segoe UI", 8));
+    for (int i = 0; i < n; ++i) {
+        const int y = chart.top() + i * rowH;
+        p.fillRect(QRect(chart.left(), y, chart.width(), rowH), (i % 2 == 0) ? kRowEven : kRowOdd);
+        p.setPen(kText);
+        p.drawText(QRect(chart.left() + 4, y, 120, rowH), Qt::AlignVCenter | Qt::AlignLeft,
+                   QString::number(i + 1) + QStringLiteral(". ") + meta.labels.value(i));
+        for (int s = 0; s < seriesList.size(); ++s) {
+            const double v = seriesList[s].value(i, 0.0);
+            QRectF bar(barsX, y + 4 + s * barH, barsW * (qAbs(v) / maxV), qMax(3, barH - 2));
+            p.fillRect(bar, kPal.value(s % kPal.size(), kAccent));
+        }
+    }
+
+    QList<QPair<QString, QColor>> legend;
+    for (int i = 0; i < names.size(); ++i)
+        legend << qMakePair(names.value(i, QStringLiteral("Series %1").arg(i + 1)), kPal.value(i % kPal.size(), kAccent));
+    drawLegendRow(p, QRect(rect.left() + 24, rect.bottom() - 18, rect.width() - 48, 16), legend);
 }
 
 static void drawCandles(QPainter& p, const QRect& rect, const ChartMeta& meta)
@@ -783,6 +854,8 @@ static void drawChartPreview(QPainter& p, const QRect& chartArea, const ChartMet
     if (meta.type == "pie") drawPiePreview(p, chartArea, meta);
     else if (meta.type == "comparepie") drawComparePiePreview(p, chartArea, meta);
     else if (meta.type == "rankedbar") drawRankedBars(p, chartArea, meta);
+    else if (meta.type == "horizontalbar") drawRankedBars(p, chartArea, meta);
+    else if (meta.type == "horizontalbarcompare") drawHorizontalCompareBars(p, chartArea, meta);
     else if (meta.type == "candle") drawCandles(p, chartArea, meta);
     else if (meta.type == "comparecandle") drawCompareCandles(p, chartArea, meta);
     else if (meta.type == "compareline") drawLineCompare(p, chartArea, meta);

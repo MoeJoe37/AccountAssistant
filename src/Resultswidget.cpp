@@ -5,12 +5,16 @@
 #include <QHBoxLayout>
 #include <QChart>
 #include <QAbstractSeries>
+#include <QAbstractBarSeries>
 #include <QPieSeries>
 #include <QPieSlice>
 #include <QLegendMarker>
 #include <QCandlestickSeries>
 #include <QCandlestickSet>
 #include <QBarSeries>
+#include <QStackedBarSeries>
+#include <QHorizontalBarSeries>
+#include <QHorizontalStackedBarSeries>
 #include <QBarSet>
 #include <QBarCategoryAxis>
 #include <QValueAxis>
@@ -75,6 +79,18 @@ static const QList<QColor> kPal = {
     "#9b6cf9", "#f06c6c", "#62c4e3", "#b0e96a",
     "#ff9f43", "#fd79a8", "#00cec9", "#fdcb6e"
 };
+
+static QColor paletteColor(int index)
+{
+    if (kPal.isEmpty())
+        return QColor("#4f86f7");
+    return kPal[qAbs(index) % kPal.size()];
+}
+
+static QString colorNameForLegendIndex(int index)
+{
+    return paletteColor(index).name();
+}
 
 
 static QColor seriesColorForName(const QString& name, int fallbackIndex = 0)
@@ -375,6 +391,7 @@ static bool sameChartRequest(const ChartRequest& a, const ChartRequest& b)
         && a.seriesB == b.seriesB
         && a.months == b.months
         && a.accountFilter == b.accountFilter
+        && a.topAccountCount == b.topAccountCount
         && a.origin == b.origin;
 }
 
@@ -2216,7 +2233,8 @@ QChartView* ResultsWidget::makePieChart(const QString& title,
 
 QChartView* ResultsWidget::makeCandleChart(const QString& title,
                                            const QStringList& labels,
-                                           const QList<double>& values)
+                                           const QList<double>& values,
+                                           bool uniqueLegendColors)
 {
     auto* series = new QCandlestickSeries;
     const QColor baseMetricColor = metricColorFromDisplayName(title);
@@ -2287,7 +2305,8 @@ QChartView* ResultsWidget::makeCandleChart(const QString& title,
     const QColor candleBaseColor = metricColorFromDisplayName(title);
     for (int i = 0; i < labels.size() && i < candlePercents.size(); ++i) {
         candleLegendLabels << (labels[i] + QStringLiteral(" — ") + title + QStringLiteral(": ") + percentText(candlePercents[i]));
-        candleLegendColors << ((values.value(i) >= 0.0) ? candleBaseColor.name() : candleBaseColor.darker(130).name());
+        const QColor candleColor = uniqueLegendColors ? paletteColor(i) : ((values.value(i) >= 0.0) ? candleBaseColor : candleBaseColor.darker(130));
+        candleLegendColors << candleColor.name();
     }
     view->setProperty("legendLabels", candleLegendLabels);
     view->setProperty("legendColors", candleLegendColors);
@@ -2303,15 +2322,32 @@ QChartView* ResultsWidget::makeCandleChart(const QString& title,
 
 QChartView* ResultsWidget::makeRankedBarChart(const QString& title,
                                               const QStringList& labels,
-                                              const QList<double>& values)
+                                              const QList<double>& values,
+                                              bool uniqueItemColors)
 {
-    auto* set = new QBarSet(title);
-    set->setColor(metricColorFromDisplayName(title));
-    set->setBorderColor(Qt::transparent);
-    for (double v : values) *set << v;
-
-    auto* series = new QBarSeries;
-    series->append(set);
+    QAbstractBarSeries* series = nullptr;
+    if (uniqueItemColors) {
+        auto* stacked = new QStackedBarSeries;
+        const int n = qMin(labels.size(), values.size());
+        for (int i = 0; i < n; ++i) {
+            auto* set = new QBarSet(labels.value(i, QStringLiteral("Item %1").arg(i + 1)));
+            const QColor c = paletteColor(i);
+            set->setColor(c);
+            set->setBorderColor(Qt::transparent);
+            for (int j = 0; j < n; ++j)
+                *set << (i == j ? values.value(i) : 0.0);
+            stacked->append(set);
+        }
+        series = stacked;
+    } else {
+        auto* set = new QBarSet(title);
+        set->setColor(metricColorFromDisplayName(title));
+        set->setBorderColor(Qt::transparent);
+        for (double v : values) *set << v;
+        auto* bars = new QBarSeries;
+        bars->append(set);
+        series = bars;
+    }
     series->setBarWidth(0.7);
 
     auto* chart = new QChart;
@@ -2346,14 +2382,13 @@ QChartView* ResultsWidget::makeRankedBarChart(const QString& title,
     view->setProperty("chartValues", vl);
     QVariantList vp; for (double x : computePercentages(values)) vp << x;
     view->setProperty("chartPercents", vp);
-    set->setLabel(title);
     QStringList rankedLegendLabels;
     QStringList rankedLegendColors;
     const QList<double> rankedPercents = computePercentages(values);
     const QString rankedColor = metricColorFromDisplayName(title).name();
     for (int i = 0; i < labels.size() && i < rankedPercents.size(); ++i) {
         rankedLegendLabels << (labels[i] + QStringLiteral(" — ") + title);
-        rankedLegendColors << rankedColor;
+        rankedLegendColors << (uniqueItemColors ? colorNameForLegendIndex(i) : rankedColor);
     }
     view->setProperty("legendLabels", rankedLegendLabels);
     view->setProperty("legendColors", rankedLegendColors);
@@ -2362,9 +2397,98 @@ QChartView* ResultsWidget::makeRankedBarChart(const QString& title,
     return view;
 }
 
+QChartView* ResultsWidget::makeHorizontalBarChart(const QString& title,
+                                                 const QStringList& labels,
+                                                 const QList<double>& values,
+                                                 bool uniqueItemColors)
+{
+    double maxV = 0.0;
+    QAbstractBarSeries* series = nullptr;
+    if (uniqueItemColors) {
+        auto* stacked = new QHorizontalStackedBarSeries;
+        const int n = qMin(labels.size(), values.size());
+        for (int i = 0; i < n; ++i) {
+            auto* set = new QBarSet(labels.value(i, QStringLiteral("Item %1").arg(i + 1)));
+            const QColor c = paletteColor(i);
+            set->setColor(c);
+            set->setBorderColor(Qt::transparent);
+            for (int j = 0; j < n; ++j) {
+                const double v = (i == j ? values.value(i) : 0.0);
+                *set << v;
+            }
+            maxV = qMax(maxV, qAbs(values.value(i)));
+            stacked->append(set);
+        }
+        series = stacked;
+    } else {
+        auto* set = new QBarSet(title);
+        set->setColor(metricColorFromDisplayName(title));
+        set->setBorderColor(Qt::transparent);
+        for (double v : values) {
+            *set << v;
+            maxV = qMax(maxV, qAbs(v));
+        }
+        auto* bars = new QHorizontalBarSeries;
+        bars->append(set);
+        series = bars;
+    }
+    series->setBarWidth(0.72);
+
+    auto* chart = new QChart;
+    chart->addSeries(series);
+    applyThemeToChart(chart);
+    chart->setTitle(title);
+    chart->legend()->setVisible(false);
+
+    QColor axisCol = g_lightMode ? QColor("#5a6490") : QColor("#8892b8");
+    QColor gridCol = g_lightMode ? QColor("#e5e7eb") : QColor("#1e2445");
+
+    auto* axY = new QBarCategoryAxis;
+    axY->append(labels);
+    axY->setLabelsColor(axisCol);
+    axY->setGridLineColor(gridCol);
+    axY->setLabelsFont(QFont("Segoe UI", 8));
+    chart->addAxis(axY, Qt::AlignLeft);
+    series->attachAxis(axY);
+
+    auto* axX = new QValueAxis;
+    axX->setLabelsColor(axisCol);
+    axX->setGridLineColor(gridCol);
+    axX->setLabelsFont(QFont("Segoe UI", 8));
+    if (maxV < 0.001) maxV = 1.0;
+    axX->setRange(0.0, maxV * 1.1);
+    chart->addAxis(axX, Qt::AlignBottom);
+    series->attachAxis(axX);
+
+    auto* view = makeChartView(chart);
+    view->setStyleSheet(g_lightMode
+        ? "background:#ffffff; border:none; border-radius:0 0 10px 10px;"
+        : "background:#151929; border:none; border-radius:0 0 10px 10px;");
+    view->setProperty("chartLabels", labels);
+    QVariantList vl; for (double x : values) vl << x;
+    view->setProperty("chartValues", vl);
+    QVariantList vp; for (double x : computePercentages(values)) vp << x;
+    view->setProperty("chartPercents", vp);
+    view->setProperty("chartType", "horizontalbar");
+    view->setProperty("chartTitle", title);
+
+    QStringList legendLabels;
+    QStringList legendColors;
+    const QList<double> percents = computePercentages(values);
+    const QString color = metricColorFromDisplayName(title).name();
+    for (int i = 0; i < labels.size() && i < percents.size(); ++i) {
+        legendLabels << (labels[i] + QStringLiteral(" — ") + title);
+        legendColors << (uniqueItemColors ? colorNameForLegendIndex(i) : color);
+    }
+    view->setProperty("legendLabels", legendLabels);
+    view->setProperty("legendColors", legendColors);
+    return view;
+}
+
 QChartView* ResultsWidget::makeSingleLineChart(const QString& title,
                                                const QStringList& labels,
-                                               const QList<double>& values)
+                                               const QList<double>& values,
+                                               bool uniqueLegendColors)
 {
     auto* line = new QLineSeries;
     line->setName(title);
@@ -2415,7 +2539,7 @@ QChartView* ResultsWidget::makeSingleLineChart(const QString& title,
     const QString lineColor = metricColorFromDisplayName(title).name();
     for (int i = 0; i < labels.size() && i < linePercents.size(); ++i) {
         lineLegendLabels << (labels[i] + QStringLiteral(" — ") + title);
-        lineLegendColors << lineColor;
+        lineLegendColors << (uniqueLegendColors ? colorNameForLegendIndex(i) : lineColor);
     }
     view->setProperty("legendLabels", lineLegendLabels);
     view->setProperty("legendColors", lineLegendColors);
@@ -2749,6 +2873,96 @@ QChartView* ResultsWidget::makeMultiCompareBarChart(const QString& title,
     return view;
 }
 
+QChartView* ResultsWidget::makeMultiCompareHorizontalBarChart(const QString& title,
+                                                            const QStringList& labels,
+                                                            const QList<QList<double>>& seriesList,
+                                                            const QStringList& names)
+{
+    auto* series = new QHorizontalBarSeries;
+    double maxV = 0.0;
+    for (int i = 0; i < seriesList.size(); ++i) {
+        const auto& vals = seriesList[i];
+        const QString seriesName = names.value(i, QStringLiteral("Series %1").arg(i + 1));
+        auto* set = new QBarSet(seriesName);
+        const QColor col = paletteColor(i);
+        set->setColor(col);
+        set->setBorderColor(Qt::transparent);
+        for (double v : vals) {
+            *set << v;
+            maxV = qMax(maxV, qAbs(v));
+        }
+        series->append(set);
+    }
+    series->setBarWidth(0.72);
+
+    auto* chart = new QChart;
+    chart->addSeries(series);
+    applyThemeToChart(chart);
+    chart->setTitle(title);
+    chart->legend()->setVisible(false);
+
+    QColor axisCol = g_lightMode ? QColor("#5a6490") : QColor("#8892b8");
+    QColor gridCol = g_lightMode ? QColor("#e5e7eb") : QColor("#1e2445");
+
+    auto* axY = new QBarCategoryAxis;
+    axY->append(labels);
+    axY->setLabelsColor(axisCol);
+    axY->setGridLineColor(gridCol);
+    axY->setLabelsFont(QFont("Segoe UI", 8));
+    chart->addAxis(axY, Qt::AlignLeft);
+    series->attachAxis(axY);
+
+    auto* axX = new QValueAxis;
+    axX->setLabelsColor(axisCol);
+    axX->setGridLineColor(gridCol);
+    axX->setLabelsFont(QFont("Segoe UI", 8));
+    if (maxV < 0.001) maxV = 1.0;
+    axX->setRange(0.0, maxV * 1.1);
+    chart->addAxis(axX, Qt::AlignBottom);
+    series->attachAxis(axX);
+
+    auto* view = makeChartView(chart);
+    view->setStyleSheet(g_lightMode ? "background:#ffffff; border:none; border-radius:0 0 10px 10px;"
+                                    : "background:#151929; border:none; border-radius:0 0 10px 10px;");
+    view->setProperty("chartLabels", labels);
+    view->setProperty("chartType", "horizontalbarcompare");
+    view->setProperty("chartTitle", title);
+    view->setProperty("chartSeriesNames", names);
+
+    QVariantList valuesProp;
+    QList<QList<double>> rawValueLists;
+    for (const auto& vals : seriesList) {
+        QVariantList one; for (double x : vals) one << x;
+        valuesProp << one;
+        rawValueLists << vals;
+    }
+    const QList<QList<double>> pctLists = ensurePerMonthPercentLists({}, rawValueLists, labels.size());
+    QVariantList percentProp;
+    for (const auto& pctVals : pctLists) {
+        QVariantList pp; for (double x : pctVals) pp << x;
+        percentProp << pp;
+    }
+    view->setProperty("chartValuesMulti", valuesProp);
+    view->setProperty("chartPercentsMulti", percentProp);
+
+    QStringList legendLabels;
+    QStringList legendColors;
+    buildPerMonthLegend(labels, names, pctLists, legendLabels, legendColors);
+    if (legendLabels.isEmpty()) {
+        for (int i = 0; i < names.size(); ++i) {
+            const QString cleanName = cleanLegendSeriesName(names.value(i, QStringLiteral("Series %1").arg(i + 1)));
+            legendLabels << cleanName;
+            legendColors << colorNameForLegendIndex(i);
+        }
+    } else if (!names.isEmpty()) {
+        for (int i = 0; i < legendColors.size(); ++i)
+            legendColors[i] = colorNameForLegendIndex(i % names.size());
+    }
+    view->setProperty("legendLabels", legendLabels);
+    view->setProperty("legendColors", legendColors);
+    return view;
+}
+
 QChartView* ResultsWidget::makeMultiCompareLineChart(const QString& title,
                                                     const QStringList& labels,
                                                     const QList<QList<double>>& seriesList,
@@ -3048,10 +3262,10 @@ static void buildPerMonthLegend(const QStringList& monthLabels,
 }
 
 
-static QStringList comparisonAxisLabels(const AppData& data, MetricId xMetric, const QList<int>* months, AccountTypeFilter accountFilter)
+static QStringList comparisonAxisLabels(const AppData& data, MetricId xMetric, const QList<int>* months, AccountTypeFilter accountFilter, int topAccountCount = 0)
 {
     QStringList labels;
-    metricSeriesValues(data, xMetric, &labels, months, accountFilter);
+    metricSeriesValues(data, xMetric, &labels, months, accountFilter, topAccountCount);
     if (xMetric == M_SUPPLIER_NAME && months) {
         const auto monthNamesList = monthNames();
         int outIdx = 0;
@@ -3142,6 +3356,7 @@ static void applySupplierComparisonLegend(QChartView* view,
         return;
 
     const QList<QList<double>> pctLists = ensurePerMonthPercentLists({}, valueLists, pointCount);
+    const bool forcePaletteColors = view->property("chartType").toString().contains(QStringLiteral("horizontalbar"));
     QStringList legendLabels;
     QStringList legendColors;
 
@@ -3160,7 +3375,7 @@ static void applySupplierComparisonLegend(QChartView* view,
                 continue;
             const QString cleanName = cleanLegendSeriesName(seriesNames.value(s));
             legendLabels << (prefix + QStringLiteral(" — ") + cleanName);
-            legendColors << seriesColorForName(cleanName, s).name();
+            legendColors << (forcePaletteColors ? colorNameForLegendIndex(s) : seriesColorForName(cleanName, s).name());
         }
     }
 
@@ -3377,12 +3592,44 @@ static void applySeriesOnlyLegend(QChartView* view, const QStringList& seriesNam
     for (int i = 0; i < seriesNames.size(); ++i) {
         const QString name = cleanLegendSeriesName(seriesNames.value(i));
         legendLabels << name;
-        legendColors << seriesColorForName(name, i).name();
+        legendColors << colorNameForLegendIndex(i);
     }
     view->setProperty("legendLabels", legendLabels);
     view->setProperty("legendColors", legendColors);
     view->setProperty("legendLabelsLocked", true);
     view->setProperty("suppressPercentLabels", true);
+}
+
+static void applySeriesPaletteColors(QChartView* view)
+{
+    if (!view || !view->chart())
+        return;
+
+    int index = 0;
+    const auto chartSeries = view->chart()->series();
+    for (QAbstractSeries* abstractSeries : chartSeries) {
+        if (auto* bars = qobject_cast<QAbstractBarSeries*>(abstractSeries)) {
+            const auto sets = bars->barSets();
+            for (QBarSet* set : sets) {
+                if (!set)
+                    continue;
+                const QColor c = paletteColor(index++);
+                set->setColor(c);
+                set->setBorderColor(Qt::transparent);
+            }
+            continue;
+        }
+        if (auto* line = qobject_cast<QLineSeries*>(abstractSeries)) {
+            line->setColor(paletteColor(index++));
+            continue;
+        }
+        if (auto* candle = qobject_cast<QCandlestickSeries*>(abstractSeries)) {
+            const QColor c = paletteColor(index++);
+            candle->setIncreasingColor(c);
+            candle->setDecreasingColor(c.darker(120));
+            continue;
+        }
+    }
 }
 QChartView* ResultsWidget::createChartView(const AppData& data, const ChartRequest& request)
 {
@@ -3462,19 +3709,23 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
             view = makeMultiCompareCandleChart(chartTitle, monthLabels, seriesValues, seriesNames);
         else if (request.kind == ChartKind::MetricLine || request.kind == ChartKind::CompareLine)
             view = makeMultiCompareLineChart(chartTitle, monthLabels, seriesValues, seriesNames);
+        else if (request.kind == ChartKind::HorizontalBar)
+            view = makeMultiCompareHorizontalBarChart(chartTitle, monthLabels, seriesValues, seriesNames);
         else
             view = makeMultiCompareBarChart(chartTitle, monthLabels, seriesValues, seriesNames);
+        applySeriesPaletteColors(view);
         applySeriesOnlyLegend(view, seriesNames, seriesValues);
         return view;
     }
 
+    const bool accountGraphOrigin = request.origin == ChartOrigin::Accounts;
     QStringList labels;
     const QList<int>* months = request.months.isEmpty() ? nullptr : &request.months;
     const MetricId effectiveXAxisMetric = (!request.axisMetricsAuto && request.xAxisMetric >= M_SALES && request.xAxisMetric < M_COUNT) ? request.xAxisMetric : M_COUNT;
     const MetricId effectiveYAxisMetric = (!request.axisMetricsAuto && request.yAxisMetric >= M_SALES && request.yAxisMetric < M_COUNT) ? request.yAxisMetric : request.metricA;
     if (effectiveXAxisMetric != M_COUNT)
-        labels = comparisonAxisLabels(data, effectiveXAxisMetric, months, request.accountFilter);
-    QList<double> a = metricSeriesValues(data, effectiveYAxisMetric, effectiveXAxisMetric == M_COUNT ? &labels : nullptr, months, request.accountFilter);
+        labels = comparisonAxisLabels(data, effectiveXAxisMetric, months, request.accountFilter, request.topAccountCount);
+    QList<double> a = metricSeriesValues(data, effectiveYAxisMetric, effectiveXAxisMetric == M_COUNT ? &labels : nullptr, months, request.accountFilter, request.topAccountCount);
     QList<double> b;
     QString title = request.title.isEmpty() ? metricDisplayName(request.metricA) : request.title;
     const bool includeSummaryPoint = request.includeSummaryPoint && request.kind != ChartKind::Pie && request.kind != ChartKind::ComparePie;
@@ -3488,12 +3739,12 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
             compareMetrics << request.metricB;
     }
 
-    if (compareMetrics.size() > 2 && (request.kind == ChartKind::CompareBar || request.kind == ChartKind::CompareLine || request.kind == ChartKind::ComparePie || request.kind == ChartKind::Candle)) {
+    if (compareMetrics.size() > 2 && (request.kind == ChartKind::CompareBar || request.kind == ChartKind::CompareLine || request.kind == ChartKind::ComparePie || request.kind == ChartKind::Candle || request.kind == ChartKind::HorizontalBar)) {
         QList<QList<double>> seriesList;
         QStringList names;
         for (MetricId id : compareMetrics) {
             QStringList labelsForMetric;
-            QList<double> values = metricSeriesValues(data, id, &labelsForMetric, months, request.accountFilter);
+            QList<double> values = metricSeriesValues(data, id, &labelsForMetric, months, request.accountFilter, request.topAccountCount);
             if (labels.isEmpty())
                 labels = labelsForMetric;
             seriesList << values;
@@ -3528,6 +3779,12 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
                 applySupplierComparisonLegend(view, data, months, labels, names, seriesList);
             return view;
         }
+        if (request.kind == ChartKind::HorizontalBar) {
+            auto* view = makeMultiCompareHorizontalBarChart(title, labels, seriesList, names);
+            if (supplierMetricLegend)
+                applySupplierComparisonLegend(view, data, months, labels, names, seriesList);
+            return view;
+        }
         if (request.kind == ChartKind::ComparePie) {
             QList<double> totals;
             for (const auto& values : seriesList) {
@@ -3552,7 +3809,7 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
         return view;
     }
 
-    if (compareMetrics.size() == 1 && (request.kind == ChartKind::CompareBar || request.kind == ChartKind::CompareLine || request.kind == ChartKind::Candle)) {
+    if (compareMetrics.size() == 1 && (request.kind == ChartKind::CompareBar || request.kind == ChartKind::CompareLine || request.kind == ChartKind::Candle || request.kind == ChartKind::HorizontalBar)) {
         if (includeSummaryPoint) {
             appendSummaryLabel(labels);
             appendSummaryValue(a);
@@ -3561,6 +3818,12 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
         const QList<QList<double>> values{a};
         if (request.kind == ChartKind::CompareLine) {
             auto* view = makeSingleLineChart(title, labels, a);
+            if (supplierMetricLegend)
+                applySupplierComparisonLegend(view, data, months, labels, names, values);
+            return view;
+        }
+        if (request.kind == ChartKind::HorizontalBar) {
+            auto* view = makeHorizontalBarChart(title, labels, a, true);
             if (supplierMetricLegend)
                 applySupplierComparisonLegend(view, data, months, labels, names, values);
             return view;
@@ -3583,7 +3846,7 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
     case ChartKind::Candle:
         if (!request.seriesB.isEmpty()) {
             QStringList labelsB;
-            b = metricSeriesValues(data, request.metricB, &labelsB, months, request.accountFilter);
+            b = metricSeriesValues(data, request.metricB, &labelsB, months, request.accountFilter, request.topAccountCount);
             if (includeSummaryPoint) {
                 appendSummaryLabel(labels);
                 appendSummaryValue(a);
@@ -3614,23 +3877,55 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
             appendSummaryLabel(labels);
             appendSummaryValue(a);
         }
-        return makeCandleChart(title, labels, a);
+        return makeCandleChart(title, labels, a, accountGraphOrigin);
     case ChartKind::RankedBar:
     case ChartKind::MetricBar:
         if (includeSummaryPoint) {
             appendSummaryLabel(labels);
             appendSummaryValue(a);
         }
-        return makeRankedBarChart(title, labels, a);
+        return makeRankedBarChart(title, labels, a, accountGraphOrigin);
     case ChartKind::MetricLine:
         if (includeSummaryPoint) {
             appendSummaryLabel(labels);
             appendSummaryValue(a);
         }
-        return makeSingleLineChart(title, labels, a);
+        return makeSingleLineChart(title, labels, a, accountGraphOrigin);
+    case ChartKind::HorizontalBar: {
+        if (request.compareMetrics.size() >= 2 || !request.seriesB.isEmpty()) {
+            QStringList labelsB;
+            b = metricSeriesValues(data, request.metricB, &labelsB, months, request.accountFilter, request.topAccountCount);
+            if (includeSummaryPoint) {
+                appendSummaryLabel(labels);
+                appendSummaryValue(a);
+                appendSummaryValue(b);
+            }
+            QString nameA = request.seriesA.isEmpty() ? metricDisplayName(effectiveYAxisMetric) : request.seriesA;
+            QString nameB = request.seriesB.isEmpty() ? metricDisplayName(request.metricB) : request.seriesB;
+            if (usePercentBase) {
+                QList<double> baseSeries;
+                if (request.comparePieBaseMetric == effectiveYAxisMetric) baseSeries = a;
+                else if (request.comparePieBaseMetric == request.metricB) baseSeries = b;
+                if (!baseSeries.isEmpty()) {
+                    a = computePercentagesAgainstBase(a, baseSeries);
+                    b = computePercentagesAgainstBase(b, baseSeries);
+                    title += QStringLiteral(" — ") + metricDisplayName(request.comparePieBaseMetric) + QStringLiteral(" = 100%");
+                }
+            }
+            auto* view = makeMultiCompareHorizontalBarChart(title, labels, QList<QList<double>>{a, b}, QStringList{nameA, nameB});
+            if (supplierMetricLegend)
+                applySupplierComparisonLegend(view, data, months, labels, QStringList{nameA, nameB}, QList<QList<double>>{a, b});
+            return view;
+        }
+        if (includeSummaryPoint) {
+            appendSummaryLabel(labels);
+            appendSummaryValue(a);
+        }
+        return makeHorizontalBarChart(title, labels, a, accountGraphOrigin || request.origin == ChartOrigin::Custom);
+    }
     case ChartKind::CompareBar: {
         QStringList labelsB;
-        b = metricSeriesValues(data, request.metricB, &labelsB, months, request.accountFilter);
+        b = metricSeriesValues(data, request.metricB, &labelsB, months, request.accountFilter, request.topAccountCount);
         if (includeSummaryPoint) {
             appendSummaryLabel(labels);
             appendSummaryValue(a);
@@ -3659,7 +3954,7 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
     }
     case ChartKind::CompareLine: {
         QStringList labelsB;
-        b = metricSeriesValues(data, request.metricB, &labelsB, months, request.accountFilter);
+        b = metricSeriesValues(data, request.metricB, &labelsB, months, request.accountFilter, request.topAccountCount);
         if (includeSummaryPoint) {
             appendSummaryLabel(labels);
             appendSummaryValue(a);
@@ -3688,7 +3983,7 @@ QChartView* ResultsWidget::createChartView(const AppData& data, const ChartReque
     }
     case ChartKind::ComparePie: {
         QStringList labelsB;
-        b = metricSeriesValues(data, request.metricB, &labelsB, months, request.accountFilter);
+        b = metricSeriesValues(data, request.metricB, &labelsB, months, request.accountFilter, request.topAccountCount);
         double va = 0.0, vb = 0.0;
         for (double x : a) va += qAbs(x);
         for (double x : b) vb += qAbs(x);

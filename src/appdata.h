@@ -6,6 +6,7 @@
 #include <QList>
 #include <QMap>
 #include <QColor>
+#include <QtGlobal>
 #include "translations.h"
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -57,19 +58,45 @@ struct SupplierEntry {
 //  Expense/account entry independent from months
 // ─────────────────────────────────────────────────────────────────────────────
 enum class AccountType {
+    // Keep the legacy values stable so older locally saved data remains readable.
     Payable = 0,
-    Receivable = 1
+    Receivable = 1,
+    Capital = 2,
+    CostsOfRevenue = 3,
+    FixedAssets = 4,
+    CurrentYearsEarnings = 5,
+    Expenses = 6,
+    PrepaidPayments = 7,
+    Income = 8,
+    BankAndCash = 9,
+    CurrentAssets = 10,
+    NonCurrentLiabilities = 11,
+    CurrentLiabilities = 12
 };
 
 enum class AccountTypeFilter {
-    All = 0,
-    Payable = 1,
-    Receivable = 2
+    All = -1,
+    Payable = 0,
+    Receivable = 1,
+    Capital = 2,
+    CostsOfRevenue = 3,
+    FixedAssets = 4,
+    CurrentYearsEarnings = 5,
+    Expenses = 6,
+    PrepaidPayments = 7,
+    Income = 8,
+    BankAndCash = 9,
+    CurrentAssets = 10,
+    NonCurrentLiabilities = 11,
+    CurrentLiabilities = 12
 };
 
 struct AccountItem {
+    QString code;
     QString name;
-    double  amount = 0.0;
+    QString currency;
+    bool allowSettlement = false;
+    double amount = 0.0; // legacy amount kept for existing charts/imports
     AccountType type = AccountType::Payable;
 };
 
@@ -122,7 +149,8 @@ enum class ChartKind {
     ComparePie,
     RankedBar,
     MetricBar,
-    MetricLine
+    MetricLine,
+    HorizontalBar
 };
 
 enum class InventoryMode {
@@ -156,6 +184,7 @@ struct ChartRequest {
     QString seriesB;
     QList<int> months;   // Empty means all months
     AccountTypeFilter accountFilter = AccountTypeFilter::All;
+    int topAccountCount = 0; // 0 means show all accounts; used by Expenses top-account charts.
     bool includeSummaryPoint = false;
     ChartOrigin origin = ChartOrigin::Custom;
 };
@@ -298,23 +327,85 @@ inline bool appDataHasUserEntries(const AppData& d)
     return false;
 }
 
+inline QList<AccountType> accountTypesInUiOrder()
+{
+    return {
+        AccountType::Capital,
+        AccountType::CostsOfRevenue,
+        AccountType::FixedAssets,
+        AccountType::CurrentYearsEarnings,
+        AccountType::Expenses,
+        AccountType::Receivable,
+        AccountType::PrepaidPayments,
+        AccountType::Income,
+        AccountType::Payable,
+        AccountType::BankAndCash,
+        AccountType::CurrentAssets,
+        AccountType::NonCurrentLiabilities,
+        AccountType::CurrentLiabilities
+    };
+}
+
 inline QString accountTypeDisplayName(AccountType type)
 {
     switch (type) {
-    case AccountType::Payable:   return tr_account_payable_003206();
-    case AccountType::Receivable:return tr_account_receivable_59bf34();
+    case AccountType::Capital:               return T("Capital", "رأس المال");
+    case AccountType::CostsOfRevenue:        return T("Costs of Revenue", "تكاليف الإيرادات");
+    case AccountType::FixedAssets:           return T("Fixed Assets", "الأصول الثابتة");
+    case AccountType::CurrentYearsEarnings:  return T("Current Year's Earnings", "أرباح السنة الحالية");
+    case AccountType::Expenses:              return T("Expenses", "المصروفات");
+    case AccountType::Receivable:            return T("Receivable", "حسابات مدينة");
+    case AccountType::PrepaidPayments:       return T("Prepaid Payments", "مدفوعات مقدمة");
+    case AccountType::Income:                return T("Income", "الدخل");
+    case AccountType::Payable:               return T("Payable", "حسابات دائنة");
+    case AccountType::BankAndCash:           return T("Bank and Cash", "البنك والنقد");
+    case AccountType::CurrentAssets:         return T("Current Assets", "الأصول المتداولة");
+    case AccountType::NonCurrentLiabilities: return T("Non-Current Liabilities", "الالتزامات غير المتداولة");
+    case AccountType::CurrentLiabilities:    return T("Current Liabilities", "الالتزامات المتداولة");
     }
-    return tr_account_payable_003206();
+    return T("Payable", "حسابات دائنة");
+}
+
+inline AccountType accountTypeFromText(const QString& text)
+{
+    QString k = text.trimmed().toCaseFolded();
+    k.remove(QChar('\''));
+    k.replace(QChar('_'), QChar(' '));
+    k.replace(QChar('-'), QChar(' '));
+    while (k.contains(QStringLiteral("  ")))
+        k.replace(QStringLiteral("  "), QStringLiteral(" "));
+
+    if (k.contains(QStringLiteral("capital")) || k.contains(QStringLiteral("رأس المال"))) return AccountType::Capital;
+    if (k.contains(QStringLiteral("costs of revenue")) || k.contains(QStringLiteral("cost of revenue")) || k.contains(QStringLiteral("تكاليف الإيرادات"))) return AccountType::CostsOfRevenue;
+    if (k.contains(QStringLiteral("fixed assets")) || k.contains(QStringLiteral("الأصول الثابتة")) || k.contains(QStringLiteral("أصول ثابتة"))) return AccountType::FixedAssets;
+    if (k.contains(QStringLiteral("current years earnings")) || k.contains(QStringLiteral("current year earnings")) || k.contains(QStringLiteral("أرباح السنة"))) return AccountType::CurrentYearsEarnings;
+    if (k == QStringLiteral("expenses") || k.contains(QStringLiteral("expense")) || k.contains(QStringLiteral("المصروف"))) return AccountType::Expenses;
+    if (k.contains(tr_import_account_type_receivable_ar_keyword()) || k.contains(QStringLiteral("receivable")) || k.contains(QStringLiteral("حسابات مدينة"))) return AccountType::Receivable;
+    if (k.contains(QStringLiteral("prepaid payments")) || k.contains(QStringLiteral("prepaid")) || k.contains(QStringLiteral("مدفوعات مقدمة"))) return AccountType::PrepaidPayments;
+    if (k.contains(QStringLiteral("income")) || k.contains(QStringLiteral("الدخل"))) return AccountType::Income;
+    if (k.contains(QStringLiteral("bank and cash")) || k.contains(QStringLiteral("cash")) || k.contains(QStringLiteral("bank")) || k.contains(QStringLiteral("البنك")) || k.contains(QStringLiteral("النقد"))) return AccountType::BankAndCash;
+    if (k.contains(QStringLiteral("current assets")) || k.contains(QStringLiteral("الأصول المتداولة"))) return AccountType::CurrentAssets;
+    if (k.contains(QStringLiteral("non current liabilities")) || k.contains(QStringLiteral("noncurrent liabilities")) || k.contains(QStringLiteral("الالتزامات غير المتداولة"))) return AccountType::NonCurrentLiabilities;
+    if (k.contains(QStringLiteral("current liabilities")) || k.contains(QStringLiteral("الالتزامات المتداولة"))) return AccountType::CurrentLiabilities;
+    if (k.contains(QStringLiteral("payable")) || k.contains(QStringLiteral("حسابات دائنة"))) return AccountType::Payable;
+    return AccountType::Payable;
+}
+
+inline AccountTypeFilter accountTypeFilterFromType(AccountType type)
+{
+    return static_cast<AccountTypeFilter>(static_cast<int>(type));
+}
+
+inline bool accountMatchesFilter(AccountType type, AccountTypeFilter filter)
+{
+    return filter == AccountTypeFilter::All || static_cast<int>(type) == static_cast<int>(filter);
 }
 
 inline QString accountTypeFilterDisplayName(AccountTypeFilter type)
 {
-    switch (type) {
-    case AccountTypeFilter::All:        return tr_all_b4d286();
-    case AccountTypeFilter::Payable:    return tr_account_payable_003206();
-    case AccountTypeFilter::Receivable: return tr_account_receivable_59bf34();
-    }
-    return tr_all_b4d286();
+    if (type == AccountTypeFilter::All)
+        return tr_all_b4d286();
+    return accountTypeDisplayName(static_cast<AccountType>(static_cast<int>(type)));
 }
 
 inline QString metricDisplayName(MetricId id)
@@ -349,7 +440,7 @@ inline bool metricUsesMonthlySeries(MetricId id)
     return id != M_EXPENSES && id != M_COGS_VS_PROFIT;
 }
 
-inline QList<double> metricSeriesValues(const AppData& d, MetricId id, QStringList* labels = nullptr, const QList<int>* monthFilter = nullptr, AccountTypeFilter accountFilter = AccountTypeFilter::All)
+inline QList<double> metricSeriesValues(const AppData& d, MetricId id, QStringList* labels = nullptr, const QList<int>* monthFilter = nullptr, AccountTypeFilter accountFilter = AccountTypeFilter::All, int topAccountCount = 0)
 {
     if (labels)
         labels->clear();
@@ -359,6 +450,36 @@ inline QList<double> metricSeriesValues(const AppData& d, MetricId id, QStringLi
     };
 
     QList<double> values;
+    auto applyTopAccountLimit = [&]() {
+        if (id != M_EXPENSES || topAccountCount <= 0 || values.size() <= topAccountCount)
+            return;
+        struct AccountPoint {
+            QString label;
+            double value = 0.0;
+        };
+        QList<AccountPoint> points;
+        for (int i = 0; i < values.size(); ++i) {
+            AccountPoint point;
+            point.value = values.value(i);
+            if (labels && i < labels->size())
+                point.label = labels->value(i);
+            points.append(point);
+        }
+        std::sort(points.begin(), points.end(), [](const AccountPoint& a, const AccountPoint& b) {
+            return a.value > b.value;
+        });
+        while (points.size() > topAccountCount)
+            points.removeLast();
+        values.clear();
+        if (labels)
+            labels->clear();
+        for (const AccountPoint& point : points) {
+            values << point.value;
+            if (labels)
+                *labels << point.label;
+        }
+    };
+
     switch (id) {
     case M_SALES:
         for (int i = 0; i < 12; ++i) if (includeMonth(i)) values << d.months[i].sales;
@@ -415,19 +536,17 @@ inline QList<double> metricSeriesValues(const AppData& d, MetricId id, QStringLi
     case M_EXPENSES:
         if (!d.accounts.isEmpty()) {
             for (const auto& a : d.accounts) {
-                if (accountFilter == AccountTypeFilter::Payable && a.type != AccountType::Payable)
-                    continue;
-                if (accountFilter == AccountTypeFilter::Receivable && a.type != AccountType::Receivable)
+                if (!accountMatchesFilter(a.type, accountFilter))
                     continue;
                 values << a.amount;
             }
             if (labels) {
                 for (const auto& a : d.accounts) {
-                    if (accountFilter == AccountTypeFilter::Payable && a.type != AccountType::Payable)
+                    if (!accountMatchesFilter(a.type, accountFilter))
                         continue;
-                    if (accountFilter == AccountTypeFilter::Receivable && a.type != AccountType::Receivable)
-                        continue;
-                    *labels << a.name;
+                    *labels << (!a.code.trimmed().isEmpty()
+                        ? (a.code.trimmed() + QStringLiteral(" - ") + a.name)
+                        : a.name);
                 }
             }
         } else {
@@ -546,6 +665,7 @@ inline QList<double> metricSeriesValues(const AppData& d, MetricId id, QStringLi
     case M_COUNT:
         break;
     }
+    applyTopAccountLimit();
     return values;
 }
 

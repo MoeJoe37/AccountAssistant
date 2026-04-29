@@ -79,7 +79,8 @@ private:
                                     const QList<double>& values);
     static QChartView* makeCandleChart(const QString& title,
                                        const QStringList& labels,
-                                       const QList<double>& values);
+                                       const QList<double>& values,
+                                       bool uniqueLegendColors = false);
     static QChartView* makeCompareCandleChart(const QString& title,
                                               const QStringList& labels,
                                               const QList<double>& seriesA,
@@ -92,10 +93,16 @@ private:
                                                    const QStringList& names);
     static QChartView* makeRankedBarChart(const QString& title,
                                           const QStringList& labels,
-                                          const QList<double>& values);
+                                          const QList<double>& values,
+                                          bool uniqueItemColors = false);
+    static QChartView* makeHorizontalBarChart(const QString& title,
+                                             const QStringList& labels,
+                                             const QList<double>& values,
+                                             bool uniqueItemColors = false);
     static QChartView* makeSingleLineChart(const QString& title,
                                            const QStringList& labels,
-                                           const QList<double>& values);
+                                           const QList<double>& values,
+                                           bool uniqueLegendColors = false);
     static QChartView* makeCompareBarChart(const QString& title,
                                            const QStringList& labels,
                                            const QList<double>& seriesA,
@@ -106,6 +113,10 @@ private:
                                                 const QStringList& labels,
                                                 const QList<QList<double>>& seriesList,
                                                 const QStringList& names);
+    static QChartView* makeMultiCompareHorizontalBarChart(const QString& title,
+                                                         const QStringList& labels,
+                                                         const QList<QList<double>>& seriesList,
+                                                         const QStringList& names);
     static QChartView* makeCompareLineChart(const QString& title,
                                             const QStringList& labels,
                                             const QList<double>& seriesA,

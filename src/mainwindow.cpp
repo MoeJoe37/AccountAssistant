@@ -237,7 +237,28 @@ static QString xmlEscape(const QString& s)
 
 enum class XlsxSheetKind { DataEntry, Expenses, Suppliers, AllData };
 
-static QByteArray makeWorksheetXml(const QStringList& headers, const QList<QStringList>& rows)
+static QString accountTypeExpenseExportName(AccountType type)
+{
+    switch (type) {
+    case AccountType::Capital:               return QStringLiteral("رأس المال");
+    case AccountType::CostsOfRevenue:        return QStringLiteral("تكاليف الإيرادات");
+    case AccountType::FixedAssets:           return QStringLiteral("أصول ثابتة");
+    case AccountType::CurrentYearsEarnings:  return QStringLiteral("أرباح السنة الحالية");
+    case AccountType::Expenses:              return QStringLiteral("المصروفات");
+    case AccountType::Receivable:            return QStringLiteral("حسابات مدينة");
+    case AccountType::PrepaidPayments:       return QStringLiteral("مدفوعات مقدمة");
+    case AccountType::Income:                return QStringLiteral("الدخل");
+    case AccountType::Payable:               return QStringLiteral("حسابات دائنة");
+    case AccountType::BankAndCash:           return QStringLiteral("البنك والنقد");
+    case AccountType::CurrentAssets:         return QStringLiteral("الأصول المتداولة");
+    case AccountType::NonCurrentLiabilities: return QStringLiteral("الالتزامات غير المتداولة");
+    case AccountType::CurrentLiabilities:    return QStringLiteral("الالتزامات المتداولة");
+    }
+    return QStringLiteral("حسابات دائنة");
+}
+
+
+static QByteArray makeWorksheetXml(const QStringList& headers, const QList<QStringList>& rows, bool includeSignature = true)
 {
     QByteArray ba;
     QBuffer buffer(&ba);
@@ -274,9 +295,10 @@ static QByteArray makeWorksheetXml(const QStringList& headers, const QList<QStri
         w.writeEndElement();
     };
 
-    writeRow(1, {"ACCOUNT_ASSISTANT_EXPORT", "6.0.0"});
-    writeRow(2, headers);
-    int row = 3;
+    int row = 1;
+    if (includeSignature)
+        writeRow(row++, {"ACCOUNT_ASSISTANT_EXPORT", "6.0.0"});
+    writeRow(row++, headers);
     for (const auto& r : rows)
         writeRow(row++, r);
 
@@ -408,8 +430,8 @@ static bool saveWorkbookXlsx(const QString& path, const QList<QPair<QString, QBy
 static QList<QPair<QString, QByteArray>> buildSheetsForExport(const AppData& data, XlsxSheetKind kind)
 {
     QList<QPair<QString, QByteArray>> sheets;
-    auto addSheet = [&](const QString& sheetName, const QStringList& headers, const QList<QStringList>& rows) {
-        sheets.push_back({sheetName, makeWorksheetXml(headers, rows)});
+    auto addSheet = [&](const QString& sheetName, const QStringList& headers, const QList<QStringList>& rows, bool includeSignature = true) {
+        sheets.push_back({sheetName, makeWorksheetXml(headers, rows, includeSignature)});
     };
 
     switch (kind) {
@@ -432,11 +454,16 @@ static QList<QPair<QString, QByteArray>> buildSheetsForExport(const AppData& dat
         break;
     }
     case XlsxSheetKind::Expenses: {
-        QStringList headers = {"EXPENSES", "Account Name", "Account Type", "Amount"};
+        QStringList headers = {QStringLiteral("الكود"), QStringLiteral("اسم الحساب"), QStringLiteral("الرصيد الحالي"), QStringLiteral("النوع/نوع الحساب"), QStringLiteral("السماح بالتسوية")};
         QList<QStringList> rows;
-        for (const auto& a : data.accounts)
-            rows.push_back({"EXPENSES", a.name, accountTypeDisplayName(a.type), QString::number(a.amount, 'f', 2)});
-        addSheet("EXPENSES", headers, rows);
+        for (const auto& a : data.accounts) {
+            rows.push_back({a.code,
+                            a.name,
+                            QString::number(a.amount, 'f', 2),
+                            accountTypeExpenseExportName(a.type),
+                            a.allowSettlement ? QStringLiteral("نعم") : QStringLiteral("لا")});
+        }
+        addSheet("EXPENSES", headers, rows, false);
         break;
     }
     case XlsxSheetKind::Suppliers: {
@@ -883,7 +910,9 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
             headerRowIndex = i;
             break;
         }
-        if (rowContainsHeader(rows[i], QStringLiteral("Account Name")) && rowContainsHeader(rows[i], QStringLiteral("Amount"))) {
+        if ((rowContainsHeader(rows[i], QStringLiteral("Account Name")) && rowContainsHeader(rows[i], QStringLiteral("Amount"))) ||
+            (rowContainsHeader(rows[i], QStringLiteral("اسم الحساب")) && rowContainsHeader(rows[i], QStringLiteral("الرصيد الحالي"))) ||
+            (rowContainsHeader(rows[i], QStringLiteral("الكود")) && rowContainsHeader(rows[i], QStringLiteral("النوع/نوع الحساب")))) {
             marker = QStringLiteral("EXPENSES");
             headerRowIndex = i;
             break;
@@ -978,30 +1007,47 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
             }
         }
     } else if (marker == QStringLiteral("EXPENSES")) {
-        const int cName = findColumn(cols, {"Account Name", "Expense Account"});
-        const int cType = findColumn(cols, {"Account Type", "Type"});
-        const int cAmount = findColumn(cols, {"Amount", "Expense Amount"});
-        if (cName < 0 || cType < 0 || cAmount < 0) {
+        const int cCode = findColumn(cols, {"Account Code", "Code", QStringLiteral("الكود"), QStringLiteral("كود")});
+        const int cName = findColumn(cols, {"Account Name", "Expense Account", QStringLiteral("اسم الحساب"), QStringLiteral("الحساب")});
+        const int cType = findColumn(cols, {"Account Type", "Type", QStringLiteral("النوع/نوع الحساب"), QStringLiteral("نوع الحساب"), QStringLiteral("النوع")});
+        const int cSettlement = findColumn(cols, {"Allow Settlement", "Settlement", "Allow Reconciliation", "Reconcile", "Reconciliation", "Can Reconcile", QStringLiteral("السماح بالتسوية"), QStringLiteral("التسوية"), QStringLiteral("السماح بالمطابقة"), QStringLiteral("المطابقة"), QStringLiteral("قابل للتسوية")});
+        const int cCurrency = findColumn(cols, {"Currency", QStringLiteral("العملة")});
+        const int cAmount = findColumn(cols, {"Amount", "Expense Amount", QStringLiteral("الرصيد الحالي"), QStringLiteral("المبلغ"), QStringLiteral("الرصيد")});
+        if (cName < 0 || cType < 0) {
             g_lastImportError = tr_auto_import_failed_the_expenses_sheet_does_not__1996b8cb();
             return false;
         }
-        auto parseType = [](const QString& text) {
+        auto parseBool = [](const QString& text) {
             const QString k = text.trimmed().toCaseFolded();
-            if (k.contains(tr_import_account_type_receivable_ar_keyword()) || k.contains(QStringLiteral("receivable"))) return AccountType::Receivable;
-            return AccountType::Payable;
+            if (k.isEmpty() || k == QStringLiteral("no") || k == QStringLiteral("false") || k == QStringLiteral("0") ||
+                k == QStringLiteral("off") || k == QStringLiteral("n") || k == QStringLiteral("لا") ||
+                k.contains(QStringLiteral("not")) || k.contains(QStringLiteral("disabled")) ||
+                k.contains(QStringLiteral("غير")) || k.contains(QStringLiteral("ممنوع"))) {
+                return false;
+            }
+            return k == QStringLiteral("yes") || k == QStringLiteral("true") || k == QStringLiteral("1") ||
+                   k == QStringLiteral("on") || k == QStringLiteral("y") || k == QStringLiteral("x") ||
+                   k == QStringLiteral("allowed") || k == QStringLiteral("enabled") ||
+                   k == QStringLiteral("نعم") || k == QStringLiteral("صح") || k == QStringLiteral("صحيح") ||
+                   k == QStringLiteral("✓") || k == QStringLiteral("✔") ||
+                   k.contains(QStringLiteral("مسموح")) || k.contains(QStringLiteral("مفع")) ||
+                   k.contains(QStringLiteral("نعم")) || k.contains(QStringLiteral("مطابق"));
         };
         for (int r = dataStartRowIndex; r < rows.size(); ++r) {
             const auto& row = rows[r];
             if (!rowHasAnyData(row)) continue;
             const QString rowMarker = row.value(0).trimmed().toUpper();
             if (isKnownImportMarker(rowMarker) && rowMarker != marker) continue;
-            const QString name = cell(row, cName);
-            if (name.isEmpty() && cell(row, cAmount).isEmpty()) continue;
             AccountItem a;
-            a.name = name;
-            a.type = parseType(cell(row, cType));
-            if (!parseRequiredNumber(row, cAmount, a.amount, QStringLiteral("Amount"))) return false;
-            if (!a.name.trimmed().isEmpty())
+            a.code = cCode >= 0 ? cell(row, cCode) : QString();
+            a.name = cell(row, cName);
+            a.type = accountTypeFromText(cell(row, cType));
+            a.allowSettlement = cSettlement >= 0 ? parseBool(cell(row, cSettlement)) : false;
+            a.currency = cCurrency >= 0 ? cell(row, cCurrency).trimmed().toUpper() : QString();
+            if (cAmount >= 0 && !cell(row, cAmount).trimmed().isEmpty()) {
+                if (!parseRequiredNumber(row, cAmount, a.amount, QStringLiteral("Amount"))) return false;
+            }
+            if (!a.code.trimmed().isEmpty() || !a.name.trimmed().isEmpty())
                 data->accounts.append(a);
         }
     } else if (marker == QStringLiteral("SUPPLIERS")) {
@@ -1070,11 +1116,7 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
         const auto months = monthNames();
         QMap<QString, int> monthLookup;
         for (int i = 0; i < months.size(); ++i) monthLookup[normalizedHeaderCell(months[i])] = i;
-        auto parseType = [](const QString& text) {
-            const QString k = text.trimmed().toCaseFolded();
-            if (k.contains(tr_import_account_type_receivable_ar_keyword()) || k.contains(QStringLiteral("receivable"))) return AccountType::Receivable;
-            return AccountType::Payable;
-        };
+
         for (int r = dataStartRowIndex; r < rows.size(); ++r) {
             const auto& row = rows[r];
             if (!rowHasAnyData(row)) continue;
@@ -1097,7 +1139,7 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
                 if (cell(row, cKey1).isEmpty() && cell(row, cValue2).isEmpty()) continue;
                 AccountItem a;
                 a.name = cell(row, cKey1);
-                a.type = parseType(cell(row, cValue1));
+                a.type = accountTypeFromText(cell(row, cValue1));
                 if (!parseRequiredNumber(row, cValue2, a.amount, QStringLiteral("Amount"))) return false;
                 if (!a.name.trimmed().isEmpty()) data->accounts.append(a);
             } else if (section == QStringLiteral("SUPPLIERS")) {
@@ -1280,8 +1322,11 @@ void MainWindow::saveTableDataLocally()
     s.setValue(QStringLiteral("count"), accounts.size());
     for (int i = 0; i < accounts.size(); ++i) {
         s.beginGroup(QString::number(i));
+        s.setValue(QStringLiteral("code"), accounts[i].code);
         s.setValue(QStringLiteral("name"), accounts[i].name);
         s.setValue(QStringLiteral("type"), int(accounts[i].type));
+        s.setValue(QStringLiteral("allowSettlement"), accounts[i].allowSettlement);
+        s.setValue(QStringLiteral("currency"), accounts[i].currency);
         s.setValue(QStringLiteral("amount"), accounts[i].amount);
         s.endGroup();
     }
@@ -1348,8 +1393,11 @@ void MainWindow::loadTableDataLocally()
         for (int i = 0; i < count; ++i) {
             s.beginGroup(QString::number(i));
             AccountItem a;
+            a.code = s.value(QStringLiteral("code"), QString()).toString();
             a.name = s.value(QStringLiteral("name"), QString()).toString();
             a.type = static_cast<AccountType>(s.value(QStringLiteral("type"), 0).toInt());
+            a.allowSettlement = s.value(QStringLiteral("allowSettlement"), false).toBool();
+            a.currency = s.value(QStringLiteral("currency"), QString()).toString();
             a.amount = s.value(QStringLiteral("amount"), 0.0).toDouble();
             accounts.append(a);
             s.endGroup();
@@ -1693,12 +1741,14 @@ void MainWindow::onEditCharts(int cardIndex)
             m_pendingGraphReplaceCardIndex = cardIndex;
             m_pendingGraphReplaceOrigin = focused.origin;
             m_tabs->setCurrentIndex(focused.origin == ChartOrigin::Accounts ? 1 : 2);
-            if (focused.origin == ChartOrigin::Suppliers && m_suppliers) {
-                const bool accepted = m_suppliers->showGraphSelectionForRequest(focused);
-                if (!accepted) {
-                    m_pendingGraphReplaceCardIndex = -1;
-                    m_pendingGraphReplaceOrigin = ChartOrigin::Custom;
-                }
+            bool accepted = false;
+            if (focused.origin == ChartOrigin::Accounts && m_accounts)
+                accepted = m_accounts->showGraphSelectionForRequest(focused);
+            else if (focused.origin == ChartOrigin::Suppliers && m_suppliers)
+                accepted = m_suppliers->showGraphSelectionForRequest(focused);
+            if (!accepted) {
+                m_pendingGraphReplaceCardIndex = -1;
+                m_pendingGraphReplaceOrigin = ChartOrigin::Custom;
             }
             return;
         }
@@ -1758,7 +1808,7 @@ void MainWindow::onDuplicateChart(int cardIndex)
 }
 
 
-void MainWindow::onAccountGraphRequested(ChartKind kind, AccountTypeFilter accountFilter)
+void MainWindow::onAccountGraphRequested(const ChartRequest& request)
 {
     AppData working = collectAllData();
     working.calculate();
@@ -1775,27 +1825,39 @@ void MainWindow::onAccountGraphRequested(ChartKind kind, AccountTypeFilter accou
         m_results->buildResults(m_data);
     }
 
-    ChartRequest req;
-    req.kind = kind;
-    req.metricA = M_EXPENSES;
+    ChartRequest req = request;
     req.origin = ChartOrigin::Accounts;
-    req.accountFilter = accountFilter;
-    req.title = metricDisplayName(M_EXPENSES);
-    switch (kind) {
+    req.metricA = M_EXPENSES;
+    req.metricB = M_EXPENSES;
+    req.compareMetrics.clear();
+    if (req.topAccountCount <= 0)
+        req.topAccountCount = 10;
+
+    if (req.title.trimmed().isEmpty()) {
+        req.title = T("Top accounts", "أعلى الحسابات") + QStringLiteral(" — ")
+            + accountTypeFilterDisplayName(req.accountFilter)
+            + QStringLiteral(" — ") + T("Top %1", "أعلى %1").arg(req.topAccountCount);
+    }
+    switch (req.kind) {
     case ChartKind::Pie:
         req.title += QStringLiteral(" — ") + tr_pie_97ce50();
-        break;
+    break;
     case ChartKind::Candle:
         req.title += QStringLiteral(" — ") + tr_candle_77e8b9();
-        break;
-    case ChartKind::RankedBar:
-        req.title += QStringLiteral(" — ") + tr_bar_6dda02();
-        break;
+    break;
     case ChartKind::MetricLine:
-    default:
-        req.kind = ChartKind::MetricLine;
         req.title += QStringLiteral(" — ") + tr_line_a566e8();
-        break;
+    break;
+    case ChartKind::HorizontalBar:
+        req.title += QStringLiteral(" — ") + T("Horizontal bar", "شريط أفقي");
+    break;
+    case ChartKind::RankedBar:
+    case ChartKind::MetricBar:
+    case ChartKind::CompareBar:
+    default:
+        req.kind = ChartKind::RankedBar;
+        req.title += QStringLiteral(" — ") + tr_bar_6dda02();
+    break;
     }
 
     if (m_pendingGraphReplaceOrigin == ChartOrigin::Accounts && m_pendingGraphReplaceCardIndex >= 0) {
@@ -1849,6 +1911,10 @@ void MainWindow::onSupplierGraphRequested(const ChartRequest& request)
         req.kind = ChartKind::CompareLine;
         req.title += QStringLiteral(" — ") + tr_line_a566e8();
         break;
+    case ChartKind::HorizontalBar:
+        req.kind = ChartKind::HorizontalBar;
+        req.title += QStringLiteral(" — ") + T("Horizontal bar", "شريط أفقي");
+        break;
     case ChartKind::Candle:
         req.kind = ChartKind::Candle;
         req.title += QStringLiteral(" — ") + tr_candle_77e8b9();
@@ -1883,6 +1949,7 @@ static bool sameChartRequestForRemoval(const ChartRequest& a, const ChartRequest
         && a.compareMetrics == b.compareMetrics
         && a.months == b.months
         && a.accountFilter == b.accountFilter
+        && a.topAccountCount == b.topAccountCount
         && a.comparePieBaseMetric == b.comparePieBaseMetric
         && a.includeSummaryPoint == b.includeSummaryPoint
         && a.title == b.title;
@@ -2184,19 +2251,25 @@ void MainWindow::onImportData()
     if (markers.isEmpty())
         markers << g_lastImportMarker.trimmed().toUpper();
 
-    auto accountKey = [](const QString& name) -> QString {
-        return normalizedHeaderCell(name);
+    auto accountKey = [](const AccountItem& account) -> QString {
+        const QString codeKey = normalizedHeaderCell(account.code);
+        return !codeKey.isEmpty() ? codeKey : normalizedHeaderCell(account.name);
     };
 
     auto sameAccountData = [](const AccountItem& a, const AccountItem& b) -> bool {
-        return a.type == b.type && qAbs(a.amount - b.amount) < 0.005;
+        return a.code == b.code &&
+               a.name == b.name &&
+               a.type == b.type &&
+               a.allowSettlement == b.allowSettlement &&
+               a.currency == b.currency &&
+               qAbs(a.amount - b.amount) < 0.005;
     };
 
     auto mergeAccounts = [&]() -> bool {
         QList<AccountItem> importedAccounts;
         QMap<QString, int> importedIndex;
         for (const auto& a : imported.accounts) {
-            const QString key = accountKey(a.name);
+            const QString key = accountKey(a);
             if (key.isEmpty())
                 continue;
             if (importedIndex.contains(key))
@@ -2209,7 +2282,7 @@ void MainWindow::onImportData()
 
         QMap<QString, int> existingIndex;
         for (int i = 0; i < merged.accounts.size(); ++i) {
-            const QString key = accountKey(merged.accounts[i].name);
+            const QString key = accountKey(merged.accounts[i]);
             if (!key.isEmpty() && !existingIndex.contains(key))
                 existingIndex[key] = i;
         }
@@ -2220,12 +2293,12 @@ void MainWindow::onImportData()
         QStringList conflicts;
 
         for (const auto& a : importedAccounts) {
-            const QString key = accountKey(a.name);
+            const QString key = accountKey(a);
             if (existingIndex.contains(key)) {
                 const int idx = existingIndex.value(key);
                 if (!sameAccountData(merged.accounts[idx], a)) {
                     replacements.append(AccountReplacement{idx, a});
-                    conflicts << a.name.trimmed();
+                    conflicts << (!a.code.trimmed().isEmpty() ? (a.code.trimmed() + QStringLiteral(" - ") + a.name.trimmed()) : a.name.trimmed());
                 }
             } else {
                 additions.append(a);

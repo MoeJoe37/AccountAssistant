@@ -133,6 +133,7 @@ public:
         m_chartTypeCombo->setMinimumWidth(220);
         m_chartTypeCombo->addItem(tr_pie_chart_9d4e04(), int(ChartKind::ComparePie));
         m_chartTypeCombo->addItem(tr_bar_chart_a5f324(), int(ChartKind::CompareBar));
+        m_chartTypeCombo->addItem(T("Horizontal bar", "شريط أفقي"), int(ChartKind::HorizontalBar));
         m_chartTypeCombo->addItem(tr_line_chart_932796(), int(ChartKind::CompareLine));
         m_chartTypeCombo->addItem(tr_candle_chart_f7a9c2(), int(ChartKind::Candle));
         int typeIndex = m_chartTypeCombo->findData(int(m_kind));
@@ -878,6 +879,7 @@ bool SuppliersWidget::showGraphSelectionForRequest(const ChartRequest& request)
     if (kind != ChartKind::ComparePie &&
         kind != ChartKind::CompareBar &&
         kind != ChartKind::CompareLine &&
+        kind != ChartKind::HorizontalBar &&
         kind != ChartKind::Candle) {
         kind = ChartKind::CompareBar;
     }

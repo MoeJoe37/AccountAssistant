@@ -36,7 +36,7 @@ private slots:
     void onDuplicateChart(int cardIndex);
     void onChartRemoved(const ChartRequest& removed);
     void onClearResultsTab();
-    void onAccountGraphRequested(ChartKind kind, AccountTypeFilter accountFilter);
+    void onAccountGraphRequested(const ChartRequest& request);
     void onSupplierGraphRequested(const ChartRequest& request);
     void onInventoryModeChanged(int index);
     void syncResultsState();

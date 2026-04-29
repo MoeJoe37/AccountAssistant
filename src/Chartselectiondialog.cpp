@@ -453,7 +453,7 @@ static QString stripGeneratedMonthSuffix(const QString& text)
 
 static bool requestIsCompareKind(const ChartRequest& req)
 {
-    if (req.kind == ChartKind::CompareBar || req.kind == ChartKind::CompareLine || req.kind == ChartKind::ComparePie)
+    if (req.kind == ChartKind::CompareBar || req.kind == ChartKind::CompareLine || req.kind == ChartKind::ComparePie || (req.kind == ChartKind::HorizontalBar && !req.compareMetrics.isEmpty()))
         return true;
     if (req.kind == ChartKind::Candle && (!req.compareMetrics.isEmpty() || req.metricB != M_COUNT || !req.seriesB.isEmpty()))
         return true;
@@ -660,7 +660,7 @@ void ChartSelectionDialog::buildUI(const AppData& data)
             break;
         }
 
-        if (kind != ChartKind::Pie && kind != ChartKind::Candle && kind != ChartKind::MetricBar && kind != ChartKind::MetricLine)
+        if (kind != ChartKind::Pie && kind != ChartKind::Candle && kind != ChartKind::MetricBar && kind != ChartKind::MetricLine && kind != ChartKind::HorizontalBar)
             kind = ChartKind::Candle;
         appendMetricRow(def.id, kind, months);
         if (!m_metricRows.isEmpty()) {
@@ -693,7 +693,7 @@ void ChartSelectionDialog::buildUI(const AppData& data)
             break;
         }
 
-        if (kind != ChartKind::Pie && kind != ChartKind::Candle && kind != ChartKind::MetricBar && kind != ChartKind::MetricLine)
+        if (kind != ChartKind::Pie && kind != ChartKind::Candle && kind != ChartKind::MetricBar && kind != ChartKind::MetricLine && kind != ChartKind::HorizontalBar)
             kind = ChartKind::Candle;
         appendMetricRow(def.id, kind, months);
         if (!m_metricRows.isEmpty()) {
@@ -766,10 +766,11 @@ void ChartSelectionDialog::appendMetricRow(MetricId id, ChartKind kind, const QL
 
     auto* type = new QComboBox;
     type->addItem(tr_grouped_bar_82dd84(), int(ChartKind::MetricBar));
+    type->addItem(T("Horizontal bar", "شريط أفقي"), int(ChartKind::HorizontalBar));
     type->addItem(tr_line_133e6e(), int(ChartKind::MetricLine));
     type->addItem(tr_pie_97ce50(), int(ChartKind::Pie));
     type->addItem(tr_candle_77e8b9(), int(ChartKind::Candle));
-    if (kind != ChartKind::MetricBar && kind != ChartKind::MetricLine && kind != ChartKind::Pie && kind != ChartKind::Candle)
+    if (kind != ChartKind::MetricBar && kind != ChartKind::MetricLine && kind != ChartKind::Pie && kind != ChartKind::Candle && kind != ChartKind::HorizontalBar)
         kind = ChartKind::Candle;
     int kindIdx = type->findData(int(kind));
     if (kindIdx < 0) kindIdx = 0;
@@ -934,6 +935,7 @@ void ChartSelectionDialog::appendCompareRow(const ChartRequest* preset)
 
     auto* type = new QComboBox;
     type->addItem(tr_grouped_bar_82dd84(), int(ChartKind::CompareBar));
+    type->addItem(T("Horizontal bar", "شريط أفقي"), int(ChartKind::HorizontalBar));
     type->addItem(tr_line_133e6e(), int(ChartKind::CompareLine));
     type->addItem(tr_pie_97ce50(), int(ChartKind::ComparePie));
     type->addItem(tr_candle_77e8b9(), int(ChartKind::Candle));
@@ -1216,7 +1218,7 @@ void ChartSelectionDialog::syncCompareMoreButton(CompareRow& row)
 
 void ChartSelectionDialog::syncComparePieBaseControls(CompareRow& row)
 {
-    const bool show = row.type && (ChartKind(row.type->currentData().toInt()) == ChartKind::ComparePie || ChartKind(row.type->currentData().toInt()) == ChartKind::CompareBar || ChartKind(row.type->currentData().toInt()) == ChartKind::CompareLine || ChartKind(row.type->currentData().toInt()) == ChartKind::Candle);
+    const bool show = row.type && (ChartKind(row.type->currentData().toInt()) == ChartKind::ComparePie || ChartKind(row.type->currentData().toInt()) == ChartKind::CompareBar || ChartKind(row.type->currentData().toInt()) == ChartKind::CompareLine || ChartKind(row.type->currentData().toInt()) == ChartKind::Candle || ChartKind(row.type->currentData().toInt()) == ChartKind::HorizontalBar);
     if (row.countAs100) row.countAs100->setVisible(show);
     if (!show || !row.countAs100)
         return;
@@ -1242,7 +1244,7 @@ void ChartSelectionDialog::syncComparePieBaseControls(CompareRow& row)
 void ChartSelectionDialog::syncComparePieBaseVisibility()
 {
     const bool show = std::any_of(m_compareRows.cbegin(), m_compareRows.cend(), [](const CompareRow& r) {
-        return r.type && (ChartKind(r.type->currentData().toInt()) == ChartKind::ComparePie || ChartKind(r.type->currentData().toInt()) == ChartKind::CompareBar || ChartKind(r.type->currentData().toInt()) == ChartKind::CompareLine || ChartKind(r.type->currentData().toInt()) == ChartKind::Candle);
+        return r.type && (ChartKind(r.type->currentData().toInt()) == ChartKind::ComparePie || ChartKind(r.type->currentData().toInt()) == ChartKind::CompareBar || ChartKind(r.type->currentData().toInt()) == ChartKind::CompareLine || ChartKind(r.type->currentData().toInt()) == ChartKind::Candle || ChartKind(r.type->currentData().toInt()) == ChartKind::HorizontalBar);
     });
     if (m_comparePieBaseHdr)
         m_comparePieBaseHdr->setVisible(show);
@@ -1295,6 +1297,9 @@ QList<ChartRequest> ChartSelectionDialog::chartRequests() const
         case ChartKind::MetricLine:
             req.title = metricDisplayName(row.id) + QStringLiteral(" — ") + tr_line_133e6e() + QStringLiteral(" (") + monthLabel + QStringLiteral(")");
             break;
+        case ChartKind::HorizontalBar:
+            req.title = metricDisplayName(row.id) + QStringLiteral(" — ") + T("Horizontal bar", "شريط أفقي") + QStringLiteral(" (") + monthLabel + QStringLiteral(")");
+            break;
         case ChartKind::Candle:
         default:
             req.title = metricDisplayName(row.id) + QStringLiteral(" — ") + tr_candle_77e8b9() + QStringLiteral(" (") + monthLabel + QStringLiteral(")");
@@ -1312,7 +1317,7 @@ QList<ChartRequest> ChartSelectionDialog::chartRequests() const
         ChartRequest req;
         const int typeVal = row.type ? row.type->currentData().toInt() : int(ChartKind::CompareBar);
         req.kind = static_cast<ChartKind>(typeVal);
-        if (req.kind != ChartKind::CompareLine && req.kind != ChartKind::ComparePie && req.kind != ChartKind::Candle)
+        if (req.kind != ChartKind::CompareLine && req.kind != ChartKind::ComparePie && req.kind != ChartKind::Candle && req.kind != ChartKind::HorizontalBar)
             req.kind = ChartKind::CompareBar;
         req.compareMetrics = row.moreMetrics.isEmpty() ? metrics : row.moreMetrics;
         req.compareMetrics.removeAll(M_SUPPLIER_NAME);
