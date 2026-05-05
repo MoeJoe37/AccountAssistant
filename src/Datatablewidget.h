@@ -138,6 +138,9 @@ public:
     void setInventoryMode(InventoryMode mode);
     InventoryMode inventoryMode() const { return m_mode; }
 
+signals:
+    void dataChanged();
+
 private:
     QScrollArea* m_scroll{};
     QLabel*      m_title{};

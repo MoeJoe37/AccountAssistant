@@ -264,6 +264,13 @@ void ClassicDataTableWidget::buildTable()
         m_invCell[col] = new ClassicDualSpinCell("","");
         m_invCell[col]->setFixedSize(CCOL_W, CROW_H_DOUBLE);
         grid->addWidget(m_invCell[col], 4, col);
+
+        connect(m_salesCell[col], QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this](double){ emit dataChanged(); });
+        connect(m_salesRetCell[col], QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this](double){ emit dataChanged(); });
+        for (auto* spin : m_purchCell[col]->findChildren<QDoubleSpinBox*>())
+            connect(spin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this](double){ emit dataChanged(); });
+        for (auto* spin : m_invCell[col]->findChildren<QDoubleSpinBox*>())
+            connect(spin, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this, [this](double){ emit dataChanged(); });
     }
 
     int totalW = CCOL_W * 12;

@@ -291,6 +291,7 @@ void Accountswidget::deleteAccountAtIndex(int accountIndex)
         month = normalized;
     }
     renderCurrentMonth();
+    emit dataChanged();
 }
 
 void Accountswidget::addAccount()
@@ -325,6 +326,7 @@ void Accountswidget::addAccount()
         month = normalized;
     }
     renderCurrentMonth();
+    emit dataChanged();
 }
 
 void Accountswidget::syncRowsToCurrentMonth() const
@@ -449,6 +451,7 @@ void Accountswidget::renderCurrentMonth()
             if (i >= 0 && i < month.size()) {
                 month[i].amount = value;
                 m_monthlyAccounts[m_currentMonth] = month;
+                emit dataChanged();
             }
         });
         connect(typeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this, i](int) {
@@ -463,6 +466,7 @@ void Accountswidget::renderCurrentMonth()
                 if (found && found->type)
                     month[i].type = accountTypeFromCombo(found->type);
                 m_monthlyAccounts[m_currentMonth] = month;
+                emit dataChanged();
                 if (!accountMatchesFilter(month[i].type, currentGroupFilter()))
                     renderCurrentMonth();
             }
@@ -619,6 +623,7 @@ void Accountswidget::clearData()
 {
     initializeMonthData();
     renderCurrentMonth();
+    emit dataChanged();
 }
 
 bool Accountswidget::showGraphSelectionForRequest(const ChartRequest&)

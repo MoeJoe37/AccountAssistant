@@ -61,6 +61,22 @@ inline QString T(const char* en, const char* ar)
         ? QString::fromUtf8(en) : QString::fromUtf8(ar);
 }
 
+
+inline QString tr_other_revenues_tab_3c7a11() { return T("Other Revenues", "إيرادات أخرى"); }
+inline QString tr_other_revenues_title_19ce34() { return T("Other Revenues", "إيرادات أخرى"); }
+inline QString tr_other_revenues_subtitle_4f60a1() { return T("Select a month, then enter acquired privileges and other miscellaneous revenues.", "اختر الشهر ثم أدخل الامتيازات المكتسبة والإيرادات المتنوعة الأخرى."); }
+inline QString tr_acquired_privileges_6a72d2() { return T("Acquired privileges", "الامتيازات المكتسبة"); }
+inline QString tr_other_misc_revenues_a330db() { return T("Other miscellaneous revenues", "إيرادات متنوعة أخرى"); }
+inline QString tr_summary_tab_b5e2f1() { return T("Summary", "الخلاصة"); }
+inline QString tr_summary_title_891b2d() { return T("Summary", "الخلاصة"); }
+inline QString tr_summary_subtitle_9bd0cf() { return T("Operating Profit = Trading Result + Other Revenues + signed Expenses. Payable accounts are negative; receivable accounts are positive.", "الربح التشغيلي = نتيجة التداول + الإيرادات الأخرى + المصروفات الموقعة. الحساب الدائن يكون سالباً والحساب المدين يكون موجباً."); }
+inline QString tr_trading_result_b21619() { return T("Trading Result", "نتيجة التداول"); }
+inline QString tr_other_revenues_total_d457cf() { return T("Other Revenues", "الإيرادات الأخرى"); }
+inline QString tr_expenses_total_signed_0f255b() { return T("Expenses Total", "إجمالي المصروفات"); }
+inline QString tr_operating_profit_c87e52() { return T("Operating Profit", "الربح التشغيلي"); }
+inline QString tr_account_result_e5033d() { return T("Result", "النتيجة"); }
+inline QString tr_create_graph_2047ac() { return T("📊  Create Graph", "📊  إنشاء رسم"); }
+
 inline QString tr_expense_months_dropdown_label_62ac11() { return T("Months", "الأشهر"); }
 inline QString tr_expense_amount_field_93a771() { return T("Amount", "المبلغ"); }
 inline QString tr_expense_account_type_field_a870c9() { return T("Account type", "نوع الحساب"); }
@@ -161,7 +177,7 @@ inline QString tr_average_7302d6() { return T("Average", "\u0627\u0644\u0645\u06
 inline QString tr_avg_gap_7363da() { return T("Avg gap", "\u0645\u062A\u0648\u0633\u0637 \u0627\u0644\u0641\u0627\u0631\u0642"); }
 inline QString tr_bar_6dda02() { return T("Bar", "أعمدة"); }
 inline QString tr_bar_chart_a5f324() { return T("Bar chart", "مخطط أعمدة"); }
-inline QString tr_calculate_36f437() { return T("▶  Calculate", "\u25B6  \u0627\u062D\u0633\u0628"); }
+inline QString tr_calculate_36f437() { return tr_create_graph_2047ac(); }
 inline QString tr_cancel_8d40ef() { return T("Cancel", "إلغاء"); }
 inline QString tr_cancel_b879b2() { return T("Cancel", "\u0625\u0644\u063a\u0627\u0621"); }
 inline QString tr_candle_77e8b9() { return T("Candle", "شمعة"); }

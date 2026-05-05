@@ -4,6 +4,8 @@
 #include "pdfexporter.h"
 #include "Accountswidget.h"
 #include "Supplierswidget.h"
+#include "OtherRevenuesWidget.h"
+#include "SummaryWidget.h"
 #include "themebox.h"
 
 #include <QApplication>
@@ -235,7 +237,7 @@ static QString xmlEscape(const QString& s)
     return out;
 }
 
-enum class XlsxSheetKind { DataEntry, Expenses, Suppliers, AllData };
+enum class XlsxSheetKind { DataEntry, Expenses, OtherRevenues, Suppliers, AllData };
 
 static QString accountTypeExpenseExportName(AccountType type)
 {
@@ -480,6 +482,19 @@ static QList<QPair<QString, QByteArray>> buildSheetsForExport(const AppData& dat
         addSheet("EXPENSES", headers, rows, false);
         break;
     }
+    case XlsxSheetKind::OtherRevenues: {
+        QStringList headers = {QStringLiteral("OTHER_REVENUES"), QStringLiteral("Month"), QStringLiteral("Acquired Privileges"), QStringLiteral("Other Miscellaneous Revenues")};
+        QList<QStringList> rows;
+        const auto months = monthNames();
+        for (int i = 0; i < 12; ++i) {
+            rows.push_back({QStringLiteral("OTHER_REVENUES"),
+                            months.value(i),
+                            QString::number(data.otherRevenues[i].acquiredPrivileges, 'f', 2),
+                            QString::number(data.otherRevenues[i].miscellaneousRevenues, 'f', 2)});
+        }
+        addSheet("OTHER_REVENUES", headers, rows);
+        break;
+    }
     case XlsxSheetKind::Suppliers: {
         QStringList headers = {"SUPPLIERS", "Month", "Supplier Name", "Previous Balance", "Purchases", "Total Debt", "Payments", "Payment % of Purchases", "Payment % of Total Debt", "Supplier Balance"};
         QList<QStringList> rows;
@@ -504,6 +519,7 @@ static QList<QPair<QString, QByteArray>> buildSheetsForExport(const AppData& dat
     case XlsxSheetKind::AllData:
         sheets = buildSheetsForExport(data, XlsxSheetKind::DataEntry);
         sheets.append(buildSheetsForExport(data, XlsxSheetKind::Expenses));
+        sheets.append(buildSheetsForExport(data, XlsxSheetKind::OtherRevenues));
         sheets.append(buildSheetsForExport(data, XlsxSheetKind::Suppliers));
         break;
     }
@@ -860,7 +876,7 @@ static bool rowHasAnyData(const QMap<int, QString>& row)
 static bool isKnownImportMarker(const QString& text)
 {
     const QString marker = text.trimmed().toUpper();
-    return marker == QStringLiteral("DATA_ENTRY") || marker == QStringLiteral("EXPENSES") || marker == QStringLiteral("SUPPLIERS") || marker == QStringLiteral("ALL_DATA");
+    return marker == QStringLiteral("DATA_ENTRY") || marker == QStringLiteral("EXPENSES") || marker == QStringLiteral("OTHER_REVENUES") || marker == QStringLiteral("SUPPLIERS") || marker == QStringLiteral("ALL_DATA");
 }
 
 static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData* data, QString* markerOut)
@@ -919,7 +935,7 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
             continue;
         const QString first = rows[i].value(0).trimmed().toUpper();
         if (first == QStringLiteral("DATA_ENTRY") || first == QStringLiteral("EXPENSES") ||
-            first == QStringLiteral("SUPPLIERS") || first == QStringLiteral("ALL_DATA")) {
+            first == QStringLiteral("OTHER_REVENUES") || first == QStringLiteral("SUPPLIERS") || first == QStringLiteral("ALL_DATA")) {
             marker = first;
             headerRowIndex = i;
             break;
@@ -928,6 +944,11 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
             (rowContainsHeader(rows[i], QStringLiteral("اسم الحساب")) && rowContainsHeader(rows[i], QStringLiteral("الرصيد الحالي"))) ||
             (rowContainsHeader(rows[i], QStringLiteral("الكود")) && rowContainsHeader(rows[i], QStringLiteral("النوع/نوع الحساب")))) {
             marker = QStringLiteral("EXPENSES");
+            headerRowIndex = i;
+            break;
+        }
+        if (rowContainsHeader(rows[i], QStringLiteral("Acquired Privileges")) && rowContainsHeader(rows[i], QStringLiteral("Other Miscellaneous Revenues"))) {
+            marker = QStringLiteral("OTHER_REVENUES");
             headerRowIndex = i;
             break;
         }
@@ -1107,6 +1128,28 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
             }
             data->monthlyAccounts[monthIndex] = monthAccounts;
         }
+    } else if (marker == QStringLiteral("OTHER_REVENUES")) {
+        const int cMonth = findColumn(cols, {"Month", QStringLiteral("الشهر")});
+        const int cPriv = findColumn(cols, {"Acquired Privileges", QStringLiteral("الامتيازات المكتسبة")});
+        const int cMisc = findColumn(cols, {"Other Miscellaneous Revenues", QStringLiteral("إيرادات متنوعة أخرى")});
+        if (cMonth < 0 || cPriv < 0 || cMisc < 0) {
+            g_lastImportError = tr_auto_import_failed_the_workbook_format_does_not_ac2d8f1c();
+            return false;
+        }
+        const auto months = monthNames();
+        QMap<QString, int> monthLookup;
+        for (int i = 0; i < months.size(); ++i)
+            monthLookup[normalizedHeaderCell(months[i])] = i;
+        for (int r = dataStartRowIndex; r < rows.size(); ++r) {
+            const auto& row = rows[r];
+            if (!rowHasAnyData(row)) continue;
+            const QString rowMarker = row.value(0).trimmed().toUpper();
+            if (isKnownImportMarker(rowMarker) && rowMarker != marker) continue;
+            const int monthIndex = monthLookup.value(normalizedHeaderCell(cell(row, cMonth)), -1);
+            if (monthIndex < 0 || monthIndex >= 12) continue;
+            if (!parseRequiredNumber(row, cPriv, data->otherRevenues[monthIndex].acquiredPrivileges, QStringLiteral("Acquired Privileges"))) return false;
+            if (!parseRequiredNumber(row, cMisc, data->otherRevenues[monthIndex].miscellaneousRevenues, QStringLiteral("Other Miscellaneous Revenues"))) return false;
+        }
     } else if (marker == QStringLiteral("SUPPLIERS")) {
         const int cMonth = findColumn(cols, {"Month"});
         const int cName = findColumn(cols, {"Supplier Name"});
@@ -1199,6 +1242,11 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
                 a.type = accountTypeFromText(cell(row, cValue1));
                 if (!parseRequiredNumber(row, cValue2, a.amount, QStringLiteral("Amount"))) return false;
                 if (!a.name.trimmed().isEmpty()) data->accounts.append(a);
+            } else if (section == QStringLiteral("OTHER_REVENUES")) {
+                const int monthIndex = monthLookup.value(normalizedHeaderCell(cell(row, cKey1)), -1);
+                if (monthIndex < 0 || monthIndex >= 12) continue;
+                if (!parseRequiredNumber(row, cValue1, data->otherRevenues[monthIndex].acquiredPrivileges, QStringLiteral("Acquired Privileges"))) return false;
+                if (!parseRequiredNumber(row, cValue2, data->otherRevenues[monthIndex].miscellaneousRevenues, QStringLiteral("Other Miscellaneous Revenues"))) return false;
             } else if (section == QStringLiteral("SUPPLIERS")) {
                 const int monthIndex = monthLookup.value(normalizedHeaderCell(cell(row, cKey1)), -1);
                 if (monthIndex < 0 || monthIndex >= 12) continue;
@@ -1257,6 +1305,8 @@ static bool loadAppDataXlsx(const QString& path, AppData* data)
             } else if (marker == QStringLiteral("EXPENSES")) {
                 data->accounts = part.accounts;
                 data->monthlyAccounts = part.monthlyAccounts;
+            } else if (marker == QStringLiteral("OTHER_REVENUES")) {
+                data->otherRevenues = part.otherRevenues;
             } else if (marker == QStringLiteral("SUPPLIERS")) {
                 data->suppliers = part.suppliers;
                 data->supplierEntries = part.supplierEntries;
@@ -1321,6 +1371,7 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     applyGlobalAppFont(g_fontSize);
 
     loadTableDataLocally(); // restore entered data
+    refreshCalculatedViews();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1405,6 +1456,17 @@ void MainWindow::saveTableDataLocally()
         s.setValue(QStringLiteral("allowSettlement"), accountsData.accounts[i].allowSettlement);
         s.setValue(QStringLiteral("currency"), accountsData.accounts[i].currency);
         s.setValue(QStringLiteral("amount"), accountsData.accounts[i].amount);
+        s.endGroup();
+    }
+    s.endGroup();
+
+    const AppData otherRevenueData = m_otherRevenues ? m_otherRevenues->collectData() : AppData{};
+    s.beginGroup(QStringLiteral("otherRevenuesData"));
+    s.setValue(QStringLiteral("hasData"), appDataHasUserEntries(otherRevenueData));
+    for (int i = 0; i < 12; ++i) {
+        s.beginGroup(QString::number(i));
+        s.setValue(QStringLiteral("acquiredPrivileges"), otherRevenueData.otherRevenues[i].acquiredPrivileges);
+        s.setValue(QStringLiteral("miscellaneousRevenues"), otherRevenueData.otherRevenues[i].miscellaneousRevenues);
         s.endGroup();
     }
     s.endGroup();
@@ -1504,6 +1566,18 @@ void MainWindow::loadTableDataLocally()
     }
     s.endGroup();
 
+    AppData otherRevenueData;
+    s.beginGroup(QStringLiteral("otherRevenuesData"));
+    if (s.value(QStringLiteral("hasData"), false).toBool()) {
+        for (int i = 0; i < 12; ++i) {
+            s.beginGroup(QString::number(i));
+            otherRevenueData.otherRevenues[i].acquiredPrivileges = s.value(QStringLiteral("acquiredPrivileges"), 0.0).toDouble();
+            otherRevenueData.otherRevenues[i].miscellaneousRevenues = s.value(QStringLiteral("miscellaneousRevenues"), 0.0).toDouble();
+            s.endGroup();
+        }
+    }
+    s.endGroup();
+
     AppData supData;
     s.beginGroup(QStringLiteral("suppliersData"));
     if (s.value(QStringLiteral("hasData"), false).toBool()) {
@@ -1530,6 +1604,7 @@ void MainWindow::loadTableDataLocally()
     s.endGroup();
 
     if (m_accounts) { m_accounts->setData(accountsData); }
+    if (m_otherRevenues) { m_otherRevenues->setData(otherRevenueData); }
     if (m_suppliers) { m_suppliers->setData(supData); }
 }
 
@@ -1675,6 +1750,8 @@ void MainWindow::buildUI()
         m_tableStack = new QStackedWidget(dataTab);
         m_table        = new DataTableWidget(m_tableStack);
         m_classicTable = new ClassicDataTableWidget(m_tableStack);
+        connect(m_table, &DataTableWidget::dataChanged, this, &MainWindow::refreshCalculatedViews);
+        connect(m_classicTable, &ClassicDataTableWidget::dataChanged, this, &MainWindow::refreshCalculatedViews);
         m_tableStack->addWidget(m_table);          // index 0 – card view
         m_tableStack->addWidget(m_classicTable);   // index 1 – classic view
         m_tableStack->setCurrentIndex(g_classicView ? 1 : 0);
@@ -1732,11 +1809,26 @@ void MainWindow::buildUI()
 
         m_accounts = new Accountswidget(expensesTab);
         connect(m_accounts, &Accountswidget::graphRequested, this, &MainWindow::onAccountGraphRequested);
+        connect(m_accounts, &Accountswidget::dataChanged, this, &MainWindow::refreshCalculatedViews);
         vl->addWidget(m_accounts, 1);
         m_tabs->addTab(expensesTab, "");
     }
 
-    // Tab 2: Suppliers
+    // Tab 2: Other Revenues
+    {
+        auto* otherRevenuesTab = new QWidget;
+        otherRevenuesTab->setObjectName("dataTab");
+        auto* vl = new QVBoxLayout(otherRevenuesTab);
+        vl->setContentsMargins(0,0,0,0);
+        vl->setSpacing(0);
+
+        m_otherRevenues = new OtherRevenuesWidget(otherRevenuesTab);
+        connect(m_otherRevenues, &OtherRevenuesWidget::dataChanged, this, &MainWindow::refreshCalculatedViews);
+        vl->addWidget(m_otherRevenues, 1);
+        m_tabs->addTab(otherRevenuesTab, "");
+    }
+
+    // Tab 3: Suppliers
     {
         auto* suppliersTab = new QWidget;
         suppliersTab->setObjectName("dataTab");
@@ -1770,11 +1862,18 @@ void MainWindow::buildUI()
 
         m_suppliers = new SuppliersWidget(suppliersTab);
         connect(m_suppliers, &SuppliersWidget::graphRequested, this, &MainWindow::onSupplierGraphRequested);
+        connect(m_suppliers, &SuppliersWidget::dataChanged, this, &MainWindow::refreshCalculatedViews);
         vl->addWidget(m_suppliers, 1);
         m_tabs->addTab(suppliersTab, "");
     }
 
-    // Tab 3: Results
+    // Tab 4: Summary
+    {
+        m_summary = new SummaryWidget;
+        m_tabs->addTab(m_summary, "");
+    }
+
+    // Tab 5: Results
     {
         m_results = new ResultsWidget;
         connect(m_results, &ResultsWidget::editChartsRequested, this, &MainWindow::onEditCharts);
@@ -1831,7 +1930,7 @@ void MainWindow::onCalculate()
         m_results->buildResults(m_data);
         syncResultsState();
     }
-    m_tabs->setCurrentIndex(3);
+    m_tabs->setCurrentIndex(m_results ? m_tabs->indexOf(m_results) : 0);
 }
 
 
@@ -1854,7 +1953,7 @@ void MainWindow::onEditCharts(int cardIndex)
         if (focused.origin == ChartOrigin::Accounts || focused.origin == ChartOrigin::Suppliers) {
             m_pendingGraphReplaceCardIndex = cardIndex;
             m_pendingGraphReplaceOrigin = focused.origin;
-            m_tabs->setCurrentIndex(focused.origin == ChartOrigin::Accounts ? 1 : 2);
+            m_tabs->setCurrentIndex(focused.origin == ChartOrigin::Accounts ? 1 : (m_suppliers ? m_tabs->indexOf(m_suppliers->parentWidget()) : 0));
             bool accepted = false;
             if (focused.origin == ChartOrigin::Accounts && m_accounts)
                 accepted = m_accounts->showGraphSelectionForRequest(focused);
@@ -1896,7 +1995,7 @@ void MainWindow::onEditCharts(int cardIndex)
         m_results->buildResults(m_data);
         syncResultsState();
     }
-    m_tabs->setCurrentIndex(3);
+    m_tabs->setCurrentIndex(m_results ? m_tabs->indexOf(m_results) : 0);
 }
 
 
@@ -1918,7 +2017,7 @@ void MainWindow::onDuplicateChart(int cardIndex)
     m_data = working;
     m_results->appendChart(m_data, req);
     syncResultsState();
-    m_tabs->setCurrentIndex(3);
+    m_tabs->setCurrentIndex(m_results ? m_tabs->indexOf(m_results) : 0);
 }
 
 
@@ -1982,7 +2081,7 @@ void MainWindow::onAccountGraphRequested(const ChartRequest& request)
 
     m_results->appendChart(m_data, req);
     syncResultsState();
-    m_tabs->setCurrentIndex(3);
+    m_tabs->setCurrentIndex(m_results ? m_tabs->indexOf(m_results) : 0);
 }
 
 void MainWindow::onSupplierGraphRequested(const ChartRequest& request)
@@ -2050,7 +2149,7 @@ void MainWindow::onSupplierGraphRequested(const ChartRequest& request)
 
     m_results->appendChart(m_data, req);
     syncResultsState();
-    m_tabs->setCurrentIndex(3);
+    m_tabs->setCurrentIndex(m_results ? m_tabs->indexOf(m_results) : 0);
 }
 
 
@@ -2285,9 +2384,7 @@ void MainWindow::onInventoryModeChanged(int index)
         }
 
         clearTableData();
-        m_hasResults = false;
-        if (m_results)
-            m_results->clearResults();
+        refreshCalculatedViews();
     }
 
     AppData d;
@@ -2295,6 +2392,7 @@ void MainWindow::onInventoryModeChanged(int index)
     d.calculate();
     setTableData(d);
     m_data = d;
+    refreshCalculatedViews();
 }
 
 void MainWindow::onSaveData()
@@ -2324,7 +2422,8 @@ void MainWindow::onSaveData()
     XlsxSheetKind kind = XlsxSheetKind::DataEntry;
     if (box.clickedButton() == allBtn) kind = XlsxSheetKind::AllData;
     else if (m_tabs && m_tabs->currentIndex() == 1) kind = XlsxSheetKind::Expenses;
-    else if (m_tabs && m_tabs->currentIndex() == 2) kind = XlsxSheetKind::Suppliers;
+    else if (m_tabs && m_tabs->currentIndex() == 2) kind = XlsxSheetKind::OtherRevenues;
+    else if (m_tabs && m_tabs->currentIndex() == 3) kind = XlsxSheetKind::Suppliers;
     if (!saveAppDataXlsx(path, data, kind)) {
         ThemeBox::critical(this, tr_save_data_ee42b8(), tr_unable_to_write_the_xlsx_file_da2b9b());
         return;
@@ -2516,16 +2615,19 @@ void MainWindow::onImportData()
             if (!mergeAccounts())
                 return;
         }
+        if (markers.contains(QStringLiteral("OTHER_REVENUES"))) {
+            merged.otherRevenues = imported.otherRevenues;
+        }
         if (markers.contains(QStringLiteral("SUPPLIERS"))) {
             mergeSuppliers();                         // SUPPLIERS is add-new + replace-existing
         }
     }
 
     if (m_accounts) m_accounts->setData(merged);
+    if (m_otherRevenues) m_otherRevenues->setData(merged);
     setTableData(merged);
     m_data = collectAllData();
-    m_hasResults = false;
-    if (m_results) m_results->clearResults();
+    refreshCalculatedViews();
     ThemeBox::info(this,
         tr_import_data_8de4db(),
         tr_data_imported_successfully_c05a52());
@@ -2581,7 +2683,9 @@ void MainWindow::setTableData(const AppData& d)
         m_classicTable->setInventoryMode(d.inventoryMode);
         m_classicTable->setData(d);
     }
+    if (m_otherRevenues) m_otherRevenues->setData(d);
     if (m_suppliers)    m_suppliers->setData(d);
+    if (m_summary)      m_summary->setData(d);
     if (m_inventoryModeCombo) {
         QSignalBlocker blocker(m_inventoryModeCombo);
         m_inventoryModeCombo->setCurrentIndex(int(d.inventoryMode));
@@ -2607,6 +2711,11 @@ AppData MainWindow::collectAllData() const
         d.accounts = acc.accounts;
         d.monthlyAccounts = acc.monthlyAccounts;
     }
+    if (m_otherRevenues) {
+        AppData rev = m_otherRevenues->collectData();
+        d.otherRevenues = rev.otherRevenues;
+    }
+    d.calculate();
     return d;
 }
 
@@ -2616,6 +2725,7 @@ void MainWindow::clearTableData()
     if (m_classicTable) m_classicTable->clearData();
     if (m_suppliers)    m_suppliers->clearData();
     if (m_accounts)     m_accounts->clearData();
+    if (m_otherRevenues) m_otherRevenues->clearData();
 }
 void MainWindow::updateTableCurrency()
 {
@@ -2623,6 +2733,8 @@ void MainWindow::updateTableCurrency()
     if (m_classicTable) m_classicTable->updateCurrency();
     if (m_suppliers)    m_suppliers->updateCurrencyPrefix();
     if (m_accounts)     m_accounts->retranslate();
+    if (m_otherRevenues) m_otherRevenues->updateCurrencyPrefix();
+    if (m_summary)       m_summary->setData(m_data);
 }
 void MainWindow::applyTableTheme()
 {
@@ -2630,6 +2742,8 @@ void MainWindow::applyTableTheme()
     if (m_classicTable) m_classicTable->applyTheme();
     if (m_suppliers)    m_suppliers->applyTheme();
     if (m_accounts)     m_accounts->applyTheme();
+    if (m_otherRevenues) m_otherRevenues->applyTheme();
+    if (m_summary)       m_summary->applyTheme();
 }
 void MainWindow::retranslateTable()
 {
@@ -2637,6 +2751,8 @@ void MainWindow::retranslateTable()
     if (m_classicTable) m_classicTable->retranslate();
     if (m_suppliers)    m_suppliers->retranslate();
     if (m_accounts)     m_accounts->retranslate();
+    if (m_otherRevenues) m_otherRevenues->retranslate();
+    if (m_summary)       m_summary->retranslate();
 }
 void MainWindow::switchTableView(bool classic)
 {
@@ -2652,9 +2768,7 @@ void MainWindow::onClearData()
     {
         if (m_table)        m_table->clearData();
         if (m_classicTable) m_classicTable->clearData();
-        m_data = collectAllData();
-        m_hasResults = false;
-        if (m_results) m_results->clearResults();
+        refreshCalculatedViews();
     }
 }
 
@@ -2665,9 +2779,7 @@ void MainWindow::onClearExpensesData()
             tr_auto_clear_expenses_warning_7be9d308()) == QMessageBox::Yes)
     {
         if (m_accounts) m_accounts->clearData();
-        m_data = collectAllData();
-        m_hasResults = false;
-        if (m_results) m_results->clearResults();
+        refreshCalculatedViews();
     }
 }
 
@@ -2678,9 +2790,7 @@ void MainWindow::onClearSuppliersData()
             tr_auto_clear_suppliers_warning_0c6309c6()) == QMessageBox::Yes)
     {
         if (m_suppliers) m_suppliers->clearData();
-        m_data = collectAllData();
-        m_hasResults = false;
-        if (m_results) m_results->clearResults();
+        refreshCalculatedViews();
     }
 }
 
@@ -2719,6 +2829,7 @@ void MainWindow::onSettings()
             applyGlobalAppFont(g_fontSize);
         }
 
+        refreshCalculatedViews();
         saveSettings(); // persist immediately
     }
 }
@@ -2785,9 +2896,13 @@ void MainWindow::applyTheme()
 
     applyTableTheme();
     if (m_accounts) m_accounts->applyTheme();
+    if (m_otherRevenues) m_otherRevenues->applyTheme();
+    if (m_summary) m_summary->applyTheme();
     if (m_results) m_results->applyTheme();
-    if (m_hasResults)
+    if (m_hasResults) {
+        if (m_summary) m_summary->setData(m_data);
         m_results->buildResults(m_data);
+    }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2835,8 +2950,34 @@ void MainWindow::retranslate()
     m_tabs->setTabText(1,
         tr_expenses_13597e());
     m_tabs->setTabText(2,
-        tr_suppliers_7beff3());
+        tr_other_revenues_tab_3c7a11());
     m_tabs->setTabText(3,
+        tr_suppliers_7beff3());
+    m_tabs->setTabText(4,
+        tr_summary_tab_b5e2f1());
+    m_tabs->setTabText(5,
         tr_results_87ae7f());
+    if (m_summary) m_summary->retranslate();
     if (m_results) m_results->retranslate();
 }
+
+void MainWindow::refreshCalculatedViews()
+{
+    if (auto* popup = QApplication::activePopupWidget()) {
+        Q_UNUSED(popup);
+    }
+    AppData working = collectAllData();
+    working.chartRequests = m_lastChartRequests;
+    working.hiddenChartRequests = m_lastHiddenChartRequests;
+    working.resultFlowOrder = m_lastFlowOrder;
+    working.calculate();
+    m_data = working;
+    m_hasResults = true;
+    if (m_summary)
+        m_summary->setData(m_data);
+    if (m_results) {
+        m_results->buildResults(m_data);
+        syncResultsState();
+    }
+}
+

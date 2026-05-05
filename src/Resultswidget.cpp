@@ -849,6 +849,7 @@ public:
                     double netSales,
                     double cogs,
                     double profit,
+                    double operating,
                     const QColor& accent,
                     InventoryMode mode = InventoryMode::Periodic,
                     QWidget* parent = nullptr)
@@ -858,7 +859,7 @@ public:
         setAcceptDrops(true);
         setCursor(Qt::OpenHandCursor);
         setStyleSheet(g_lightMode ? kMonthCardSSLight : kMonthCardSSDark);
-        setFixedHeight(168);
+        setFixedHeight(220);
         hide();
         
         auto* root = new QVBoxLayout(this);
@@ -918,11 +919,8 @@ public:
         makeMetric(m_cogsLabel, 0, 1, tr_cogs_d716f1(), money(cogs), metricColor(M_COGS));
         makeMetric(m_profitLabel, 1, 0, tr_profit_margin_ec3b22(), money(profit),
                    metricColor(M_PROFIT_MARGIN));
-        auto* spacer = new QFrame;
-        spacer->setObjectName("metricBox");
-        spacer->setAttribute(Qt::WA_TransparentForMouseEvents, true);
-        spacer->setStyleSheet("background:transparent;border:none;");
-        grid->addWidget(spacer, 1, 1);
+        makeMetric(m_operatingLabel, 1, 1, tr_operating_profit_c87e52(), money(operating),
+                   operating >= 0.0 ? QColor("#2ca02c") : QColor("#d62728"));
 
         root->addLayout(grid);
 
@@ -950,6 +948,7 @@ public:
         if (m_cogsLabel)
             m_cogsLabel->setText(tr_cogs_d716f1());
         if (m_profitLabel) m_profitLabel->setText(tr_profit_margin_ec3b22());
+        if (m_operatingLabel) m_operatingLabel->setText(tr_operating_profit_c87e52());
     }
 
 signals:
@@ -1033,6 +1032,7 @@ private:
     QLabel* m_netLabel{nullptr};
     QLabel* m_cogsLabel{nullptr};
     QLabel* m_profitLabel{nullptr};
+    QLabel* m_operatingLabel{nullptr};
     InventoryMode m_mode{InventoryMode::Periodic};
 };
 
@@ -1202,6 +1202,7 @@ ResultsWidget::ResultsWidget(QWidget* parent) : QWidget(parent)
         m_sumCOGSCard = cogsCard;
     }
     makeCard(m_sumProfitTitle, m_sumProfit, tr_profit_margin_dafda2(), metricColor(M_PROFIT_MARGIN));
+    makeCard(m_sumOperatingTitle, m_sumOperating, tr_operating_profit_c87e52(), QColor("#2ca02c"));
 
 
     m_hiddenBtn = new QToolButton;
@@ -1358,6 +1359,7 @@ void ResultsWidget::resetAllResults()
     if (m_sumNetSales) m_sumNetSales->setText(QStringLiteral("—"));
     if (m_sumCOGS)     m_sumCOGS->setText(QStringLiteral("—"));
     if (m_sumProfit)   m_sumProfit->setText(QStringLiteral("—"));
+    if (m_sumOperating) m_sumOperating->setText(QStringLiteral("—"));
     if (m_hiddenBtn)   m_hiddenBtn->setEnabled(false);
     if (m_monthBtn)    m_monthBtn->setText(tr_months_none_selected_7918be());
     emit resultsStateChanged();
@@ -1385,6 +1387,7 @@ void ResultsWidget::retranslate()
     if (m_sumNetSalesTitle) m_sumNetSalesTitle->setText(tr_net_sales_e81e65());
     if (m_sumCOGSTitle)     m_sumCOGSTitle->setText(tr_cogs_d716f1());
     if (m_sumProfitTitle)   m_sumProfitTitle->setText(tr_profit_margin_dafda2());
+    if (m_sumOperatingTitle) m_sumOperatingTitle->setText(tr_operating_profit_c87e52());
     if (m_sumCOGSCard)      m_sumCOGSCard->setVisible(true);
 
     if (m_hiddenBtn) m_hiddenBtn->setText(tr_hidden_charts_7e1497());
@@ -1443,8 +1446,13 @@ void ResultsWidget::buildResults(const AppData& data)
     m_sumNetSales->setText(money(data.totalNetSales));
     m_sumCOGS->setText(money(data.totalCOGS));
     m_sumProfit->setText(money(data.totalProfit));
+    if (m_sumOperating) m_sumOperating->setText(money(data.totalOperatingProfit));
     m_sumProfit->setStyleSheet(QString("color:%1;font-weight:900;background:transparent;")
                                .arg(metricColor(M_PROFIT_MARGIN).name()));
+    if (m_sumOperating) {
+        m_sumOperating->setStyleSheet(QString("color:%1;font-weight:900;background:transparent;")
+            .arg(data.totalOperatingProfit >= 0.0 ? QStringLiteral("#2ca02c") : QStringLiteral("#d62728")));
+    }
 
     m_flowSection = new QWidget;
     m_flowSection->setObjectName("flowSection");
@@ -1486,6 +1494,7 @@ void ResultsWidget::buildResults(const AppData& data)
         data.totalNetSales,
         data.totalCOGS,
         data.totalProfit,
+        data.totalOperatingProfit,
         kMonthAccents[0],
         m_lastMode,
         m_container));
@@ -1503,6 +1512,7 @@ void ResultsWidget::buildResults(const AppData& data)
             data.netSales[i],
             data.cogs[i],
             data.profitMargin[i],
+            data.operatingProfit[i],
             kMonthAccents[(i + 1) % 13],
             m_lastMode,
             m_container);
@@ -1581,6 +1591,7 @@ QWidget* ResultsWidget::buildReportSection(const AppData& data)
             data.netSales[i],
             data.cogs[i],
             data.profitMargin[i],
+            data.operatingProfit[i],
             kMonthAccents[i % 12],
             m_lastMode,
             m_container);

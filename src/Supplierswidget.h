@@ -115,6 +115,7 @@ public:
 
 signals:
     void graphRequested(const ChartRequest& request);
+    void dataChanged();
 
 private slots:
     void onAddSupplierRequested();

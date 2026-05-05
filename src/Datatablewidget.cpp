@@ -490,6 +490,7 @@ DataTableWidget::DataTableWidget(QWidget* parent) : QWidget(parent)
     for (int i = 0; i < 12; ++i) {
         m_cards[i] = new MonthCard(i, container);
         m_cards[i]->setMode(m_mode);
+        connect(m_cards[i], &MonthCard::dataChanged, this, &DataTableWidget::dataChanged);
         vl->addWidget(m_cards[i]);
     }
     vl->addStretch();

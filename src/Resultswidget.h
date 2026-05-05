@@ -148,6 +148,8 @@ private:
     QWidget* m_sumCOGSCard{};
     QLabel* m_sumProfitTitle{};
     QLabel* m_sumProfit{};
+    QLabel* m_sumOperatingTitle{};
+    QLabel* m_sumOperating{};
     QToolButton* m_hiddenBtn{};
     QMenu* m_hiddenMenu{};
     QToolButton* m_monthBtn{};

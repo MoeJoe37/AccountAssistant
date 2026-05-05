@@ -948,6 +948,7 @@ void SuppliersWidget::onAddSupplierRequested()
 {
     ensureGlobalSupplierCount(m_cards[0]->rowCount() + 1);
     refreshAllComputedValues();
+    emit dataChanged();
 }
 
 void SuppliersWidget::onSupplierNameEdited(int rowIndex, const QString& name)
@@ -958,11 +959,13 @@ void SuppliersWidget::onSupplierNameEdited(int rowIndex, const QString& name)
     for (int i = 1; i < 12; ++i)
         m_cards[i]->setNamesFrom(names);
     refreshAllComputedValues();
+    emit dataChanged();
 }
 
 void SuppliersWidget::onMonthChanged()
 {
     refreshAllComputedValues();
+    emit dataChanged();
 }
 
 
@@ -982,6 +985,7 @@ void SuppliersWidget::onRemoveSupplierRequested(int rowIndex)
     }
     ensureGlobalSupplierCount(currentCount - 1);
     refreshAllComputedValues();
+    emit dataChanged();
 }
 
 AppData SuppliersWidget::collectData() const
@@ -1036,6 +1040,7 @@ void SuppliersWidget::clearData()
     for (int i = 0; i < 12; ++i)
         m_cards[i]->clearAll();
     refreshAllComputedValues();
+    emit dataChanged();
 }
 
 void SuppliersWidget::updateCurrencyPrefix()

@@ -11,6 +11,8 @@
 #include "resultswidget.h"
 #include "Accountswidget.h"
 #include "Supplierswidget.h"
+#include "OtherRevenuesWidget.h"
+#include "SummaryWidget.h"
 #include <QComboBox>
 #include "translations.h"
 
@@ -40,6 +42,7 @@ private slots:
     void onSupplierGraphRequested(const ChartRequest& request);
     void onInventoryModeChanged(int index);
     void syncResultsState();
+    void refreshCalculatedViews();
 
 private:
     void buildUI();
@@ -69,7 +72,9 @@ private:
     DataTableWidget*       m_table{};        // card view (v3)
     ClassicDataTableWidget* m_classicTable{}; // spreadsheet view
     Accountswidget*        m_accounts{};
+    OtherRevenuesWidget*   m_otherRevenues{};
     SuppliersWidget*       m_suppliers{};
+    SummaryWidget*         m_summary{};
     ResultsWidget*         m_results{};
 
     QPushButton* m_calcBtn{};

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(AccountAssistant VERSION 6.0.0 LANGUAGES CXX)
+project(AccountAssistant VERSION 7.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -19,6 +19,8 @@ set(SOURCES
     src/Draggablechartcard.cpp
     src/Resultswidget.cpp
     src/Accountswidget.cpp
+    src/OtherRevenuesWidget.cpp
+    src/SummaryWidget.cpp
     src/Supplierswidget.cpp
     src/chartswidget.cpp
     src/pdfexporter.cpp
@@ -36,6 +38,8 @@ set(HEADERS
     src/Draggablechartcard.h
     src/Resultswidget.h
     src/Accountswidget.h
+    src/OtherRevenuesWidget.h
+    src/SummaryWidget.h
     src/Supplierswidget.h
     src/chartswidget.h
     src/pdfexporter.h

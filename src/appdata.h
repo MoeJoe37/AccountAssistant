@@ -32,6 +32,16 @@ struct SupplierMonthData {
     double  payments  = 0.0;
 };
 
+struct OtherRevenueMonthData {
+    double acquiredPrivileges = 0.0;
+    double miscellaneousRevenues = 0.0;
+
+    double total() const
+    {
+        return acquiredPrivileges + miscellaneousRevenues;
+    }
+};
+
 struct SupplierEntry {
     QString name;
     double previousBalance = 0.0;
@@ -396,6 +406,7 @@ struct AppData {
     std::array<QList<AccountItem>, 12> monthlyAccounts{};
     std::array<SupplierMonthData, 12> suppliers{};
     std::array<QList<SupplierEntry>, 12> supplierEntries{};
+    std::array<OtherRevenueMonthData, 12> otherRevenues{};
     InventoryMode inventoryMode = InventoryMode::Periodic;
 
     // Chosen charts for the Results tab and PDF export
@@ -407,11 +418,17 @@ struct AppData {
     std::array<double, 12> netSales{};
     std::array<double, 12> cogs{};
     std::array<double, 12> profitMargin{};
+    std::array<double, 12> otherRevenueTotals{};
+    std::array<double, 12> signedExpenses{};
+    std::array<double, 12> operatingProfit{};
 
     // Grand totals (for summary bar)
     double totalNetSales = 0;
     double totalCOGS     = 0;
     double totalProfit   = 0;
+    double totalOtherRevenues = 0;
+    double totalSignedExpenses = 0;
+    double totalOperatingProfit = 0;
 
     // Expense accounts aggregated & sorted by total (descending)
     QList<ExpenseSummary> expenseSummary;
@@ -419,6 +436,7 @@ struct AppData {
     void calculate()
     {
         totalNetSales = totalCOGS = totalProfit = 0;
+        totalOtherRevenues = totalSignedExpenses = totalOperatingProfit = 0;
         for (int i = 0; i < 12; ++i) {
             auto& m = months[i];
             netSales[i]     = m.sales - m.salesReturn;
@@ -449,6 +467,21 @@ struct AppData {
                 suppliers[i].purchases = totalPurchases;
                 suppliers[i].payments = totalPayments;
             }
+        }
+
+        for (int i = 0; i < 12; ++i) {
+            otherRevenueTotals[i] = otherRevenues[i].total();
+
+            double signedExpense = 0.0;
+            const QList<AccountItem> expenseList = normalizedFixedExpenseAccountsForMonth(monthlyAccounts[i]);
+            for (const auto& item : expenseList)
+                signedExpense += (item.type == AccountType::Receivable) ? item.amount : -item.amount;
+            signedExpenses[i] = signedExpense;
+
+            operatingProfit[i] = profitMargin[i] + otherRevenueTotals[i] + signedExpenses[i];
+            totalOtherRevenues += otherRevenueTotals[i];
+            totalSignedExpenses += signedExpenses[i];
+            totalOperatingProfit += operatingProfit[i];
         }
 
         // Build expense summary from the monthly Expenses tab.
@@ -520,6 +553,26 @@ inline double monthlyExpenseAccountTotal(const AppData& d, int monthIndex, Accou
     return total;
 }
 
+inline double monthlyExpenseAccountSignedTotal(const AppData& d, int monthIndex, AccountTypeFilter filter = AccountTypeFilter::All)
+{
+    if (monthIndex < 0 || monthIndex >= 12)
+        return 0.0;
+    double total = 0.0;
+    const QList<AccountItem> list = normalizedFixedExpenseAccountsForMonth(d.monthlyAccounts[monthIndex]);
+    for (const auto& item : list) {
+        if (filter == AccountTypeFilter::All || static_cast<int>(item.type) == static_cast<int>(filter))
+            total += (item.type == AccountType::Receivable) ? item.amount : -item.amount;
+    }
+    return total;
+}
+
+inline double otherRevenueTotalForMonth(const AppData& d, int monthIndex)
+{
+    if (monthIndex < 0 || monthIndex >= 12)
+        return 0.0;
+    return d.otherRevenues[monthIndex].total();
+}
+
 
 inline bool appDataHasUserEntries(const AppData& d)
 {
@@ -544,6 +597,11 @@ inline bool appDataHasUserEntries(const AppData& d)
             if (a.amount != 0.0 || (fixedExpenseAccountIndexFromItem(a) < 0 && !a.name.trimmed().isEmpty()))
                 return true;
         }
+    }
+
+    for (const auto& r : d.otherRevenues) {
+        if (r.acquiredPrivileges != 0.0 || r.miscellaneousRevenues != 0.0)
+            return true;
     }
 
     for (const auto& s : d.suppliers) {
