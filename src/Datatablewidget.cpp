@@ -61,19 +61,20 @@ QLineEdit:focus, QDoubleSpinBox:focus, QAbstractSpinBox:focus { border-color:#4f
 NavigableSpinBox::NavigableSpinBox(QWidget* p) : QDoubleSpinBox(p)
 {
     setRange(0, 1e12);
-    setDecimals(2);
+    setDecimals(currencyDecimals());
     setSingleStep(100);
     setLocale(QLocale(QLocale::English, QLocale::UnitedStates));
     setGroupSeparatorShown(true);
     setButtonSymbols(QAbstractSpinBox::NoButtons);
+    updatePrefix();
 }
 
-void NavigableSpinBox::updatePrefix() { setPrefix(currencyPrefix()); }
+void NavigableSpinBox::updatePrefix() { setPrefix(currencyPrefix()); setSuffix(currencySuffix()); setDecimals(currencyDecimals()); }
 void NavigableSpinBox::keyPressEvent(QKeyEvent* e) { QDoubleSpinBox::keyPressEvent(e); }
 void NavigableSpinBox::focusInEvent(QFocusEvent* e) { QDoubleSpinBox::focusInEvent(e); selectAll(); }
 void NavigableSpinBox::wheelEvent(QWheelEvent* e) { e->ignore(); }
 
-static QString formatMoney(double v) { return QLocale(QLocale::English, QLocale::UnitedStates).toString(v, 'f', 2); }
+static QString formatMoney(double v) { return formatCurrencyNumber(v); }
 
 MonthCard::MonthCard(int monthIndex, QWidget* parent) : QFrame(parent), m_monthIndex(monthIndex)
 {
@@ -135,6 +136,7 @@ void MonthCard::buildHeader()
 NavigableSpinBox* MonthCard::makeSpin(bool redTint)
 {
     auto* s = new NavigableSpinBox;
+    s->updatePrefix();
     s->setStyleSheet(g_lightMode ? (redTint ? kSpinRedLt : kSpinLt) : (redTint ? kSpinRedDk : kSpinDk));
     return s;
 }
@@ -329,8 +331,8 @@ void MonthCard::clearAll()
 {
     m_sales->setValue(0); m_salesReturn->setValue(0); m_suppPurchases->setValue(0);
     m_suppPayments->setValue(0); m_invFirst->setValue(0); m_invLast->setValue(0); m_cogsInput->setValue(0);
-    if (m_netSalesValue) m_netSalesValue->setText("0.00");
-    if (m_profitValue) m_profitValue->setText("0.00");
+    if (m_netSalesValue) m_netSalesValue->setText(formatCurrencyNumber(0.0));
+    if (m_profitValue) m_profitValue->setText(formatCurrencyNumber(0.0));
     m_warnFrame->setVisible(false);
     m_warnIcon->setVisible(false);
 }

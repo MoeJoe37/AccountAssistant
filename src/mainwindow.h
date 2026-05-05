@@ -79,6 +79,7 @@ private:
     QPushButton* m_settingsBtn{};
     QPushButton* m_clearBtn{};
     QPushButton* m_clearExpensesBtn{};
+    QPushButton* m_addExpenseAccountBtn{};
     QPushButton* m_clearSuppliersBtn{};
     QComboBox*   m_inventoryModeCombo{};
     QLabel*      m_titleLabel{};

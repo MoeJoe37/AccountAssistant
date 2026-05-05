@@ -18,6 +18,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 #include <QMessageBox>
+#include <QPushButton>
+#include <QAbstractButton>
 #include "translations.h"
 
 

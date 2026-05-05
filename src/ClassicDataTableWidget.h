@@ -20,6 +20,7 @@ public:
     void setTopValue(double v);
     void setBotValue(double v);
     void retranslate(const QString& topLabel, const QString& botLabel);
+    void updateCurrency();
 private:
     QLabel*         m_topLbl{};
     QLabel*         m_botLbl{};
@@ -40,7 +41,7 @@ public:
     void    retranslate();
     void    applyTheme();
     void    clearData();
-    void    updateCurrency();  // no-op (classic table doesn't use currency prefixes)
+    void    updateCurrency();
     void    setInventoryMode(InventoryMode mode);
     InventoryMode inventoryMode() const { return m_mode; }
 

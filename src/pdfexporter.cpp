@@ -25,6 +25,7 @@
 #include <QFileInfo>
 #include <QtMath>
 #include <QMap>
+#include <QLocale>
 #include <algorithm>
 #include <cmath>
 
@@ -42,9 +43,9 @@ static const QColor kRowOdd  ("#ffffff");
 static const QColor kHdrBg   ("#eef0fa");
 
 static const QList<QColor> kPal = {
-    "#4f86f7", "#f0a500", "#e05c6a", "#3ecf8e",
-    "#9b6cf9", "#f06c6c", "#62c4e3", "#b0e96a",
-    "#ff9f43", "#fd79a8", "#00cec9", "#fdcb6e"
+    "#1f77b4", "#ff7f0e", "#d62728", "#9467bd",
+    "#8c564b", "#e377c2", "#17becf", "#bcbd22",
+    "#7f7f7f", "#2f4b7c", "#665191", "#009e73"
 };
 
 static QList<double> normalizePercentValues(const QList<double>& raw)
@@ -207,7 +208,7 @@ struct ValueStats {
 
 static QString money(double v)
 {
-    return QString("$%L1").arg(v, 0, 'f', 0);
+    return formatMoneyText(v, 0);
 }
 
 static ValueStats statsFor(const QList<double>& values)
@@ -903,27 +904,6 @@ static QImage renderCoverPage(const AppData& data, const QSize& size)
         p.drawText(QRect(cx + 14, y + 34, cw - 20, 46), Qt::AlignLeft | Qt::AlignVCenter, money(cards[i].val));
     }
 
-    int sepY = y + 108;
-    p.setPen(QPen(kBorder, 1));
-    p.drawLine(mg, sepY, size.width() - mg, sepY);
-    sepY += 18;
-
-    if (!data.expenseSummary.isEmpty()) {
-        sepY += 10;
-        p.setFont(QFont("Segoe UI", 10, QFont::Bold));
-        p.setPen(kAccent);
-        p.drawText(QRect(mg, sepY, size.width() - 2 * mg, 22), Qt::AlignLeft,
-                   tr_expense_accounts_ranked_34d3f9());
-        sepY += 26;
-        const int rows = qMin(data.expenseSummary.size(), 6);
-        for (int i = 0; i < rows; ++i) {
-            const auto& e = data.expenseSummary[i];
-            QString line = QString::number(i + 1) + QStringLiteral(". ") + e.account + QStringLiteral("  —  ") + money(e.total);
-            p.setPen(i % 2 == 0 ? kText : kMuted);
-            p.drawText(QRect(mg + 10, sepY, size.width() - 2 * mg - 20, 20), Qt::AlignLeft, line);
-            sepY += 22;
-        }
-    }
     return img;
 }
 

@@ -1,16 +1,14 @@
 #pragma once
+
 #include <QWidget>
 #include <QScrollArea>
 #include <QVBoxLayout>
-#include <QLineEdit>
+#include <QGridLayout>
 #include <QComboBox>
-#include <QToolButton>
-#include <QPushButton>
-#include <QLabel>
 #include <QDoubleSpinBox>
-#include <QFrame>
+#include <QLabel>
 #include <QVector>
-#include <QList>
+#include <array>
 #include "appdata.h"
 
 class Accountswidget : public QWidget
@@ -25,79 +23,51 @@ public:
     void applyTheme();
     void retranslate();
     bool showGraphSelectionForRequest(const ChartRequest& request);
+    void addAccount();
 
 signals:
     void graphRequested(const ChartRequest& request);
 
-private slots:
-    void onAddAccount();
-    void onFilterChanged();
-    void onShowGraphs();
-    void onRemoveRow();
-    void onEditRow();
-
 private:
     struct RowWidgets {
         QWidget* row{};
-        QLabel*  code{};
-        QLabel*  name{};
-        QLabel*  type{};
-        QLabel*  settlement{};
-        QLabel*  currency{};
-        QLabel*  amountLabel{};
+        QLabel* accountLabel{};
+        QLabel* amountCaption{};
+        QLabel* typeCaption{};
         QDoubleSpinBox* amount{};
-        QPushButton* removeBtn{};
-        AccountItem item;
-        int sourceIndex = -1;
+        QComboBox* type{};
+        int accountIndex = -1;
     };
 
-    void rebuildRows(const QList<AccountItem>& items);
-    QList<AccountItem> currentItems() const;
-    void sortAndRebuild();
-    void addRow(const AccountItem& item);
-    void addRenderedRow(const AccountItem& item, int sourceIndex);
-    bool openAccountDialog(AccountItem& item, bool editMode, int ignoreIndex = -1);
-    void editAccountAt(int sourceIndex);
-    void clearRenderedRows();
-    void syncVisibleRowsToAccounts();
-    QList<int> filteredAccountIndexes() const;
-    void renderCurrentPage();
-    void updatePaginationControls(int filteredCount);
-    int totalPagesForCount(int count) const;
-    void updateRowAlignment(RowWidgets& row);
-    bool openGraphDialog(ChartRequest& request, const ChartRequest* existing = nullptr);
-    ChartKind normalizeAccountChartKind(ChartKind kind) const;
-    void updateGraphButtonMenu();
-    void applyFilters();
-    void refreshCurrencyFilter();
-    bool hasDuplicateAccount(const AccountItem& item, int ignoreIndex = -1) const;
-    AccountTypeFilter currentTypeFilter() const;
+    void buildUi();
+    void initializeMonthData();
+    void syncRowsToCurrentMonth() const;
+    void renderCurrentMonth();
+    void clearRows();
+    void updateRowTexts();
+    void setComboToAccountType(QComboBox* combo, AccountType type) const;
     AccountType accountTypeFromCombo(const QComboBox* combo) const;
-    void populateTypeCombo(QComboBox* combo, bool includeAll = false) const;
+    QString accountTypeLabel(AccountType type) const;
+    AccountTypeFilter currentGroupFilter() const;
+    QString nextCustomAccountCode() const;
+    void deleteAccountAtIndex(int accountIndex);
 
-    QScrollArea* m_scroll{};
-    QWidget*     m_container{};
-    QVBoxLayout* m_rowsLayout{};
-    QLineEdit*   m_searchEdit{};
-    QPushButton* m_addBtn{};
-    QComboBox*   m_sortCombo{};
-    QComboBox*   m_typeFilterCombo{};
-    QComboBox*   m_settlementFilterCombo{};
-    QComboBox*   m_currencyFilterCombo{};
-    QToolButton* m_graphBtn{};
+    QComboBox*   m_monthCombo{};
+    QComboBox*   m_groupCombo{};
     QLabel*      m_title{};
     QLabel*      m_subtitle{};
-    QLabel*      m_searchLabel{};
-    QLabel*      m_sortLabel{};
-    QLabel*      m_typeLabel{};
-    QLabel*      m_settlementLabel{};
-    QLabel*      m_currencyLabel{};
-    QLabel*      m_empty{};
-    QWidget*     m_paginationBar{};
-    QPushButton* m_prevPageBtn{};
-    QPushButton* m_nextPageBtn{};
-    QLabel*      m_pageLabel{};
+    QLabel*      m_monthLabel{};
+    QLabel*      m_groupLabel{};
+    QLabel*      m_accountHeader{};
+    QLabel*      m_amountHeader{};
+    QLabel*      m_typeHeader{};
+    QScrollArea* m_scroll{};
+    QGridLayout*  m_tableHeaderLayout{};
+    QWidget*     m_container{};
+    QVBoxLayout* m_rowsLayout{};
+
+    mutable std::array<QList<AccountItem>, 12> m_monthlyAccounts{};
     QVector<RowWidgets> m_rows;
-    QList<AccountItem> m_accounts;
-    int m_currentPage = 0;
+    int  m_currentMonth = 0;
+    bool m_loadingRows = false;
 };

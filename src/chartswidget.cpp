@@ -25,15 +25,65 @@
 #include <QWheelEvent>
 #include <QCategoryAxis>
 #include <QTimer>
+#include <cmath>
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  Palette
 // ─────────────────────────────────────────────────────────────────────────────
 static const QList<QColor> kPalette = {
-    "#4E79A7","#F28E2B","#E15759","#76B7B2",
-    "#59A14F","#EDC948","#B07AA1","#FF9DA7",
-    "#9C755F","#BAB0AC","#D4A6C8","#86BCB6"
+    "#1f77b4", "#ff7f0e", "#d62728", "#9467bd",
+    "#8c564b", "#e377c2", "#17becf", "#bcbd22",
+    "#7f7f7f", "#2f4b7c", "#665191", "#009e73"
 };
+
+static QColor paletteColor(int index)
+{
+    if (kPalette.isEmpty())
+        return QColor("#1f77b4");
+    return kPalette[qAbs(index) % kPalette.size()];
+}
+
+static QString compactMoneyText(double value)
+{
+    const double absValue = qAbs(value);
+    const char* suffix = "";
+    double divisor = 1.0;
+    if (absValue >= 1000000000.0) { suffix = "B"; divisor = 1000000000.0; }
+    else if (absValue >= 1000000.0) { suffix = "M"; divisor = 1000000.0; }
+    else if (absValue >= 1000.0) { suffix = "K"; divisor = 1000.0; }
+
+    if (divisor <= 1.0)
+        return QString("%L1").arg(qRound64(value));
+
+    const double scaled = std::floor((absValue / divisor) * 10.0) / 10.0;
+    QString text = QString::number(scaled, 'f', 1);
+    if (text.endsWith(QStringLiteral(".0")))
+        text.chop(2);
+    if (value < 0.0)
+        text.prepend(QChar('-'));
+    return text + QString::fromLatin1(suffix);
+}
+
+static void setCompactMoneyAxisRange(QCategoryAxis* axis, double maxAbs)
+{
+    if (!axis) return;
+    if (maxAbs < 0.001) maxAbs = 1.0;
+    const double upper = maxAbs * 1.1;
+    axis->setRange(0.0, upper);
+    const int tickCount = 5;
+    for (int i = 0; i < tickCount; ++i) {
+        const double value = upper * i / double(tickCount - 1);
+        axis->append(i == 0 ? QStringLiteral("0") : compactMoneyText(value), value);
+    }
+}
+
+static QColor contrastDecreaseColor(const QColor& base)
+{
+    const int hue = base.hsvHue();
+    if (hue >= 0 && (hue < 35 || hue > 335))
+        return QColor("#1f77b4");
+    return QColor("#d62728");
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 class SafeChartView : public QChartView
@@ -363,7 +413,7 @@ void ChartsWidget::addPieChart(const QString& title,
     m_views << cv;
     QList<QColor> colors;
     for (int i = 0; i < labels.size() && i < values.size(); ++i)
-        colors << metricColor(metricId);
+        colors << paletteColor(i);
     auto* wrap = wrapChartWithLegend(m_container, cv, labels, colors);
     m_layout->insertWidget(m_layout->count()-1, wrap);
 }
@@ -377,7 +427,7 @@ void ChartsWidget::addCandleChart(const QString& title,
     m_views << cv;
     auto* wrap = wrapChartWithLegend(m_container, cv,
                                      QStringList{tr_increasing_faa4d2(), tr_decreasing_d64136()},
-                                     QList<QColor>{metricColor(metricId), metricColor(metricId).darker(130)});
+                                     QList<QColor>{metricColor(metricId), contrastDecreaseColor(metricColor(metricId))});
     m_layout->insertWidget(m_layout->count()-1, wrap);
 }
 
@@ -409,7 +459,7 @@ QChartView* ChartsWidget::makePie(const QString& title,
     for (int i = 0; i < labels.size() && i < values.size(); ++i) {
         double val = qAbs(values[i]);
         if (val == 0) continue;
-        const QColor c = metricColor(metricId);
+        const QColor c = paletteColor(i);
         auto* slice = series->append(labels[i], val);
         slice->setColor(c);
         sliceColors << c;
@@ -448,7 +498,7 @@ QChartView* ChartsWidget::makeCandle(const QString& title,
     auto* series = new QCandlestickSeries;
     series->setName(title);
     series->setIncreasingColor(metricColor(metricId));
-    series->setDecreasingColor(metricColor(metricId).darker(130));
+    series->setDecreasingColor(contrastDecreaseColor(metricColor(metricId)));
 
     for (int i = 0; i < values.size(); ++i) {
         double cur = values[i];
@@ -478,13 +528,14 @@ QChartView* ChartsWidget::makeCandle(const QString& title,
     chart->addAxis(axisX, Qt::AlignBottom);
     series->attachAxis(axisX);
 
-    auto* axisY = new QValueAxis;
+    auto* axisY = new QCategoryAxis;
+    axisY->setLabelsPosition(QCategoryAxis::AxisLabelsPositionOnValue);
     axisY->setLabelsColor(Qt::white);
     axisY->setGridLineColor(QColor("#3a3f55"));
     double maxV = 0.0;
     for (double v : values) maxV = qMax(maxV, qAbs(v));
     if (maxV < 0.001) maxV = 1.0;
-    axisY->setRange(0.0, maxV * 1.1);
+    setCompactMoneyAxisRange(axisY, maxV);
     chart->addAxis(axisY, Qt::AlignLeft);
     series->attachAxis(axisY);
 
@@ -494,7 +545,7 @@ QChartView* ChartsWidget::makeCandle(const QString& title,
     legendInc->setColor(metricColor(metricId));
     auto* legendDec = new QLineSeries;
     legendDec->setName(tr_decreasing_b4c279());
-    legendDec->setColor(metricColor(metricId).darker(130));
+    legendDec->setColor(contrastDecreaseColor(metricColor(metricId)));
     chart->addSeries(legendInc);
     chart->addSeries(legendDec);
     legendInc->attachAxis(axisX);
@@ -504,7 +555,7 @@ QChartView* ChartsWidget::makeCandle(const QString& title,
 
     chart->legend()->setVisible(false);
     applyLegendMarkerColorsLater(chart, legendInc, QStringList{tr_increasing_c5cd67()}, QList<QColor>{metricColor(metricId)});
-    applyLegendMarkerColorsLater(chart, legendDec, QStringList{tr_decreasing_b4c279()}, QList<QColor>{metricColor(metricId).darker(130)});
+    applyLegendMarkerColorsLater(chart, legendDec, QStringList{tr_decreasing_b4c279()}, QList<QColor>{contrastDecreaseColor(metricColor(metricId))});
     chart->setMargins(QMargins(2, 2, 2, 20));
     chart->setAnimationOptions(QChart::AllAnimations);
 
@@ -518,7 +569,7 @@ QChartView* ChartsWidget::makeCandle(const QString& title,
     if (candleTotal < 0.001) candleTotal = 1.0;
     for (int i = 0; i < labels.size() && i < values.size(); ++i) {
         candleLegendLabels << (labels[i] + QStringLiteral(" — ") + title);
-        candleLegendColors << ((values[i] >= 0.0) ? metricColor(metricId).name() : metricColor(metricId).darker(130).name());
+        candleLegendColors << ((values[i] >= 0.0) ? metricColor(metricId).name() : contrastDecreaseColor(metricColor(metricId)).name());
     }
     view->setProperty("legendLabels", candleLegendLabels);
     view->setProperty("legendColors", candleLegendColors);
@@ -555,13 +606,14 @@ QChartView* ChartsWidget::makeLine(const QString& title,
     chart->addAxis(axisX, Qt::AlignBottom);
     line->attachAxis(axisX);
 
-    auto* axisY = new QValueAxis;
+    auto* axisY = new QCategoryAxis;
+    axisY->setLabelsPosition(QCategoryAxis::AxisLabelsPositionOnValue);
     axisY->setLabelsColor(Qt::white);
     axisY->setGridLineColor(QColor("#3a3f55"));
     double maxV = 0.0;
     for (double v : values) maxV = qMax(maxV, qAbs(v));
     if (maxV < 0.001) maxV = 1.0;
-    axisY->setRange(0.0, maxV * 1.1);
+    setCompactMoneyAxisRange(axisY, maxV);
     chart->addAxis(axisY, Qt::AlignLeft);
     line->attachAxis(axisY);
 

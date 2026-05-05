@@ -362,13 +362,14 @@ private:
 SupplierSpinBox::SupplierSpinBox(QWidget* parent) : QDoubleSpinBox(parent)
 {
     setRange(0, 1e12);
-    setDecimals(2);
+    setDecimals(currencyDecimals());
     setSingleStep(100);
     setLocale(QLocale(QLocale::English, QLocale::UnitedStates));
     setGroupSeparatorShown(true);
     setButtonSymbols(QAbstractSpinBox::NoButtons);
+    updatePrefix();
 }
-void SupplierSpinBox::updatePrefix() { setPrefix(currencyPrefix()); }
+void SupplierSpinBox::updatePrefix() { setPrefix(currencyPrefix()); setSuffix(currencySuffix()); setDecimals(currencyDecimals()); }
 void SupplierSpinBox::wheelEvent(QWheelEvent* e) { e->ignore(); }
 void SupplierSpinBox::focusInEvent(QFocusEvent* e) { QDoubleSpinBox::focusInEvent(e); selectAll(); }
 
@@ -688,7 +689,7 @@ void SupplierMonthCard::refreshComputedValues(const QList<SupplierEntry>* previo
         const double bal = debt - r.payments->value();
         r.pctPurchases->setText(QString::number(pctPurch, 'f', 2) + "%");
         r.pctDebt->setText(QString::number(pctDebt, 'f', 2) + "%");
-        r.balance->setText(currencyPrefix() + QLocale(QLocale::English, QLocale::UnitedStates).toString(bal, 'f', 2));
+        r.balance->setText(formatMoneyText(bal));
     }
     if (m_expanded) {
         QTimer::singleShot(0, this, [this]{
@@ -773,6 +774,7 @@ void SupplierMonthCard::updateCurrencyPrefix()
         r.totalDebt->updatePrefix();
         r.payments->updatePrefix();
     }
+    refreshComputedValues(nullptr);
 }
 
 void SupplierMonthCard::retranslate()

@@ -5,6 +5,7 @@
 #include <QStringList>
 #include <QList>
 #include <QMap>
+#include <QVector>
 #include <QColor>
 #include <QtGlobal>
 #include "translations.h"
@@ -96,7 +97,7 @@ struct AccountItem {
     QString name;
     QString currency;
     bool allowSettlement = false;
-    double amount = 0.0; // legacy amount kept for existing charts/imports
+    double amount = 0.0; // amount for the selected month in the fixed expenses grid
     AccountType type = AccountType::Payable;
 };
 
@@ -211,13 +212,188 @@ inline bool operator!=(const ResultFlowItem& a, const ResultFlowItem& b)
     return !(a == b);
 }
 
+
+inline int fixedExpenseAccountIndexFromCode(const QString& code)
+{
+    const QString c = code.trimmed().toUpper();
+    if (c.startsWith(QStringLiteral("FX"))) {
+        bool ok = false;
+        const int n = c.mid(2).toInt(&ok);
+        if (ok && n >= 1 && n <= fixedExpenseAccountCount())
+            return n - 1;
+    }
+    return -1;
+}
+
+inline QString normalizedAccountKey(const AccountItem& item)
+{
+    const QString code = item.code.trimmed().toUpper();
+    if (!code.isEmpty())
+        return QStringLiteral("CODE:") + code;
+    return QStringLiteral("NAME:") + item.name.trimmed().toCaseFolded();
+}
+
+inline int fixedExpenseAccountIndexFromItem(const AccountItem& item)
+{
+    int idx = fixedExpenseAccountIndexFromCode(item.code);
+    if (idx >= 0)
+        return idx;
+
+    const QString key = item.name.trimmed().toCaseFolded();
+    if (key.isEmpty())
+        return -1;
+
+    const QStringList names = fixedExpenseAccountNames();
+    for (int i = 0; i < names.size(); ++i) {
+        if (names.value(i).trimmed().toCaseFolded() == key)
+            return i;
+    }
+
+    // Backward-compatible matching for saved/imported fixed accounts that were
+    // stored in the other UI language. Keep this intentionally literal so it
+    // does not temporarily mutate the global language while widgets repaint.
+    static const QStringList enNames = {
+        QStringLiteral("Salaries and wages"),
+        QStringLiteral("Monthly incentives"),
+        QStringLiteral("Bonuses and allowances"),
+        QStringLiteral("Fuel and oil"),
+        QStringLiteral("Supplies and consumables"),
+        QStringLiteral("Stationery"),
+        QStringLiteral("Building maintenance"),
+        QStringLiteral("Furniture maintenance"),
+        QStringLiteral("Vehicle maintenance and transportation"),
+        QStringLiteral("Advertising and publicity"),
+        QStringLiteral("Transport, dispatch, and communications"),
+        QStringLiteral("Transportation vehicle rental"),
+        QStringLiteral("Building rent"),
+        QStringLiteral("Other service expenses"),
+        QStringLiteral("Bank expenses"),
+        QStringLiteral("Gifts and donations"),
+        QStringLiteral("Taxes and miscellaneous fees"),
+        QStringLiteral("Distribution expenses"),
+        QStringLiteral("Promotional allowance"),
+        QStringLiteral("Cash allowance"),
+        QStringLiteral("Price difference allowance"),
+        QStringLiteral("Damaged goods allowance"),
+        QStringLiteral("Gift allowance"),
+        QStringLiteral("Damaged inventory")
+    };
+    static const QStringList arNames = {
+        QString::fromUtf8("رواتب واجور"),
+        QString::fromUtf8("الحوافز الشهرية"),
+        QString::fromUtf8("مكافات واكراميات"),
+        QString::fromUtf8("وقود وزيوت"),
+        QString::fromUtf8("لوازم ومهمات"),
+        QString::fromUtf8("قرطاسية"),
+        QString::fromUtf8("صيانة مباني"),
+        QString::fromUtf8("صيانة الاثاث"),
+        QString::fromUtf8("صيانة وسائط نقل وانتقال"),
+        QString::fromUtf8("دعاية واعلان"),
+        QString::fromUtf8("نقل وايفاد واتصالات"),
+        QString::fromUtf8("استئجار وسائط نقل وانتقال"),
+        QString::fromUtf8("استئجار مباني"),
+        QString::fromUtf8("مصروفات خدمية اخرى"),
+        QString::fromUtf8("مصاريف بنك"),
+        QString::fromUtf8("هدايا وتبرعات"),
+        QString::fromUtf8("ضرائب ورسوم متنوعة"),
+        QString::fromUtf8("مصاريف التوزيع"),
+        QString::fromUtf8("سماح تشجيعي"),
+        QString::fromUtf8("سماح نقدي"),
+        QString::fromUtf8("سماح فرق السعر"),
+        QString::fromUtf8("سماح تالف"),
+        QString::fromUtf8("سماح هدايا"),
+        QString::fromUtf8("تالف المخزون السلعي")
+    };
+    for (int i = 0; i < enNames.size(); ++i) {
+        if (enNames.value(i).trimmed().toCaseFolded() == key ||
+            arNames.value(i).trimmed().toCaseFolded() == key)
+            return i;
+    }
+    return -1;
+}
+
+inline QString expenseAccountDisplayName(const AccountItem& item)
+{
+    const int idx = fixedExpenseAccountIndexFromItem(item);
+    if (idx >= 0)
+        return fixedExpenseAccountNames().value(idx);
+    return item.name.trimmed();
+}
+
+inline QList<AccountItem> defaultFixedExpenseAccounts()
+{
+    QList<AccountItem> items;
+    const QStringList names = fixedExpenseAccountNames();
+    for (int i = 0; i < names.size(); ++i) {
+        AccountItem item;
+        item.code = fixedExpenseAccountCode(i);
+        item.name = names.value(i);
+        item.currency = (g_currency == AppCurrency::USD ? QStringLiteral("USD") : QStringLiteral("IQD"));
+        item.type = AccountType::Payable;
+        item.amount = 0.0;
+        items.append(item);
+    }
+    return items;
+}
+
+struct AppData;
+inline bool hasAnyMonthlyExpenseAccounts(const AppData& d);
+
+inline QList<AccountItem> normalizedFixedExpenseAccountsForMonth(const QList<AccountItem>& source)
+{
+    QList<AccountItem> items = defaultFixedExpenseAccounts();
+    QStringList customKeys;
+
+    for (const auto& raw : source) {
+        AccountItem clean = raw;
+        clean.name = raw.name.trimmed();
+        clean.code = raw.code.trimmed();
+        clean.type = (raw.type == AccountType::Receivable) ? AccountType::Receivable : AccountType::Payable;
+        clean.currency = raw.currency.trimmed().isEmpty()
+            ? (g_currency == AppCurrency::USD ? QStringLiteral("USD") : QStringLiteral("IQD"))
+            : raw.currency.trimmed().toUpper();
+
+        const int idx = fixedExpenseAccountIndexFromItem(clean);
+        if (idx >= 0 && idx < items.size()) {
+            items[idx].amount = clean.amount;
+            items[idx].type = clean.type;
+            items[idx].currency = clean.currency;
+            items[idx].allowSettlement = clean.allowSettlement;
+            continue;
+        }
+
+        if (clean.name.isEmpty())
+            continue;
+        if (clean.code.isEmpty())
+            clean.code = QStringLiteral("CX-%1").arg(clean.name.trimmed().toCaseFolded());
+
+        const QString key = normalizedAccountKey(clean);
+        int existing = -1;
+        for (int i = 0; i < items.size(); ++i) {
+            if (fixedExpenseAccountIndexFromItem(items[i]) < 0 && normalizedAccountKey(items[i]) == key) {
+                existing = i;
+                break;
+            }
+        }
+        if (existing >= 0) {
+            items[existing] = clean;
+        } else if (!customKeys.contains(key)) {
+            customKeys << key;
+            items.append(clean);
+        }
+    }
+    return items;
+}
+
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  Full application state
 // ─────────────────────────────────────────────────────────────────────────────
 struct AppData {
     std::array<MonthData, 12> months{};
     std::array<ChartSel, M_COUNT> sel{};
-    QList<AccountItem> accounts;
+    QList<AccountItem> accounts; // legacy/aggregated account list
+    std::array<QList<AccountItem>, 12> monthlyAccounts{};
     std::array<SupplierMonthData, 12> suppliers{};
     std::array<QList<SupplierEntry>, 12> supplierEntries{};
     InventoryMode inventoryMode = InventoryMode::Periodic;
@@ -275,24 +451,74 @@ struct AppData {
             }
         }
 
-        // Build expense summary from the accounts tab, preserving the displayed order.
-        // Legacy monthly expense fields are used only as a fallback for older data.
+        // Build expense summary from the monthly Expenses tab.
+        // Custom user-added accounts are preserved and aggregated together with fixed accounts.
         expenseSummary.clear();
-        if (!accounts.isEmpty()) {
+        if (hasAnyMonthlyExpenseAccounts(*this)) {
+            QStringList keys;
+            QStringList labels;
+            QVector<double> totals;
+            for (int month = 0; month < 12; ++month) {
+                const QList<AccountItem> list = normalizedFixedExpenseAccountsForMonth(monthlyAccounts[month]);
+                for (const auto& item : list) {
+                    if (item.amount == 0.0 && fixedExpenseAccountIndexFromItem(item) >= 0)
+                        continue;
+                    const QString label = expenseAccountDisplayName(item);
+                    if (label.isEmpty())
+                        continue;
+                    const QString key = normalizedAccountKey(item);
+                    int pos = keys.indexOf(key);
+                    if (pos < 0) {
+                        keys << key;
+                        labels << label;
+                        totals << 0.0;
+                        pos = totals.size() - 1;
+                    }
+                    totals[pos] += item.amount;
+                }
+            }
+            for (int i = 0; i < totals.size(); ++i) {
+                const bool customAccount = !keys.value(i).startsWith(QStringLiteral("CODE:FX"));
+                if (totals[i] != 0.0 || customAccount)
+                    expenseSummary.append({labels.value(i), totals.value(i)});
+            }
+        } else if (!accounts.isEmpty()) {
             for (const auto& a : accounts) {
-                const QString name = a.name.trimmed();
-                if (!name.isEmpty() && a.amount > 0.0)
+                const QString name = expenseAccountDisplayName(a);
+                if (!name.isEmpty() && a.amount != 0.0)
                     expenseSummary.append({name, a.amount});
             }
         } else {
             for (const auto& m : months) {
                 const QString acc = m.expenseAccount.trimmed();
-                if (!acc.isEmpty() && m.expenseAmount > 0.0)
+                if (!acc.isEmpty() && m.expenseAmount != 0.0)
                     expenseSummary.append({acc, m.expenseAmount});
             }
         }
     }
 };
+
+inline bool hasAnyMonthlyExpenseAccounts(const AppData& d)
+{
+    for (const auto& list : d.monthlyAccounts) {
+        if (!list.isEmpty())
+            return true;
+    }
+    return false;
+}
+
+inline double monthlyExpenseAccountTotal(const AppData& d, int monthIndex, AccountTypeFilter filter = AccountTypeFilter::All)
+{
+    if (monthIndex < 0 || monthIndex >= 12)
+        return 0.0;
+    double total = 0.0;
+    const QList<AccountItem> list = normalizedFixedExpenseAccountsForMonth(d.monthlyAccounts[monthIndex]);
+    for (const auto& item : list) {
+        if (filter == AccountTypeFilter::All || static_cast<int>(item.type) == static_cast<int>(filter))
+            total += item.amount;
+    }
+    return total;
+}
 
 
 inline bool appDataHasUserEntries(const AppData& d)
@@ -305,9 +531,20 @@ inline bool appDataHasUserEntries(const AppData& d)
             return true;
     }
 
-    if (!d.accounts.isEmpty() || !d.chartRequests.isEmpty() || !d.hiddenChartRequests.isEmpty() ||
-        !d.resultFlowOrder.isEmpty())
+    if (!d.chartRequests.isEmpty() || !d.hiddenChartRequests.isEmpty() || !d.resultFlowOrder.isEmpty())
         return true;
+
+    for (const auto& a : d.accounts) {
+        if (a.amount != 0.0 || fixedExpenseAccountIndexFromItem(a) < 0)
+            return true;
+    }
+
+    for (const auto& list : d.monthlyAccounts) {
+        for (const auto& a : list) {
+            if (a.amount != 0.0 || (fixedExpenseAccountIndexFromItem(a) < 0 && !a.name.trimmed().isEmpty()))
+                return true;
+        }
+    }
 
     for (const auto& s : d.suppliers) {
         if (!s.supplierName.trimmed().isEmpty() || s.purchases != 0.0 || s.payments != 0.0)
@@ -534,7 +771,37 @@ inline QList<double> metricSeriesValues(const AppData& d, MetricId id, QStringLi
         }
         break;
     case M_EXPENSES:
-        if (!d.accounts.isEmpty()) {
+        if (hasAnyMonthlyExpenseAccounts(d)) {
+            QStringList keys;
+            QStringList outLabels;
+            QVector<double> totals;
+            for (int month = 0; month < 12; ++month) {
+                if (!includeMonth(month))
+                    continue;
+                const QList<AccountItem> list = normalizedFixedExpenseAccountsForMonth(d.monthlyAccounts[month]);
+                for (const auto& a : list) {
+                    if (!accountMatchesFilter(a.type, accountFilter))
+                        continue;
+                    const QString label = expenseAccountDisplayName(a);
+                    if (label.isEmpty())
+                        continue;
+                    const QString key = normalizedAccountKey(a);
+                    int pos = keys.indexOf(key);
+                    if (pos < 0) {
+                        keys << key;
+                        outLabels << label;
+                        totals << 0.0;
+                        pos = totals.size() - 1;
+                    }
+                    totals[pos] += a.amount;
+                }
+            }
+            for (int i = 0; i < totals.size(); ++i) {
+                values << totals.value(i);
+                if (labels)
+                    *labels << outLabels.value(i);
+            }
+        } else if (!d.accounts.isEmpty()) {
             for (const auto& a : d.accounts) {
                 if (!accountMatchesFilter(a.type, accountFilter))
                     continue;
@@ -544,9 +811,10 @@ inline QList<double> metricSeriesValues(const AppData& d, MetricId id, QStringLi
                 for (const auto& a : d.accounts) {
                     if (!accountMatchesFilter(a.type, accountFilter))
                         continue;
-                    *labels << (!a.code.trimmed().isEmpty()
-                        ? (a.code.trimmed() + QStringLiteral(" - ") + a.name)
-                        : a.name);
+                    const QString displayName = expenseAccountDisplayName(a);
+                    *labels << (!a.code.trimmed().isEmpty() && fixedExpenseAccountIndexFromItem(a) < 0
+                        ? (a.code.trimmed() + QStringLiteral(" - ") + displayName)
+                        : displayName);
                 }
             }
         } else {
@@ -623,7 +891,9 @@ inline QList<double> metricSeriesValues(const AppData& d, MetricId id, QStringLi
         }
         break;
     case M_EXPENSE_AMOUNT:
-        for (int i = 0; i < 12; ++i) if (includeMonth(i)) values << d.months[i].expenseAmount;
+        for (int i = 0; i < 12; ++i) if (includeMonth(i)) {
+            values << (hasAnyMonthlyExpenseAccounts(d) ? monthlyExpenseAccountTotal(d, i) : d.months[i].expenseAmount);
+        }
         if (labels) {
             const auto months = monthNames();
             for (int i = 0; i < 12; ++i) if (includeMonth(i)) *labels << months.value(i);
@@ -673,29 +943,31 @@ inline QList<double> metricSeriesValues(const AppData& d, MetricId id, QStringLi
 
 inline QColor metricColor(MetricId id)
 {
+    // High-contrast chart colors: avoid placing near-duplicate tones
+    // such as light green and green in the same chart.
     switch (id) {
-    case M_SALES:             return QColor("#4f86f7");
-    case M_SALES_RETURN:      return QColor("#e05c6a");
-    case M_PURCHASES:         return QColor("#9b6cf9");
-    case M_EXPENSES:          return QColor("#62c4e3");
-    case M_INVENTORY:         return QColor("#8f97b4");
-    case M_NET_SALES:         return QColor("#3ecf8e");
-    case M_COGS:              return QColor("#f0a500");
-    case M_PROFIT_MARGIN:     return QColor("#14b8a6");
-    case M_SUPPLIER_PAYMENTS: return QColor("#ff9f43");
-    case M_SUPPLIER_PREVIOUS_BALANCE: return QColor("#7c83fd");
-    case M_SUPPLIER_TOTAL_DEBT: return QColor("#ef476f");
-    case M_SUPPLIER_PAYMENT_PCT_PURCHASES: return QColor("#06d6a0");
-    case M_SUPPLIER_PAYMENT_PCT_DEBT: return QColor("#118ab2");
-    case M_SUPPLIER_BALANCE: return QColor("#ffd166");
-    case M_EXPENSE_AMOUNT:    return QColor("#fd79a8");
-    case M_INVENTORY_OPENING: return QColor("#5b8def");
-    case M_INVENTORY_CLOSING: return QColor("#8f97b4");
-    case M_COGS_VS_PROFIT:    return QColor("#4f86f7");
-    case M_SUPPLIER_NAME:     return QColor("#8b5cf6");
+    case M_SALES:             return QColor("#1f77b4");
+    case M_SALES_RETURN:      return QColor("#d62728");
+    case M_PURCHASES:         return QColor("#9467bd");
+    case M_EXPENSES:          return QColor("#17becf");
+    case M_INVENTORY:         return QColor("#7f7f7f");
+    case M_NET_SALES:         return QColor("#2ca02c");
+    case M_COGS:              return QColor("#ff7f0e");
+    case M_PROFIT_MARGIN:     return QColor("#e377c2");
+    case M_SUPPLIER_PAYMENTS: return QColor("#8c564b");
+    case M_SUPPLIER_PREVIOUS_BALANCE: return QColor("#2f4b7c");
+    case M_SUPPLIER_TOTAL_DEBT: return QColor("#bc5090");
+    case M_SUPPLIER_PAYMENT_PCT_PURCHASES: return QColor("#f0e442");
+    case M_SUPPLIER_PAYMENT_PCT_DEBT: return QColor("#009e73");
+    case M_SUPPLIER_BALANCE: return QColor("#e69f00");
+    case M_EXPENSE_AMOUNT:    return QColor("#cc79a7");
+    case M_INVENTORY_OPENING: return QColor("#56b4e9");
+    case M_INVENTORY_CLOSING: return QColor("#6b7280");
+    case M_COGS_VS_PROFIT:    return QColor("#1f77b4");
+    case M_SUPPLIER_NAME:     return QColor("#665191");
     case M_COUNT:             break;
     }
-    return QColor("#4f86f7");
+    return QColor("#1f77b4");
 }
 
 inline QColor metricColorFromDisplayName(const QString& name)
@@ -706,13 +978,16 @@ inline QColor metricColorFromDisplayName(const QString& name)
         if (metricDisplayName(id).trimmed().compare(key, Qt::CaseInsensitive) == 0)
             return metricColor(id);
     }
+    if (key.compare(QStringLiteral("Profit Margin"), Qt::CaseInsensitive) == 0 ||
+        key.compare(QString::fromUtf8("هامش الربح"), Qt::CaseInsensitive) == 0)
+        return metricColor(M_PROFIT_MARGIN);
     if (key.compare(tr_increasing_c5cd67().trimmed(), Qt::CaseInsensitive) == 0 ||
         key.compare(tr_increasing_faa4d2().trimmed(), Qt::CaseInsensitive) == 0)
         return metricColor(M_NET_SALES);
     if (key.compare(tr_decreasing_b4c279().trimmed(), Qt::CaseInsensitive) == 0 ||
         key.compare(tr_decreasing_d64136().trimmed(), Qt::CaseInsensitive) == 0)
-        return metricColor(M_NET_SALES).darker(135);
-    return QColor("#4f86f7");
+        return QColor("#d62728");
+    return QColor("#1f77b4");
 }
 
 inline QString comparisonTitle(MetricId a, MetricId b)

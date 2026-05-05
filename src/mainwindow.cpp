@@ -454,14 +454,28 @@ static QList<QPair<QString, QByteArray>> buildSheetsForExport(const AppData& dat
         break;
     }
     case XlsxSheetKind::Expenses: {
-        QStringList headers = {QStringLiteral("الكود"), QStringLiteral("اسم الحساب"), QStringLiteral("الرصيد الحالي"), QStringLiteral("النوع/نوع الحساب"), QStringLiteral("السماح بالتسوية")};
+        QStringList headers = {QStringLiteral("EXPENSES"), QStringLiteral("Month"), QStringLiteral("Account Name"), QStringLiteral("Amount"), QStringLiteral("Account Type")};
         QList<QStringList> rows;
-        for (const auto& a : data.accounts) {
-            rows.push_back({a.code,
-                            a.name,
-                            QString::number(a.amount, 'f', 2),
-                            accountTypeExpenseExportName(a.type),
-                            a.allowSettlement ? QStringLiteral("نعم") : QStringLiteral("لا")});
+        const auto months = monthNames();
+        if (hasAnyMonthlyExpenseAccounts(data)) {
+            for (int month = 0; month < 12; ++month) {
+                const QList<AccountItem> list = normalizedFixedExpenseAccountsForMonth(data.monthlyAccounts[month]);
+                for (const auto& a : list) {
+                    rows.push_back({QStringLiteral("EXPENSES"),
+                                    months.value(month),
+                                    a.name,
+                                    QString::number(a.amount, 'f', 2),
+                                    a.type == AccountType::Receivable ? tr_account_receivable_59bf34() : tr_account_payable_003206()});
+                }
+            }
+        } else {
+            for (const auto& a : data.accounts) {
+                rows.push_back({QStringLiteral("EXPENSES"),
+                                months.value(0),
+                                a.name,
+                                QString::number(a.amount, 'f', 2),
+                                a.type == AccountType::Receivable ? tr_account_receivable_59bf34() : tr_account_payable_003206()});
+            }
         }
         addSheet("EXPENSES", headers, rows, false);
         break;
@@ -1007,13 +1021,14 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
             }
         }
     } else if (marker == QStringLiteral("EXPENSES")) {
+        const int cMonth = findColumn(cols, {"Month", QStringLiteral("الشهر")});
         const int cCode = findColumn(cols, {"Account Code", "Code", QStringLiteral("الكود"), QStringLiteral("كود")});
         const int cName = findColumn(cols, {"Account Name", "Expense Account", QStringLiteral("اسم الحساب"), QStringLiteral("الحساب")});
         const int cType = findColumn(cols, {"Account Type", "Type", QStringLiteral("النوع/نوع الحساب"), QStringLiteral("نوع الحساب"), QStringLiteral("النوع")});
         const int cSettlement = findColumn(cols, {"Allow Settlement", "Settlement", "Allow Reconciliation", "Reconcile", "Reconciliation", "Can Reconcile", QStringLiteral("السماح بالتسوية"), QStringLiteral("التسوية"), QStringLiteral("السماح بالمطابقة"), QStringLiteral("المطابقة"), QStringLiteral("قابل للتسوية")});
         const int cCurrency = findColumn(cols, {"Currency", QStringLiteral("العملة")});
         const int cAmount = findColumn(cols, {"Amount", "Expense Amount", QStringLiteral("الرصيد الحالي"), QStringLiteral("المبلغ"), QStringLiteral("الرصيد")});
-        if (cName < 0 || cType < 0) {
+        if (cName < 0 || cType < 0 || cAmount < 0) {
             g_lastImportError = tr_auto_import_failed_the_expenses_sheet_does_not__1996b8cb();
             return false;
         }
@@ -1033,22 +1048,64 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
                    k.contains(QStringLiteral("مسموح")) || k.contains(QStringLiteral("مفع")) ||
                    k.contains(QStringLiteral("نعم")) || k.contains(QStringLiteral("مطابق"));
         };
+
+        const auto months = monthNames();
+        QMap<QString, int> monthLookup;
+        for (int i = 0; i < months.size(); ++i)
+            monthLookup[normalizedHeaderCell(months[i])] = i;
+        for (int i = 0; i < 12; ++i)
+            data->monthlyAccounts[i] = defaultFixedExpenseAccounts();
+
         for (int r = dataStartRowIndex; r < rows.size(); ++r) {
             const auto& row = rows[r];
             if (!rowHasAnyData(row)) continue;
             const QString rowMarker = row.value(0).trimmed().toUpper();
             if (isKnownImportMarker(rowMarker) && rowMarker != marker) continue;
+
+            const int monthIndex = cMonth >= 0 ? monthLookup.value(normalizedHeaderCell(cell(row, cMonth)), 0) : 0;
+            if (monthIndex < 0 || monthIndex >= 12)
+                continue;
+
             AccountItem a;
             a.code = cCode >= 0 ? cell(row, cCode) : QString();
             a.name = cell(row, cName);
             a.type = accountTypeFromText(cell(row, cType));
+            if (a.type != AccountType::Receivable)
+                a.type = AccountType::Payable;
             a.allowSettlement = cSettlement >= 0 ? parseBool(cell(row, cSettlement)) : false;
             a.currency = cCurrency >= 0 ? cell(row, cCurrency).trimmed().toUpper() : QString();
-            if (cAmount >= 0 && !cell(row, cAmount).trimmed().isEmpty()) {
-                if (!parseRequiredNumber(row, cAmount, a.amount, QStringLiteral("Amount"))) return false;
-            }
-            if (!a.code.trimmed().isEmpty() || !a.name.trimmed().isEmpty())
+            if (!parseRequiredNumber(row, cAmount, a.amount, QStringLiteral("Amount"))) return false;
+
+            QList<AccountItem> monthAccounts = normalizedFixedExpenseAccountsForMonth(data->monthlyAccounts[monthIndex]);
+            int fixedIndex = fixedExpenseAccountIndexFromItem(a);
+            if (fixedIndex < 0) {
+                if (a.code.trimmed().isEmpty())
+                    a.code = QStringLiteral("CX-%1").arg(a.name.trimmed().toCaseFolded());
+                a.currency = a.currency.trimmed().isEmpty()
+                    ? (g_currency == AppCurrency::USD ? QStringLiteral("USD") : QStringLiteral("IQD"))
+                    : a.currency.trimmed().toUpper();
+                int existing = -1;
+                const QString key = normalizedAccountKey(a);
+                for (int i = 0; i < monthAccounts.size(); ++i) {
+                    if (fixedExpenseAccountIndexFromItem(monthAccounts[i]) < 0 && normalizedAccountKey(monthAccounts[i]) == key) {
+                        existing = i;
+                        break;
+                    }
+                }
+                if (existing >= 0)
+                    monthAccounts[existing] = a;
+                else
+                    monthAccounts.append(a);
                 data->accounts.append(a);
+            } else {
+                monthAccounts[fixedIndex].amount = a.amount;
+                monthAccounts[fixedIndex].type = a.type;
+                monthAccounts[fixedIndex].currency = a.currency.trimmed().isEmpty()
+                    ? (g_currency == AppCurrency::USD ? QStringLiteral("USD") : QStringLiteral("IQD"))
+                    : a.currency.trimmed().toUpper();
+                monthAccounts[fixedIndex].allowSettlement = a.allowSettlement;
+            }
+            data->monthlyAccounts[monthIndex] = monthAccounts;
         }
     } else if (marker == QStringLiteral("SUPPLIERS")) {
         const int cMonth = findColumn(cols, {"Month"});
@@ -1199,6 +1256,7 @@ static bool loadAppDataXlsx(const QString& path, AppData* data)
                 data->inventoryMode = part.inventoryMode;
             } else if (marker == QStringLiteral("EXPENSES")) {
                 data->accounts = part.accounts;
+                data->monthlyAccounts = part.monthlyAccounts;
             } else if (marker == QStringLiteral("SUPPLIERS")) {
                 data->suppliers = part.suppliers;
                 data->supplierEntries = part.supplierEntries;
@@ -1316,18 +1374,37 @@ void MainWindow::saveTableDataLocally()
     }
     s.endGroup();
 
-    const QList<AccountItem> accounts = m_accounts ? m_accounts->collectData().accounts : QList<AccountItem>{};
+    const AppData accountsData = m_accounts ? m_accounts->collectData() : AppData{};
     s.beginGroup(QStringLiteral("accountsData"));
-    s.setValue(QStringLiteral("hasData"), !accounts.isEmpty());
-    s.setValue(QStringLiteral("count"), accounts.size());
-    for (int i = 0; i < accounts.size(); ++i) {
+    s.setValue(QStringLiteral("hasData"), appDataHasUserEntries(accountsData));
+    s.setValue(QStringLiteral("monthlyFixed"), true);
+    for (int month = 0; month < 12; ++month) {
+        const QList<AccountItem> monthAccounts = normalizedFixedExpenseAccountsForMonth(accountsData.monthlyAccounts[month]);
+        s.beginGroup(QStringLiteral("month_") + QString::number(month));
+        s.setValue(QStringLiteral("count"), monthAccounts.size());
+        for (int i = 0; i < monthAccounts.size(); ++i) {
+            s.beginGroup(QStringLiteral("account_") + QString::number(i));
+            s.setValue(QStringLiteral("code"), monthAccounts[i].code);
+            s.setValue(QStringLiteral("name"), monthAccounts[i].name);
+            s.setValue(QStringLiteral("type"), int(monthAccounts[i].type));
+            s.setValue(QStringLiteral("allowSettlement"), monthAccounts[i].allowSettlement);
+            s.setValue(QStringLiteral("currency"), monthAccounts[i].currency);
+            s.setValue(QStringLiteral("amount"), monthAccounts[i].amount);
+            s.endGroup();
+        }
+        s.endGroup();
+    }
+
+    // Legacy aggregate snapshot for older builds/import helpers.
+    s.setValue(QStringLiteral("count"), accountsData.accounts.size());
+    for (int i = 0; i < accountsData.accounts.size(); ++i) {
         s.beginGroup(QString::number(i));
-        s.setValue(QStringLiteral("code"), accounts[i].code);
-        s.setValue(QStringLiteral("name"), accounts[i].name);
-        s.setValue(QStringLiteral("type"), int(accounts[i].type));
-        s.setValue(QStringLiteral("allowSettlement"), accounts[i].allowSettlement);
-        s.setValue(QStringLiteral("currency"), accounts[i].currency);
-        s.setValue(QStringLiteral("amount"), accounts[i].amount);
+        s.setValue(QStringLiteral("code"), accountsData.accounts[i].code);
+        s.setValue(QStringLiteral("name"), accountsData.accounts[i].name);
+        s.setValue(QStringLiteral("type"), int(accountsData.accounts[i].type));
+        s.setValue(QStringLiteral("allowSettlement"), accountsData.accounts[i].allowSettlement);
+        s.setValue(QStringLiteral("currency"), accountsData.accounts[i].currency);
+        s.setValue(QStringLiteral("amount"), accountsData.accounts[i].amount);
         s.endGroup();
     }
     s.endGroup();
@@ -1387,8 +1464,29 @@ void MainWindow::loadTableDataLocally()
 
     s.beginGroup(QStringLiteral("accountsData"));
     const bool hasAccounts = s.value(QStringLiteral("hasData"), false).toBool();
-    QList<AccountItem> accounts;
-    if (hasAccounts) {
+    AppData accountsData;
+    if (hasAccounts && s.value(QStringLiteral("monthlyFixed"), false).toBool()) {
+        for (int month = 0; month < 12; ++month) {
+            QList<AccountItem> monthAccounts;
+            s.beginGroup(QStringLiteral("month_") + QString::number(month));
+            const int count = s.value(QStringLiteral("count"), 0).toInt();
+            for (int i = 0; i < count; ++i) {
+                s.beginGroup(QStringLiteral("account_") + QString::number(i));
+                AccountItem a;
+                a.code = s.value(QStringLiteral("code"), fixedExpenseAccountCode(i)).toString();
+                a.name = s.value(QStringLiteral("name"), fixedExpenseAccountNames().value(i)).toString();
+                a.type = static_cast<AccountType>(s.value(QStringLiteral("type"), int(AccountType::Payable)).toInt());
+                a.allowSettlement = s.value(QStringLiteral("allowSettlement"), false).toBool();
+                a.currency = s.value(QStringLiteral("currency"), QString()).toString();
+                a.amount = s.value(QStringLiteral("amount"), 0.0).toDouble();
+                monthAccounts.append(a);
+                s.endGroup();
+            }
+            s.endGroup();
+            accountsData.monthlyAccounts[month] = normalizedFixedExpenseAccountsForMonth(monthAccounts);
+        }
+    } else if (hasAccounts) {
+        QList<AccountItem> accounts;
         const int count = s.value(QStringLiteral("count"), 0).toInt();
         for (int i = 0; i < count; ++i) {
             s.beginGroup(QString::number(i));
@@ -1402,6 +1500,7 @@ void MainWindow::loadTableDataLocally()
             accounts.append(a);
             s.endGroup();
         }
+        accountsData.accounts = accounts;
     }
     s.endGroup();
 
@@ -1430,7 +1529,7 @@ void MainWindow::loadTableDataLocally()
     }
     s.endGroup();
 
-    if (m_accounts) { AppData accData; accData.accounts = accounts; m_accounts->setData(accData); }
+    if (m_accounts) { m_accounts->setData(accountsData); }
     if (m_suppliers) { m_suppliers->setData(supData); }
 }
 
@@ -1599,6 +1698,21 @@ void MainWindow::buildUI()
         shl->setContentsMargins(24, 0, 20, 0);
         shl->setSpacing(10);
         shl->addStretch();
+
+        m_addExpenseAccountBtn = new QPushButton(tr_add_account_9d4f6c());
+        m_addExpenseAccountBtn->setCursor(Qt::PointingHandCursor);
+        m_addExpenseAccountBtn->setFixedHeight(30);
+        m_addExpenseAccountBtn->setStyleSheet(g_lightMode
+            ? "QPushButton{border:1px solid #4f86f7; border-radius:6px; font-weight:700;"
+              " padding:0 16px; background:#eef5ff; color:#1d4ed8;}"
+              "QPushButton:hover{background:#dbeafe; color:#2563eb;}"
+              "QPushButton:pressed{background:#bfdbfe;}"
+            : "QPushButton{border:1px solid #4f86f7; border-radius:6px; font-weight:700;"
+              " padding:0 16px; background:#111d36; color:#9fbaff;}"
+              "QPushButton:hover{background:#172554; color:#ffffff;}"
+              "QPushButton:pressed{background:#1e3a8a;}");
+        connect(m_addExpenseAccountBtn, &QPushButton::clicked, this, [this]{ if (m_accounts) m_accounts->addAccount(); });
+        shl->addWidget(m_addExpenseAccountBtn);
 
         m_clearExpensesBtn = new QPushButton(tr_clear_data_4fcd0d());
         m_clearExpensesBtn->setCursor(Qt::PointingHandCursor);
@@ -2266,6 +2380,11 @@ void MainWindow::onImportData()
     };
 
     auto mergeAccounts = [&]() -> bool {
+        if (hasAnyMonthlyExpenseAccounts(imported)) {
+            merged.monthlyAccounts = imported.monthlyAccounts;
+            merged.accounts = imported.accounts;
+            return true;
+        }
         QList<AccountItem> importedAccounts;
         QMap<QString, int> importedIndex;
         for (const auto& a : imported.accounts) {
@@ -2402,7 +2521,7 @@ void MainWindow::onImportData()
         }
     }
 
-    setAccountData(merged.accounts);
+    if (m_accounts) m_accounts->setData(merged);
     setTableData(merged);
     m_data = collectAllData();
     m_hasResults = false;
@@ -2486,6 +2605,7 @@ AppData MainWindow::collectAllData() const
     if (m_accounts) {
         AppData acc = m_accounts->collectData();
         d.accounts = acc.accounts;
+        d.monthlyAccounts = acc.monthlyAccounts;
     }
     return d;
 }
@@ -2589,6 +2709,10 @@ void MainWindow::onSettings()
         if (currencyChanged) {
             updateTableCurrency();
             if (m_accounts) m_accounts->retranslate();
+            if (m_results && m_hasResults) {
+                m_results->buildResults(m_data);
+                syncResultsState();
+            }
         }
 
         if (fontChanged) {
@@ -2636,9 +2760,19 @@ void MainWindow::applyTheme()
           " padding:0 14px; background:#1e1010; color:#e74c3c;}"
           "QPushButton:hover{background:#2c1515; color:#ff6b6b;}"
           "QPushButton:pressed{background:#3a1a1a;}";
-    if (m_clearBtn)          m_clearBtn->setStyleSheet(clearDataBtnStyle);
-    if (m_clearExpensesBtn)  m_clearExpensesBtn->setStyleSheet(clearDataBtnStyle);
-    if (m_clearSuppliersBtn) m_clearSuppliersBtn->setStyleSheet(clearDataBtnStyle);
+    const QString addAccountBtnStyle = g_lightMode
+        ? "QPushButton{border:1px solid #4f86f7; border-radius:5px; font-weight:700;"
+          " padding:0 14px; background:#eef5ff; color:#1d4ed8;}"
+          "QPushButton:hover{background:#dbeafe; color:#2563eb;}"
+          "QPushButton:pressed{background:#bfdbfe;}"
+        : "QPushButton{border:1px solid #4f86f7; border-radius:5px; font-weight:700;"
+          " padding:0 14px; background:#111d36; color:#9fbaff;}"
+          "QPushButton:hover{background:#172554; color:#ffffff;}"
+          "QPushButton:pressed{background:#1e3a8a;}";
+    if (m_clearBtn)             m_clearBtn->setStyleSheet(clearDataBtnStyle);
+    if (m_addExpenseAccountBtn) m_addExpenseAccountBtn->setStyleSheet(addAccountBtnStyle);
+    if (m_clearExpensesBtn)     m_clearExpensesBtn->setStyleSheet(clearDataBtnStyle);
+    if (m_clearSuppliersBtn)    m_clearSuppliersBtn->setStyleSheet(clearDataBtnStyle);
     if (m_inventoryModeCombo) {
         m_inventoryModeCombo->setStyleSheet(g_lightMode
             ? "QComboBox{background:#ffffff;color:#1e2340;border:1px solid #cfd7ea;border-radius:6px;padding:0 10px;font-weight:700;}"
@@ -2678,6 +2812,8 @@ void MainWindow::retranslate()
         tr_save_data_e6059e());
     if (m_clearBtn)
         m_clearBtn->setText(tr_clear_data_4fcd0d());
+    if (m_addExpenseAccountBtn)
+        m_addExpenseAccountBtn->setText(tr_add_account_9d4f6c());
     if (m_clearExpensesBtn)
         m_clearExpensesBtn->setText(tr_clear_data_4fcd0d());
     if (m_clearSuppliersBtn)

@@ -48,6 +48,7 @@
 #include <QPen>
 #include <algorithm>
 #include <QMap>
+#include <QLocale>
 #include <QRegularExpression>
 #include <cmath>
 
@@ -75,21 +76,63 @@ protected:
 };
 
 static const QList<QColor> kPal = {
-    "#4f86f7", "#f0a500", "#e05c6a", "#3ecf8e",
-    "#9b6cf9", "#f06c6c", "#62c4e3", "#b0e96a",
-    "#ff9f43", "#fd79a8", "#00cec9", "#fdcb6e"
+    "#1f77b4", "#ff7f0e", "#d62728", "#9467bd",
+    "#8c564b", "#e377c2", "#17becf", "#bcbd22",
+    "#7f7f7f", "#2f4b7c", "#665191", "#009e73"
 };
 
 static QColor paletteColor(int index)
 {
     if (kPal.isEmpty())
-        return QColor("#4f86f7");
+        return QColor("#1f77b4");
     return kPal[qAbs(index) % kPal.size()];
 }
 
 static QString colorNameForLegendIndex(int index)
 {
     return paletteColor(index).name();
+}
+
+static QString compactMoneyText(double value)
+{
+    const double absValue = qAbs(value);
+    const char* suffix = "";
+    double divisor = 1.0;
+    if (absValue >= 1000000000.0) { suffix = "B"; divisor = 1000000000.0; }
+    else if (absValue >= 1000000.0) { suffix = "M"; divisor = 1000000.0; }
+    else if (absValue >= 1000.0) { suffix = "K"; divisor = 1000.0; }
+
+    if (divisor <= 1.0)
+        return QString("%L1").arg(qRound64(value));
+
+    const double scaled = std::floor((absValue / divisor) * 10.0) / 10.0;
+    QString text = QString::number(scaled, 'f', 1);
+    if (text.endsWith(QStringLiteral(".0")))
+        text.chop(2);
+    if (value < 0.0)
+        text.prepend(QChar('-'));
+    return text + QString::fromLatin1(suffix);
+}
+
+static void setCompactMoneyAxisRange(QCategoryAxis* axis, double maxAbs)
+{
+    if (!axis) return;
+    if (maxAbs < 0.001) maxAbs = 1.0;
+    const double upper = maxAbs * 1.1;
+    axis->setRange(0.0, upper);
+    const int tickCount = 5;
+    for (int i = 0; i < tickCount; ++i) {
+        const double value = upper * i / double(tickCount - 1);
+        axis->append(i == 0 ? QStringLiteral("0") : compactMoneyText(value), value);
+    }
+}
+
+static QColor contrastDecreaseColor(const QColor& base)
+{
+    const int hue = base.hsvHue();
+    if (hue >= 0 && (hue < 35 || hue > 335))
+        return QColor("#1f77b4");
+    return QColor("#d62728");
 }
 
 
@@ -397,7 +440,7 @@ static bool sameChartRequest(const ChartRequest& a, const ChartRequest& b)
 
 static QString money(double v)
 {
-    return QString("$%L1").arg(v, 0, 'f', 0);
+    return formatMoneyText(v, 0);
 }
 
 static void setTableRow(QTableWidget* t, int row, const QString& month, double net, double cogs, double profit)
@@ -1432,10 +1475,10 @@ void ResultsWidget::buildResults(const AppData& data)
     m_nextCardId = 0;
 
     static const QColor kMonthAccents[] = {
-        QColor("#4f86f7"), metricColor(M_COGS), QColor("#e05c6a"), QColor("#3ecf8e"),
-        QColor("#9b6cf9"), QColor("#62c4e3"), QColor("#ff9f43"), QColor("#b0e96a"),
-        QColor("#fd79a8"), QColor("#00cec9"), QColor("#4f86f7"), metricColor(M_COGS),
-        QColor("#3ecf8e")
+        QColor("#1f77b4"), QColor("#ff7f0e"), QColor("#d62728"), QColor("#9467bd"),
+        QColor("#8c564b"), QColor("#e377c2"), QColor("#17becf"), QColor("#bcbd22"),
+        QColor("#7f7f7f"), QColor("#2f4b7c"), QColor("#665191"), QColor("#009e73"),
+        QColor("#1f77b4")
     };
 
     m_monthCards.append(new MonthReportCard(
@@ -1525,9 +1568,9 @@ QWidget* ResultsWidget::buildReportSection(const AppData& data)
     m_monthOrder.clear();
 
     static const QColor kMonthAccents[] = {
-        QColor("#4f86f7"), metricColor(M_COGS), QColor("#e05c6a"), QColor("#3ecf8e"),
-        QColor("#9b6cf9"), QColor("#62c4e3"), QColor("#ff9f43"), QColor("#b0e96a"),
-        QColor("#fd79a8"), QColor("#00cec9"), QColor("#4f86f7"), metricColor(M_COGS)
+        QColor("#1f77b4"), QColor("#ff7f0e"), QColor("#d62728"), QColor("#9467bd"),
+        QColor("#8c564b"), QColor("#e377c2"), QColor("#17becf"), QColor("#bcbd22"),
+        QColor("#7f7f7f"), QColor("#2f4b7c"), QColor("#665191"), QColor("#009e73")
     };
 
     const auto months = monthNames();
@@ -2239,7 +2282,7 @@ QChartView* ResultsWidget::makeCandleChart(const QString& title,
     auto* series = new QCandlestickSeries;
     const QColor baseMetricColor = metricColorFromDisplayName(title);
     series->setIncreasingColor(baseMetricColor);
-    series->setDecreasingColor(baseMetricColor.darker(130));
+    series->setDecreasingColor(contrastDecreaseColor(baseMetricColor));
     series->setBodyOutlineVisible(false);
 
     for (int i = 0; i < values.size(); ++i) {
@@ -2268,15 +2311,15 @@ QChartView* ResultsWidget::makeCandleChart(const QString& title,
     axX->setLabelsFont(QFont("Segoe UI", 8));
     chart->addAxis(axX, Qt::AlignBottom);
     series->attachAxis(axX);
-    auto* axY = new QValueAxis;
+    auto* axY = new QCategoryAxis;
+    axY->setLabelsPosition(QCategoryAxis::AxisLabelsPositionOnValue);
     axY->setLabelsColor(axisCol);
     axY->setGridLineColor(gridCol);
     axY->setLabelsFont(QFont("Segoe UI", 8));
-    axY->setLabelFormat("$%'i");
     double maxV = 0.0;
     for (double v : values) maxV = qMax(maxV, qAbs(v));
     if (maxV < 0.001) maxV = 1.0;
-    axY->setRange(0.0, maxV * 1.1);
+    setCompactMoneyAxisRange(axY, maxV);
     chart->addAxis(axY, Qt::AlignLeft);
     series->attachAxis(axY);
 
@@ -2285,7 +2328,7 @@ QChartView* ResultsWidget::makeCandleChart(const QString& title,
     legInc->setColor(metricColorFromDisplayName(title));
     auto* legDec = new QLineSeries;
     legDec->setName(tr_decreasing_b4c279());
-    legDec->setColor(metricColorFromDisplayName(title).darker(130));
+    legDec->setColor(contrastDecreaseColor(metricColorFromDisplayName(title)));
     chart->addSeries(legInc);
     chart->addSeries(legDec);
     legInc->attachAxis(axX);
@@ -2305,7 +2348,7 @@ QChartView* ResultsWidget::makeCandleChart(const QString& title,
     const QColor candleBaseColor = metricColorFromDisplayName(title);
     for (int i = 0; i < labels.size() && i < candlePercents.size(); ++i) {
         candleLegendLabels << (labels[i] + QStringLiteral(" — ") + title + QStringLiteral(": ") + percentText(candlePercents[i]));
-        const QColor candleColor = uniqueLegendColors ? paletteColor(i) : ((values.value(i) >= 0.0) ? candleBaseColor : candleBaseColor.darker(130));
+        const QColor candleColor = uniqueLegendColors ? paletteColor(i) : ((values.value(i) >= 0.0) ? candleBaseColor : contrastDecreaseColor(candleBaseColor));
         candleLegendColors << candleColor.name();
     }
     view->setProperty("legendLabels", candleLegendLabels);
@@ -2325,6 +2368,7 @@ QChartView* ResultsWidget::makeRankedBarChart(const QString& title,
                                               const QList<double>& values,
                                               bool uniqueItemColors)
 {
+    double maxV = 0.0;
     QAbstractBarSeries* series = nullptr;
     if (uniqueItemColors) {
         auto* stacked = new QStackedBarSeries;
@@ -2336,6 +2380,7 @@ QChartView* ResultsWidget::makeRankedBarChart(const QString& title,
             set->setBorderColor(Qt::transparent);
             for (int j = 0; j < n; ++j)
                 *set << (i == j ? values.value(i) : 0.0);
+            maxV = qMax(maxV, qAbs(values.value(i)));
             stacked->append(set);
         }
         series = stacked;
@@ -2343,7 +2388,10 @@ QChartView* ResultsWidget::makeRankedBarChart(const QString& title,
         auto* set = new QBarSet(title);
         set->setColor(metricColorFromDisplayName(title));
         set->setBorderColor(Qt::transparent);
-        for (double v : values) *set << v;
+        for (double v : values) {
+            *set << v;
+            maxV = qMax(maxV, qAbs(v));
+        }
         auto* bars = new QBarSeries;
         bars->append(set);
         series = bars;
@@ -2366,10 +2414,12 @@ QChartView* ResultsWidget::makeRankedBarChart(const QString& title,
     axX->setLabelsFont(QFont("Segoe UI", 8));
     chart->addAxis(axX, Qt::AlignBottom);
     series->attachAxis(axX);
-    auto* axY = new QValueAxis;
+    auto* axY = new QCategoryAxis;
+    axY->setLabelsPosition(QCategoryAxis::AxisLabelsPositionOnValue);
     axY->setLabelsColor(axisCol);
     axY->setGridLineColor(gridCol);
     axY->setLabelsFont(QFont("Segoe UI", 8));
+    setCompactMoneyAxisRange(axY, maxV);
     chart->addAxis(axY, Qt::AlignLeft);
     series->attachAxis(axY);
 
@@ -2451,12 +2501,13 @@ QChartView* ResultsWidget::makeHorizontalBarChart(const QString& title,
     chart->addAxis(axY, Qt::AlignLeft);
     series->attachAxis(axY);
 
-    auto* axX = new QValueAxis;
+    auto* axX = new QCategoryAxis;
+    axX->setLabelsPosition(QCategoryAxis::AxisLabelsPositionOnValue);
     axX->setLabelsColor(axisCol);
     axX->setGridLineColor(gridCol);
     axX->setLabelsFont(QFont("Segoe UI", 8));
     if (maxV < 0.001) maxV = 1.0;
-    axX->setRange(0.0, maxV * 1.1);
+    setCompactMoneyAxisRange(axX, maxV);
     chart->addAxis(axX, Qt::AlignBottom);
     series->attachAxis(axX);
 
@@ -2512,14 +2563,15 @@ QChartView* ResultsWidget::makeSingleLineChart(const QString& title,
     chart->addAxis(axisX, Qt::AlignBottom);
     line->attachAxis(axisX);
 
-    auto* axisY = new QValueAxis;
+    auto* axisY = new QCategoryAxis;
+    axisY->setLabelsPosition(QCategoryAxis::AxisLabelsPositionOnValue);
     axisY->setLabelsFont(QFont("Segoe UI", 8));
     axisY->setLabelsColor(g_lightMode ? QColor("#5a6490") : QColor("#8892b8"));
     axisY->setGridLineColor(g_lightMode ? QColor("#e5e7eb") : QColor("#1e2445"));
     double maxV = 0.0;
     for (double v : values) maxV = qMax(maxV, qAbs(v));
     if (maxV < 0.001) maxV = 1.0;
-    axisY->setRange(0.0, maxV * 1.1);
+    setCompactMoneyAxisRange(axisY, maxV);
     chart->addAxis(axisY, Qt::AlignLeft);
     line->attachAxis(axisY);
 
@@ -2562,9 +2614,9 @@ QChartView* ResultsWidget::makeCompareCandleChart(const QString& title,
     const QColor colorA = seriesColorForName(nameA, 0);
     const QColor colorB = seriesColorForName(nameB, 1);
     candA->setIncreasingColor(colorA);
-    candA->setDecreasingColor(colorA.darker(130));
+    candA->setDecreasingColor(contrastDecreaseColor(colorA));
     candB->setIncreasingColor(colorB);
-    candB->setDecreasingColor(colorB.darker(130));
+    candB->setDecreasingColor(contrastDecreaseColor(colorB));
     candA->setBodyOutlineVisible(false);
     candB->setBodyOutlineVisible(false);
 
@@ -2600,7 +2652,8 @@ QChartView* ResultsWidget::makeCompareCandleChart(const QString& title,
     candA->attachAxis(axX);
     candB->attachAxis(axX);
 
-    auto* axY = new QValueAxis;
+    auto* axY = new QCategoryAxis;
+    axY->setLabelsPosition(QCategoryAxis::AxisLabelsPositionOnValue);
     axY->setLabelsColor(axisCol);
     axY->setGridLineColor(gridCol);
     axY->setLabelsFont(QFont("Segoe UI", 8));
@@ -2608,7 +2661,7 @@ QChartView* ResultsWidget::makeCompareCandleChart(const QString& title,
     for (double v : seriesA) maxV = qMax(maxV, qAbs(v));
     for (double v : seriesB) maxV = qMax(maxV, qAbs(v));
     if (maxV < 0.001) maxV = 1.0;
-    axY->setRange(0.0, maxV * 1.1);
+    setCompactMoneyAxisRange(axY, maxV);
     chart->addAxis(axY, Qt::AlignLeft);
     candA->attachAxis(axY);
     candB->attachAxis(axY);
@@ -2649,14 +2702,15 @@ QChartView* ResultsWidget::makeCompareBarChart(const QString& title,
                                                const QString& nameA,
                                                const QString& nameB)
 {
+    double maxV = 0.0;
     auto* setA = new QBarSet(nameA);
     auto* setB = new QBarSet(nameB);
     setA->setColor(seriesColorForName(nameA, 0));
     setB->setColor(seriesColorForName(nameB, 1));
     setA->setBorderColor(Qt::transparent);
     setB->setBorderColor(Qt::transparent);
-    for (double v : seriesA) *setA << v;
-    for (double v : seriesB) *setB << v;
+    for (double v : seriesA) { *setA << v; maxV = qMax(maxV, qAbs(v)); }
+    for (double v : seriesB) { *setB << v; maxV = qMax(maxV, qAbs(v)); }
 
     auto* series = new QBarSeries;
     series->append(setA);
@@ -2679,10 +2733,12 @@ QChartView* ResultsWidget::makeCompareBarChart(const QString& title,
     axX->setLabelsFont(QFont("Segoe UI", 8));
     chart->addAxis(axX, Qt::AlignBottom);
     series->attachAxis(axX);
-    auto* axY = new QValueAxis;
+    auto* axY = new QCategoryAxis;
+    axY->setLabelsPosition(QCategoryAxis::AxisLabelsPositionOnValue);
     axY->setLabelsColor(axisCol);
     axY->setGridLineColor(gridCol);
     axY->setLabelsFont(QFont("Segoe UI", 8));
+    setCompactMoneyAxisRange(axY, maxV);
     chart->addAxis(axY, Qt::AlignLeft);
     series->attachAxis(axY);
 
@@ -2729,10 +2785,13 @@ QChartView* ResultsWidget::makeCompareLineChart(const QString& title,
     lineA->setColor(seriesColorForName(nameA, 0));
     lineB->setColor(seriesColorForName(nameB, 1));
 
+    double maxV = 0.0;
     const int n = qMin(seriesA.size(), seriesB.size());
     for (int i = 0; i < n; ++i) {
         lineA->append(i + 0.5, seriesA[i]);
         lineB->append(i + 0.5, seriesB[i]);
+        maxV = qMax(maxV, qAbs(seriesA[i]));
+        maxV = qMax(maxV, qAbs(seriesB[i]));
     }
 
     auto* chart = new QChart;
@@ -2753,10 +2812,12 @@ QChartView* ResultsWidget::makeCompareLineChart(const QString& title,
     lineA->attachAxis(axisX);
     lineB->attachAxis(axisX);
 
-    auto* axisY = new QValueAxis;
+    auto* axisY = new QCategoryAxis;
+    axisY->setLabelsPosition(QCategoryAxis::AxisLabelsPositionOnValue);
     axisY->setLabelsFont(QFont("Segoe UI", 8));
     axisY->setLabelsColor(g_lightMode ? QColor("#5a6490") : QColor("#8892b8"));
     axisY->setGridLineColor(g_lightMode ? QColor("#e5e7eb") : QColor("#1e2445"));
+    setCompactMoneyAxisRange(axisY, maxV);
     chart->addAxis(axisY, Qt::AlignLeft);
     lineA->attachAxis(axisY);
     lineB->attachAxis(axisY);
@@ -2827,12 +2888,13 @@ QChartView* ResultsWidget::makeMultiCompareBarChart(const QString& title,
     axX->setLabelsFont(QFont("Segoe UI", 8));
     chart->addAxis(axX, Qt::AlignBottom);
     series->attachAxis(axX);
-    auto* axY = new QValueAxis;
+    auto* axY = new QCategoryAxis;
+    axY->setLabelsPosition(QCategoryAxis::AxisLabelsPositionOnValue);
     axY->setLabelsColor(axisCol);
     axY->setGridLineColor(gridCol);
     axY->setLabelsFont(QFont("Segoe UI", 8));
     if (maxV < 0.001) maxV = 1.0;
-    axY->setRange(0.0, maxV * 1.1);
+    setCompactMoneyAxisRange(axY, maxV);
     chart->addAxis(axY, Qt::AlignLeft);
     series->attachAxis(axY);
 
@@ -2912,12 +2974,13 @@ QChartView* ResultsWidget::makeMultiCompareHorizontalBarChart(const QString& tit
     chart->addAxis(axY, Qt::AlignLeft);
     series->attachAxis(axY);
 
-    auto* axX = new QValueAxis;
+    auto* axX = new QCategoryAxis;
+    axX->setLabelsPosition(QCategoryAxis::AxisLabelsPositionOnValue);
     axX->setLabelsColor(axisCol);
     axX->setGridLineColor(gridCol);
     axX->setLabelsFont(QFont("Segoe UI", 8));
     if (maxV < 0.001) maxV = 1.0;
-    axX->setRange(0.0, maxV * 1.1);
+    setCompactMoneyAxisRange(axX, maxV);
     chart->addAxis(axX, Qt::AlignBottom);
     series->attachAxis(axX);
 
@@ -2997,12 +3060,13 @@ QChartView* ResultsWidget::makeMultiCompareLineChart(const QString& title,
     axisX->setGridLineColor(gridCol);
     chart->addAxis(axisX, Qt::AlignBottom);
 
-    auto* axisY = new QValueAxis;
+    auto* axisY = new QCategoryAxis;
+    axisY->setLabelsPosition(QCategoryAxis::AxisLabelsPositionOnValue);
     axisY->setLabelsFont(QFont("Segoe UI", 8));
     axisY->setLabelsColor(axisCol);
     axisY->setGridLineColor(gridCol);
     if (maxV < 0.001) maxV = 1.0;
-    axisY->setRange(0.0, maxV * 1.1);
+    setCompactMoneyAxisRange(axisY, maxV);
     chart->addAxis(axisY, Qt::AlignLeft);
 
     for (auto* s : chart->series()) {
@@ -3102,7 +3166,7 @@ QChartView* ResultsWidget::makeMultiCompareCandleChart(const QString& title,
         series->setName(names.value(s, QStringLiteral("Series %1").arg(s + 1)));
         const QColor col = seriesColorForName(names.value(s), s);
         series->setIncreasingColor(col);
-        series->setDecreasingColor(col.darker(120));
+        series->setDecreasingColor(contrastDecreaseColor(col));
         series->setBodyOutlineVisible(false);
         const double offset = (s - (seriesList.size() - 1) / 2.0) * 0.18;
         for (int i = 0; i < vals.size(); ++i) {
@@ -3127,12 +3191,13 @@ QChartView* ResultsWidget::makeMultiCompareCandleChart(const QString& title,
     chart->addAxis(axX, Qt::AlignBottom);
     for (auto* s : chart->series()) s->attachAxis(axX);
 
-    auto* axY = new QValueAxis;
+    auto* axY = new QCategoryAxis;
+    axY->setLabelsPosition(QCategoryAxis::AxisLabelsPositionOnValue);
     axY->setLabelsColor(axisCol);
     axY->setGridLineColor(gridCol);
     axY->setLabelsFont(QFont("Segoe UI", 8));
     if (maxV < 0.001) maxV = 1.0;
-    axY->setRange(0.0, maxV * 1.1);
+    setCompactMoneyAxisRange(axY, maxV);
     chart->addAxis(axY, Qt::AlignLeft);
     for (auto* s : chart->series()) s->attachAxis(axY);
 

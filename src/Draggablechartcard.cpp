@@ -177,8 +177,8 @@ static void rebuildPerMonthLegendFromView(QChartView* view, QStringList& labels,
     labels.clear();
     colors.clear();
     static const QString fallbackPalette[] = {
-        QStringLiteral("#4f86f7"), QStringLiteral("#f0a500"), QStringLiteral("#e05c6a"), QStringLiteral("#3ecf8e"),
-        QStringLiteral("#9b6cf9"), QStringLiteral("#f06c6c"), QStringLiteral("#62c4e3"), QStringLiteral("#b0e96a")
+        QStringLiteral("#1f77b4"), QStringLiteral("#ff7f0e"), QStringLiteral("#d62728"), QStringLiteral("#9467bd"),
+        QStringLiteral("#8c564b"), QStringLiteral("#e377c2"), QStringLiteral("#17becf"), QStringLiteral("#bcbd22")
     };
     for (int month = 0; month < months.size(); ++month) {
         for (int s = 0; s < seriesCount; ++s) {

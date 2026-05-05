@@ -115,7 +115,7 @@ ClassicDualSpinCell::ClassicDualSpinCell(const QString& topLabel,
         lbl->setFixedWidth(58);
         spin = new QDoubleSpinBox;
         spin->setRange(0, 1e10);
-        spin->setDecimals(2);
+        spin->setDecimals(currencyDecimals());
         spin->setSingleStep(100);
         spin->setStyleSheet(g_lightMode ? cSpinSSLight : cSpinSSDark);
         spin->setMaximumWidth(88);
@@ -138,6 +138,12 @@ void ClassicDualSpinCell::retranslate(const QString& t, const QString& b)
     m_botLbl->setText(b);
 }
 
+void ClassicDualSpinCell::updateCurrency()
+{
+    if (m_topSpin) m_topSpin->setDecimals(currencyDecimals());
+    if (m_botSpin) m_botSpin->setDecimals(currencyDecimals());
+}
+
 // ═════════════════════════════════════════════════════════════════════════════
 //  ClassicDataTableWidget
 // ═════════════════════════════════════════════════════════════════════════════
@@ -151,7 +157,7 @@ QDoubleSpinBox* ClassicDataTableWidget::makeSpin()
 {
     auto* s = new QDoubleSpinBox;
     s->setRange(0, 1e10);
-    s->setDecimals(2);
+    s->setDecimals(currencyDecimals());
     s->setSingleStep(100);
     s->setMaximumWidth(110);
     return s;
@@ -374,8 +380,12 @@ void ClassicDataTableWidget::clearData()
 
 void ClassicDataTableWidget::updateCurrency()
 {
-    // Classic table doesn't show currency prefixes in spinboxes
-    // (values are treated as plain numbers). No-op.
+    for (int i = 0; i < 12; ++i) {
+        if (m_salesCell[i])    m_salesCell[i]->setDecimals(currencyDecimals());
+        if (m_salesRetCell[i]) m_salesRetCell[i]->setDecimals(currencyDecimals());
+        if (m_purchCell[i])    m_purchCell[i]->updateCurrency();
+        if (m_invCell[i])      m_invCell[i]->updateCurrency();
+    }
 }
 
 void ClassicDataTableWidget::setData(const AppData& d)

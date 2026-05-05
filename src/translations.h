@@ -1,6 +1,7 @@
 #pragma once
 #include <QString>
 #include <QStringList>
+#include <QLocale>
 #include <Qt>
 
 enum class AppLanguage { English, Arabic };
@@ -25,8 +26,34 @@ inline Qt::Alignment appTextAlign()
 
 inline QString currencyPrefix()
 {
-    return g_currency == AppCurrency::USD ? QStringLiteral("$ ") : QStringLiteral("IQD ");
+    if (g_currency == AppCurrency::USD)
+        return QStringLiteral("$ ");
+    return isArabic() ? QString::fromUtf8("دع ") : QString();
 }
+
+inline QString currencySuffix()
+{
+    if (g_currency == AppCurrency::IQD && isEnglish())
+        return QStringLiteral(" IQD");
+    return QString();
+}
+
+inline int currencyDecimals()
+{
+    return g_currency == AppCurrency::IQD ? 0 : 2;
+}
+
+inline QString formatCurrencyNumber(double value, int decimalsOverride = -1)
+{
+    const int decimals = decimalsOverride >= 0 ? decimalsOverride : currencyDecimals();
+    return QLocale(QLocale::English, QLocale::UnitedStates).toString(value, 'f', decimals);
+}
+
+inline QString formatMoneyText(double value, int decimalsOverride = -1)
+{
+    return currencyPrefix() + formatCurrencyNumber(value, decimalsOverride) + currencySuffix();
+}
+
 
 inline QString T(const char* en, const char* ar)
 {
@@ -34,8 +61,86 @@ inline QString T(const char* en, const char* ar)
         ? QString::fromUtf8(en) : QString::fromUtf8(ar);
 }
 
+inline QString tr_expense_months_dropdown_label_62ac11() { return T("Months", "الأشهر"); }
+inline QString tr_expense_amount_field_93a771() { return T("Amount", "المبلغ"); }
+inline QString tr_expense_account_type_field_a870c9() { return T("Account type", "نوع الحساب"); }
+inline QString tr_fixed_expenses_subtitle_a65f2a() { return T("Select a month, then enter each fixed account amount and choose whether it is account receivable or account payable.", "اختر الشهر ثم أدخل مبلغ كل حساب ثابت وحدد هل هو حساب مدين أم حساب دائن."); }
+inline QString tr_fixed_expense_account_header_a13bcd() { return T("Account", "الحساب"); }
+inline QString tr_group_by_2bda9d() { return T("Group by", "تجميع حسب"); }
+inline QString tr_add_account_9d4f6c() { return T("+  Add account", "+  إضافة حساب"); }
+inline QString tr_delete_account_6dd013() { return T("Delete account", "حذف الحساب"); }
+inline QString tr_new_expense_account_title_d82b71() { return T("Add account", "إضافة حساب"); }
+inline QString tr_new_expense_account_prompt_9747ab() { return T("Account name:", "اسم الحساب:"); }
+inline QString tr_delete_account_title_b23407() { return T("Delete account", "حذف الحساب"); }
+inline QString tr_delete_account_warning_f0c88a() { return T("Delete this account from all months?", "هل تريد حذف هذا الحساب من جميع الأشهر؟"); }
+inline QString tr_fixed_expense_salaries_wages_2f4d01() { return T("Salaries and wages", "رواتب واجور"); }
+inline QString tr_fixed_expense_monthly_incentives_d9f522() { return T("Monthly incentives", "الحوافز الشهرية"); }
+inline QString tr_fixed_expense_rewards_allowances_a137bc() { return T("Bonuses and allowances", "مكافات واكراميات"); }
+inline QString tr_fixed_expense_fuel_oil_893654() { return T("Fuel and oil", "وقود وزيوت"); }
+inline QString tr_fixed_expense_supplies_consumables_5a1e7b() { return T("Supplies and consumables", "لوازم ومهمات"); }
+inline QString tr_fixed_expense_stationery_4cb5e7() { return T("Stationery", "قرطاسية"); }
+inline QString tr_fixed_expense_building_maintenance_f4d9e0() { return T("Building maintenance", "صيانة مباني"); }
+inline QString tr_fixed_expense_furniture_maintenance_bbd26c() { return T("Furniture maintenance", "صيانة الاثاث"); }
+inline QString tr_fixed_expense_vehicle_transport_maintenance_55de12() { return T("Vehicle maintenance and transportation", "صيانة وسائط نقل وانتقال"); }
+inline QString tr_fixed_expense_advertising_publicity_c7c307() { return T("Advertising and publicity", "دعاية واعلان"); }
+inline QString tr_fixed_expense_transport_dispatch_comms_9fc099() { return T("Transport, dispatch, and communications", "نقل وايفاد واتصالات"); }
+inline QString tr_fixed_expense_transport_vehicle_rental_eab8a0() { return T("Transportation vehicle rental", "استئجار وسائط نقل وانتقال"); }
+inline QString tr_fixed_expense_building_rent_8d5f9d() { return T("Building rent", "استئجار مباني"); }
+inline QString tr_fixed_expense_other_services_3a9a8b() { return T("Other service expenses", "مصروفات خدمية اخرى"); }
+inline QString tr_fixed_expense_bank_expenses_eb4a39() { return T("Bank expenses", "مصاريف بنك"); }
+inline QString tr_fixed_expense_gifts_donations_045a77() { return T("Gifts and donations", "هدايا وتبرعات"); }
+inline QString tr_fixed_expense_taxes_misc_fees_292d30() { return T("Taxes and miscellaneous fees", "ضرائب ورسوم متنوعة"); }
+inline QString tr_fixed_expense_distribution_expenses_5532ab() { return T("Distribution expenses", "مصاريف التوزيع"); }
+inline QString tr_fixed_expense_promotional_allowance_244fc1() { return T("Promotional allowance", "سماح تشجيعي"); }
+inline QString tr_fixed_expense_cash_allowance_559de3() { return T("Cash allowance", "سماح نقدي"); }
+inline QString tr_fixed_expense_price_difference_allowance_98a361() { return T("Price difference allowance", "سماح فرق السعر"); }
+inline QString tr_fixed_expense_damaged_goods_allowance_45fe78() { return T("Damaged goods allowance", "سماح تالف"); }
+inline QString tr_fixed_expense_gift_allowance_892dd1() { return T("Gift allowance", "سماح هدايا"); }
+inline QString tr_fixed_expense_inventory_damage_f880ca() { return T("Damaged inventory", "تالف المخزون السلعي"); }
+
+inline QStringList fixedExpenseAccountNames()
+{
+    return {
+        tr_fixed_expense_salaries_wages_2f4d01(),
+        tr_fixed_expense_monthly_incentives_d9f522(),
+        tr_fixed_expense_rewards_allowances_a137bc(),
+        tr_fixed_expense_fuel_oil_893654(),
+        tr_fixed_expense_supplies_consumables_5a1e7b(),
+        tr_fixed_expense_stationery_4cb5e7(),
+        tr_fixed_expense_building_maintenance_f4d9e0(),
+        tr_fixed_expense_furniture_maintenance_bbd26c(),
+        tr_fixed_expense_vehicle_transport_maintenance_55de12(),
+        tr_fixed_expense_advertising_publicity_c7c307(),
+        tr_fixed_expense_transport_dispatch_comms_9fc099(),
+        tr_fixed_expense_transport_vehicle_rental_eab8a0(),
+        tr_fixed_expense_building_rent_8d5f9d(),
+        tr_fixed_expense_other_services_3a9a8b(),
+        tr_fixed_expense_bank_expenses_eb4a39(),
+        tr_fixed_expense_gifts_donations_045a77(),
+        tr_fixed_expense_taxes_misc_fees_292d30(),
+        tr_fixed_expense_distribution_expenses_5532ab(),
+        tr_fixed_expense_promotional_allowance_244fc1(),
+        tr_fixed_expense_cash_allowance_559de3(),
+        tr_fixed_expense_price_difference_allowance_98a361(),
+        tr_fixed_expense_damaged_goods_allowance_45fe78(),
+        tr_fixed_expense_gift_allowance_892dd1(),
+        tr_fixed_expense_inventory_damage_f880ca()
+    };
+}
+
+inline int fixedExpenseAccountCount()
+{
+    return fixedExpenseAccountNames().size();
+}
+
+inline QString fixedExpenseAccountCode(int index)
+{
+    return QStringLiteral("FX%1").arg(index + 1, 2, 10, QChar('0'));
+}
+
+
 inline QString tr_account_assistant_edcbbf() { return T("Account Assistant", "\u0645\u0633\u0627\u0639\u062F \u0627\u0644\u062D\u0633\u0627\u0628\u0627\u062A"); }
-inline QString tr_account_assistant_financial_re_7851db() { return T("Account Assistant — Financial Report", "\u0645\u0633\u0627\u0639\u062F \u0627\u0644\u062D\u0633\u0627\u0628\u0627\u062A — \u062A\u0642\u0631\u064A\u0631 \u0645\u0627\u0644\u064A"); }
+inline QString tr_account_assistant_financial_re_7851db() { return T("Accounting Report", "تقرير محاسبي"); }
 inline QString tr_account_payable_003206() { return T("Account Payable", "حساب دائن"); }
 inline QString tr_account_receivable_59bf34() { return T("Account Receivable", "حساب مدين"); }
 inline QString tr_accounts_08f9e5() { return T("Accounts", "الحسابات"); }
@@ -79,7 +184,7 @@ inline QString tr_auto_clear_expenses_warning_7be9d308() { return T("This will e
 inline QString tr_auto_clear_suppliers_warning_0c6309c6() { return T("This will erase only the Suppliers tab data. Data Entry and Expenses will not be changed.\n\nAre you sure you want to continue?", "سيتم حذف بيانات تبويب الموردين فقط. لن يتم تغيير إدخال البيانات أو المصروفات.\n\nهل أنت متأكد من المتابعة؟"); }
 inline QString tr_closing_stock_last_period_a0c5b2() { return T("Closing Stock (Last Period)", "اخر المدة"); }
 inline QString tr_cogs_d716f1() { return T("COGS", "تكلفة البضاعة"); }
-inline QString tr_cogs_vs_profit_margin_fd48e9() { return T("COGS vs Profit Margin", "\u062A\u0643\u0644\u0641\u0629 \u0645\u0642\u0627\u0628\u0644 \u0627\u0644\u0631\u0628\u062D"); }
+inline QString tr_cogs_vs_profit_margin_fd48e9() { return T("COGS vs Trading Result", "تكلفة مقابل نتيجة التداول"); }
 inline QString tr_comparison_title_optional_fae13e() { return T("Comparison title (optional)", "عنوان اختياري"); }
 inline QString tr_cost_of_goods_sold_31b73d() { return T("Cost of Goods Sold", "\u062a\u0643\u0644\u0641\u0629 \u0627\u0644\u0628\u0636\u0627\u0639\u0629"); }
 inline QString tr_cost_of_goods_sold_55196f() { return T("Cost of Goods Sold", "\u062A\u0643\u0644\u0641\u0629 \u0627\u0644\u0628\u0636\u0627\u0639\u0629"); }
@@ -103,7 +208,7 @@ inline QString tr_deselect_all_5e3e31() { return T("Deselect all", "إلغاء �
 inline QString tr_drag_to_reorder_right_click_a__b70e11() { return T("Drag to reorder. Right-click a chart to hide it.", "اسحب للترتيب. انقر بالزر الأيمن لإخفاء الرسم."); }
 inline QString tr_duplicate_47648b() { return T("Duplicate", "تكرار"); }
 inline QString tr_duplicate_account_e404c5() { return T("Duplicate account", "حساب مكرر"); }
-inline QString tr_each_month_appears_as_a_dragga_9d0352() { return T("Each month appears as a draggable summary card with net sales, COGS, and profit margin.", "كل شهر يظهر كبطاقة ملخص قابلة للسحب مع صافي المبيعات وتكلفة البضاعة وهامش الربح"); }
+inline QString tr_each_month_appears_as_a_dragga_9d0352() { return T("Each month appears as a draggable summary card with net sales, COGS, and trading result.", "كل شهر يظهر كبطاقة ملخص قابلة للسحب مع صافي المبيعات وتكلفة البضاعة ونتيجة التداول"); }
 inline QString tr_each_month_is_shown_as_an_indi_81dc38() { return T("Each month is shown as an individual summary card.", "كل شهر يظهر ببطاقة مستقلة"); }
 inline QString tr_edit_chart_9932e2() { return T("Edit chart", "تعديل الرسم"); }
 inline QString tr_enter_monthly_figures_below_cl_e7d622() { return T("Enter monthly figures below. Click a month to expand it.", "أدخل الأرقام الشهرية أدناه. انقر على الشهر لتوسيعه."); }
@@ -165,7 +270,7 @@ inline QString tr_months_1_b69e08() { return T("Months: %1", "الأشهر: %1")
 inline QString tr_months_all_9f9e09() { return T("Months: All", "الأشهر: الكل"); }
 inline QString tr_months_d113f0() { return T("Months: ", "الأشهر: "); }
 inline QString tr_months_none_selected_7918be() { return T("Months: None selected", "الأشهر: لا شيء محدد"); }
-inline QString tr_negative_profit_margin_loss_de_87719f() { return T("Negative profit margin (Loss) detected.", "تم رصد هامش ربح سلبي (خسارة)."); }
+inline QString tr_negative_profit_margin_loss_de_87719f() { return T("Negative trading result (Loss) detected.", "تم رصد نتيجة تداول سلبية (خسارة)."); }
 inline QString tr_net_sales_23a2f1() { return T("Net Sales", "صافي المبيعات"); }
 inline QString tr_net_sales_90f56d() { return T("Net Sales", "\u0635\u0627\u0641\u064A \u0627\u0644\u0645\u0628\u064A\u0639\u0627\u062A"); }
 inline QString tr_net_sales_ae3003() { return T("Net Sales", "\u0635\u0627\u0641\u064a \u0627\u0644\u0645\u0628\u064a\u0639\u0627\u062a"); }
@@ -185,10 +290,10 @@ inline QString tr_pie_97ce50() { return T("Pie", "دائري"); }
 inline QString tr_pie_chart_9d4e04() { return T("Pie chart", "مخطط دائري"); }
 inline QString tr_please_calculate_first_then_ex_3d96fc() { return T("Please calculate first, then export.", "يرجى الحساب أولاً ثم التصدير."); }
 inline QString tr_portrait_247c2f() { return T("Portrait", "عمودي"); }
-inline QString tr_profit_margin_56b595() { return T("Profit Margin", "\u0647\u0627\u0645\u0634 \u0627\u0644\u0631\u0628\u062D"); }
-inline QString tr_profit_margin_dafda2() { return T("PROFIT MARGIN", "هامش الربح"); }
-inline QString tr_profit_margin_ec3b22() { return T("Profit Margin", "هامش الربح"); }
-inline QString tr_profit_margin_ff57d3() { return T("Profit Margin", "\u0647\u0627\u0645\u0634 \u0627\u0644\u0631\u0628\u062d"); }
+inline QString tr_profit_margin_56b595() { return T("Trading Result", "نتيجة التداول"); }
+inline QString tr_profit_margin_dafda2() { return T("TRADING RESULT", "نتيجة التداول"); }
+inline QString tr_profit_margin_ec3b22() { return T("Trading Result", "نتيجة التداول"); }
+inline QString tr_profit_margin_ff57d3() { return T("Trading Result", "نتيجة التداول"); }
 inline QString tr_purch_1e85b9() { return T("Purch.", "\u0634\u0631\u0627\u0621"); }
 inline QString tr_purchases_00c2b6() { return T("Purchases", "\u0627\u0644\u0645\u0634\u062a\u0631\u064a\u0627\u062a"); }
 inline QString tr_purchases_16236c() { return T("Purchases", "مشتريات"); }
@@ -233,7 +338,7 @@ inline QString tr_periodic_inventory_8a4f19() { return T("Periodic Inventory", "
 inline QString tr_ongoing_inventory_4f9f2c() { return T("Ongoing Inventory", "الجرد المستمر"); }
 inline QString tr_cogs_input_2a1b7e() { return T("COGS", "تكلفة البضاعة"); }
 inline QString tr_net_sales_ongoing_b63f87() { return T("Net Sales", "صافي المبيعات"); }
-inline QString tr_profit_margin_ongoing_fdb18a() { return T("Profit Margin", "هامش الربح"); }
+inline QString tr_profit_margin_ongoing_fdb18a() { return T("Trading Result", "نتيجة التداول"); }
 inline QString tr_switch_between_the_card_based__d92db3() { return T("Switch between the card-based input view (default) and the classic spreadsheet table.", "\u0627\u0644\u062a\u0628\u062f\u064a\u0644 \u0628\u064a\u0646 \u0639\u0631\u0636 \u0627\u0644\u0628\u0637\u0627\u0642\u0627\u062a \u0648\u0627\u0644\u062c\u062f\u0648\u0644 \u0627\u0644\u0643\u0644\u0627\u0633\u064a\u0643\u064a."); }
 inline QString tr_text_size_5b8d4f() { return T("Text Size:", "\u062d\u062c\u0645 \u0627\u0644\u062e\u0637:"); }
 inline QString tr_the_pdf_report_was_exported_su_37f5d4() { return T("The PDF report was exported successfully.", "تم تصدير تقرير PDF بنجاح."); }
@@ -255,7 +360,7 @@ inline QString tr_no_def456() { return T("No", "لا"); }
 inline QString tr_english_7e4a3f() { return T("English", "الإنجليزية"); }
 inline QString tr_arabic_41c9d8() { return T("Arabic", "العربية"); }
 inline QString tr_vs_6f0b2a() { return T(" vs ", " مقابل "); }
-inline QString tr_account_assistant_report_4d9a7e() { return T("Account Assistant Report", "تقرير مساعد الحسابات"); }
+inline QString tr_account_assistant_report_4d9a7e() { return T("Accounting Report", "تقرير محاسبي"); }
 inline QString tr_pdf_file_filter_8e3d1c() { return T("PDF (*.pdf)", "PDF (*.pdf)"); }
 inline QString tr_default_account_data_filename_0aa2f1() { return T("AccountData_%1.xlsx", "AccountData_%1.xlsx"); }
 inline QString tr_default_account_report_filename_6c5a9b() { return T("AccountReport_%1.pdf", "AccountReport_%1.pdf"); }
