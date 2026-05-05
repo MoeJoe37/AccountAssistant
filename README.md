@@ -6,10 +6,10 @@
 ![License](https://img.shields.io/badge/License-AGPL--3.0--or--later-blue.svg)
 ![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)
 
-**Account Assistant** is a desktop financial reporting application built with **C++17** and **Qt 6**. It helps users enter monthly accounting data, manage expenses and suppliers, calculate financial results, visualize metrics through charts, and export professional reports to **PDF** and **XLSX**.
+**Account Assistant** is a desktop accounting and financial reporting application built with **C++17** and **Qt 6**. It helps users enter monthly accounting data, manage expense accounts, track other revenues and suppliers, calculate real-time financial results, generate charts, and export professional reports to **PDF** and **XLSX**.
 
-> Current application version: **6.0.0**  
-> Runtime version in `main.cpp` and CMake project version in `CMakeLists.txt` are aligned.
+> Current application version: **7.1.0**  
+> Runtime version in `main.cpp` and CMake project version in `CMakeLists.txt` should remain aligned.
 
 ---
 
@@ -28,21 +28,24 @@
 - [Packaging on Windows](#packaging-on-windows)
 - [Development Notes](#development-notes)
 - [Known Limitations](#known-limitations)
+- [Recommended Future Improvements](#recommended-future-improvements)
 - [License](#license)
 
 ---
 
 ## Overview
 
-Account Assistant is designed for small-business financial tracking and internal reporting. The application organizes data around a 12-month financial period and provides separate modules for:
+Account Assistant is designed for small-business financial tracking and internal reporting. The application organizes accounting data around a 12-month financial period and provides separate modules for:
 
 - Monthly sales, returns, purchases, inventory, and COGS data.
-- Expense and account tracking.
+- Month-based fixed expense/account tracking.
+- Other revenues tracking.
 - Supplier balance tracking.
-- Calculated monthly and total financial results.
+- Real-time calculated results.
+- Operating profit and summary reporting.
 - Interactive chart generation.
 - PDF report export.
-- XLSX import/export for data backup and transfer.
+- XLSX import/export for backup, review, and transfer.
 
 The UI supports both **English** and **Arabic**, including right-to-left layout switching for Arabic mode.
 
@@ -52,7 +55,7 @@ The UI supports both **English** and **Arabic**, including right-to-left layout 
 
 ### 1. Monthly Data Entry
 
-The Data Entry tab supports two data-entry styles:
+The **Data Entry** tab supports two data-entry styles:
 
 - **Card view**: expandable month cards for a modern, section-based workflow.
 - **Classic table view**: spreadsheet-style layout for faster bulk input.
@@ -67,9 +70,11 @@ Supported monthly fields include:
 - Inventory closing stock
 - COGS input, when using ongoing inventory mode
 
+Money fields follow the selected currency and disable mouse-wheel value changes to prevent accidental edits.
+
 ### 2. Inventory Modes
 
-Account Assistant supports two inventory calculation modes:
+Account Assistant supports two inventory calculation modes.
 
 #### Periodic Inventory
 
@@ -83,28 +88,56 @@ When switching inventory mode, the app warns the user because changing the inven
 
 ### 3. Expenses Tab
 
-The Expenses tab lets users maintain independent expense/account entries outside the monthly table.
+The **Expenses** tab is a month-based account entry screen. It uses the same 12-month workflow as the rest of the application, allowing the user to select one month at a time and enter values for that month.
 
-Supported fields:
+Each month contains the same account list so users can enter account values month by month without rebuilding the account structure.
+
+Each account row includes:
 
 - Account name
-- Account type
-  - Payable
-  - Receivable
 - Amount
+- Account type:
+  - Account Receivable
+  - Account Payable
 
 Additional behavior:
 
-- Duplicate account name validation.
-- Sorting by amount.
-- Grouping/filtering by account type.
-- Expense charts from the Expenses tab.
+- Fixed default account list.
+- Add Account button.
+- Right-click account deletion.
+- Newly added accounts are added to all months.
+- Deleted accounts are removed from all months.
+- Group filter:
+  - All
+  - Account Receivable
+  - Account Payable
+- Dedicated Clear Data button with confirmation warning.
+- Amount fields have no spin arrows.
+- Amount fields are not affected by mouse-wheel scrolling.
 - XLSX import/export support.
-- Dedicated clear button with confirmation warning.
 
-### 4. Suppliers Tab
+### 4. Other Revenues Tab
 
-The Suppliers tab is designed for month-by-month supplier tracking.
+The **Other Revenues** tab tracks additional non-trading revenue streams on a month-by-month basis.
+
+It follows the same 12-month dropdown structure used in the Data Entry tab. Each month includes two fields:
+
+- Acquired privileges
+- Other miscellaneous revenues
+
+Other Revenues behavior:
+
+- Values are stored separately for each month.
+- Money fields follow the selected currency.
+- IQD values do not display unnecessary `.00` decimals.
+- Fields have no spin arrows.
+- Fields are not affected by mouse-wheel scrolling.
+- Dedicated Clear Data button with confirmation warning.
+- XLSX import/export support.
+
+### 5. Suppliers Tab
+
+The **Suppliers** tab is designed for month-by-month supplier tracking.
 
 Each supplier row includes:
 
@@ -126,26 +159,47 @@ Supplier rows support:
 - Automatic calculated result fields.
 - Supplier-specific graph generation.
 - XLSX import/export.
-- Dedicated clear button with confirmation warning.
+- Dedicated Clear Data button with confirmation warning.
 
-### 5. Results Tab
+### 6. Results Tab
 
-The Results tab displays calculated output after the user presses **Calculate**.
+The **Results** tab now updates financial numbers in real time. The user no longer needs to press Calculate to refresh result totals.
 
 It includes:
 
 - Total net sales
 - Total COGS
-- Total profit/profit margin
+- Total Trading Result
+- Total Operating Profit
 - Monthly report cards
 - Generated charts
 - Hidden charts menu
 - Drag-and-drop ordering
 - Page separators for PDF layout control
 - Page orientation control
-- Clear results button with confirmation warning
+- Clear Results button with confirmation warning
 
-Charts created from the Expenses and Suppliers tabs are preserved when recalculating from the main Calculate workflow.
+The old **Calculate** button behavior has been replaced with **Create Graph**. Results are calculated automatically in the background, while **Create Graph** is used for chart and comparison generation.
+
+Charts created from the Expenses and Suppliers tabs are preserved when creating new graphs from the main Results workflow.
+
+### 7. Summary Tab
+
+The **Summary** tab, translated in Arabic as **الخلاصة**, calculates the final operating summary in the background.
+
+It shows the expense accounts and their signed contribution next to them:
+
+- Account Payable values are treated as negative.
+- Account Receivable values are treated as positive.
+
+The Summary tab includes:
+
+- Signed expense account list.
+- Other Revenues contribution.
+- Trading Result contribution.
+- Operating Profit output.
+- Real-time recalculation.
+- Clear Summary button with confirmation warning.
 
 ---
 
@@ -156,12 +210,13 @@ Charts created from the Expenses and Suppliers tabs are preserved when recalcula
    - Periodic Inventory
    - Ongoing Inventory
 3. Enter monthly financial data in the Data Entry tab.
-4. Add expense accounts in the Expenses tab, if needed.
-5. Add supplier data in the Suppliers tab, if needed.
-6. Click **Calculate**.
-7. Choose the charts and comparisons that should appear in the Results tab.
-8. Review, reorder, hide, duplicate, edit, or remove charts.
-9. Export the final report to PDF or save data to XLSX.
+4. Enter monthly account values in the Expenses tab.
+5. Enter monthly Other Revenues values, if needed.
+6. Add supplier data in the Suppliers tab, if needed.
+7. Review real-time calculations in the Results and Summary tabs.
+8. Use **Create Graph** to generate charts and custom comparisons.
+9. Review, reorder, hide, duplicate, edit, or remove charts.
+10. Export the final report to PDF or save data to XLSX.
 
 ---
 
@@ -185,11 +240,33 @@ COGS = Opening Inventory + Supplier Purchases - Closing Inventory
 COGS = User-entered COGS Input
 ```
 
-### Profit / Profit Margin Value
+### Trading Result
 
 ```text
-Profit = Net Sales - COGS
+Trading Result = Net Sales - COGS
 ```
+
+### Other Revenues
+
+```text
+Other Revenues = Acquired Privileges + Other Miscellaneous Revenues
+```
+
+### Signed Expenses Total
+
+```text
+Signed Expenses Total = Total Account Receivable - Total Account Payable
+```
+
+Receivable accounts are added as positive values. Payable accounts are subtracted as negative values.
+
+### Operating Profit
+
+```text
+Operating Profit = Trading Result + Other Revenues + Signed Expenses Total
+```
+
+Because payable expenses are already negative in the signed expenses total, they reduce Operating Profit automatically.
 
 ### Supplier Total Debt
 
@@ -230,6 +307,7 @@ Supported chart types include:
 - Pie chart
 - Candle chart
 - Grouped bar chart
+- Horizontal bar chart
 - Line chart
 - Ranked bar chart
 - Multi-metric comparison charts
@@ -240,10 +318,14 @@ Supported chart metrics include:
 - Sales return
 - Purchases
 - Expenses
+- Other revenues
+- Acquired privileges
+- Other miscellaneous revenues
 - Inventory
 - Net sales
 - COGS
-- Profit margin
+- Trading Result
+- Operating Profit
 - Supplier payments
 - Supplier previous balance
 - Supplier total debt
@@ -261,11 +343,21 @@ The chart selection dialog supports:
 - Metric charts.
 - Custom comparisons.
 - Multiple metrics in a single comparison.
+- X/Y axis metric selection.
 - Month filtering.
 - Automatic month selection based on months that contain data.
 - Optional summary point at the end of charts.
 - Count-as-100% reference selection for comparison charts.
 - Duplicate and remove actions for chart rows.
+
+### Chart Display Improvements
+
+Charts include these display improvements:
+
+- Money values are shortened in chart axes and labels, such as `1.1B`, `950M`, and `42K`.
+- Chart colors are spaced apart to avoid confusing similar colors in the same chart.
+- Pie chart labels and legends are optimized for readability.
+- Zero-value pie slices can be excluded from legends where appropriate.
 
 ### Results Layout Features
 
@@ -292,12 +384,14 @@ The app can export:
 - All data.
 - Data Entry sheet.
 - Expenses sheet.
+- Other Revenues sheet.
 - Suppliers sheet.
 
 Generated workbook sheets use structured markers such as:
 
 - `DATA_ENTRY`
 - `EXPENSES`
+- `OTHER_REVENUES`
 - `SUPPLIERS`
 
 ### XLSX Import
@@ -307,7 +401,8 @@ The app reads `.xlsx` workbooks and imports recognized sheets.
 Import behavior:
 
 - Data Entry imports replace the monthly data-entry section.
-- Expenses imports merge new accounts and warn on conflicts.
+- Expenses imports update month-based account data.
+- Other Revenues imports replace monthly other revenue values.
 - Suppliers imports add new supplier rows and replace matching existing supplier rows.
 - Numeric fields are strictly validated.
 - Text entered into numeric fields causes an import error instead of being silently converted.
@@ -328,9 +423,15 @@ Import behavior:
 
 #### Expenses
 
-| Marker | Account Name | Account Type | Amount |
-|---|---|---|---:|
-| EXPENSES | Rent | Payable | 0.00 |
+| Marker | Month | Account Name | Amount | Account Type |
+|---|---|---|---:|---|
+| EXPENSES | January | Salaries and wages | 0.00 | Account Payable |
+
+#### Other Revenues
+
+| Marker | Month | Acquired Privileges | Other Miscellaneous Revenues |
+|---|---|---:|---:|
+| OTHER_REVENUES | January | 0.00 | 0.00 |
 
 #### Suppliers
 
@@ -340,14 +441,19 @@ Import behavior:
 
 ### PDF Export
 
-PDF export creates an A4 report using the current Results tab layout. The PDF export includes:
+PDF export creates an A4 accounting report using the current Results tab layout.
 
-- Cover page.
-- Summary data.
-- Monthly report cards.
-- Charts.
-- User-controlled page breaks.
-- Portrait or landscape orientation.
+The exported PDF includes:
+
+- Report title: **Accounting Report**
+- Summary data
+- Monthly report cards
+- Operating Profit values
+- Charts
+- User-controlled page breaks
+- Portrait or landscape orientation
+
+The PDF no longer shows the removed first-page account list from older versions.
 
 ---
 
@@ -372,6 +478,15 @@ The Settings dialog supports:
   - Card view
   - Classic spreadsheet view
 
+### Currency Display Rules
+
+Currency display follows the selected language and currency:
+
+- English IQD format: `111,444,222 IQD`
+- Arabic IQD format: `دع 111,444,222`
+- IQD values are displayed without unnecessary `.00` decimals.
+- USD values keep normal decimal formatting where appropriate.
+
 Settings and entered data are persisted locally using Qt `QSettings` under the organization/application name `AccountAssistant`.
 
 ---
@@ -389,8 +504,10 @@ AccountAssistant/
     ├── themebox.h                     # Themed message/dialog helpers
     ├── Datatablewidget.h/.cpp         # Modern card-based monthly data entry
     ├── ClassicDataTableWidget.h/.cpp  # Classic spreadsheet-style data entry
-    ├── Accountswidget.h/.cpp          # Expenses/account management tab
+    ├── Accountswidget.h/.cpp          # Month-based expenses/account management tab
+    ├── OtherRevenuesWidget.h/.cpp     # Month-based other revenues tab
     ├── Supplierswidget.h/.cpp         # Supplier month cards and supplier graph selection
+    ├── SummaryWidget.h/.cpp           # Summary tab and operating profit breakdown
     ├── Chartselectiondialog.h/.cpp    # Metric and comparison chart selection dialog
     ├── Resultswidget.h/.cpp           # Results page, cards, chart rendering, layout control
     ├── Draggablechartcard.h/.cpp      # Draggable chart cards and chart context menu actions
@@ -502,16 +619,22 @@ If `windeployqt` does not run automatically, run it manually:
 The central application state is represented by `AppData` in `src/appdata.h`. It stores:
 
 - Monthly data.
-- Supplier entries.
 - Expense/account entries.
+- Other revenues.
+- Supplier entries.
 - Inventory mode.
 - Chart requests.
 - Results flow order.
 - Calculated totals.
+- Operating profit data.
 
 ### Chart Model
 
 Charts are described using `ChartRequest`. This allows the app to rebuild, edit, duplicate, hide, restore, and export charts consistently across the Results tab and PDF export.
+
+### Real-Time Recalculation
+
+Results and Summary values are recalculated automatically after data changes. Recalculation is debounced so rapid field edits do not repeatedly rebuild heavy UI sections.
 
 ### Local Persistence
 
@@ -526,7 +649,9 @@ Saved state includes:
 - Table view mode
 - Monthly data
 - Accounts data
+- Other revenues data
 - Suppliers data
+- Generated chart requests and result layout state
 
 ### UI Design
 
@@ -537,6 +662,7 @@ The application uses Qt Widgets with custom stylesheets. It supports:
 - Arabic RTL layout.
 - Maximized startup window.
 - Styled dialogs and menus.
+- Safer language switching between English and Arabic.
 
 ---
 
@@ -557,6 +683,7 @@ The application uses Qt Widgets with custom stylesheets. It supports:
 - Add screenshots or GIFs to this README.
 - Add CI builds for Windows, Linux, and macOS.
 - Add release packaging scripts.
+- Add optional database-backed multi-user mode.
 
 ---
 
