@@ -4,6 +4,7 @@
 #include <QStackedWidget>
 #include <QPushButton>
 #include <QLabel>
+#include <QTimer>
 #include <QCloseEvent>
 #include "appdata.h"
 #include "datatablewidget.h"
@@ -33,7 +34,9 @@ private slots:
     void onSettings();
     void onClearData();
     void onClearExpensesData();
+    void onClearOtherRevenuesData();
     void onClearSuppliersData();
+    void onClearSummaryTab();
     void onEditCharts(int cardIndex = -1);
     void onDuplicateChart(int cardIndex);
     void onChartRemoved(const ChartRequest& removed);
@@ -42,7 +45,9 @@ private slots:
     void onSupplierGraphRequested(const ChartRequest& request);
     void onInventoryModeChanged(int index);
     void syncResultsState();
+    void requestCalculatedViewsRefresh();
     void refreshCalculatedViews();
+    void onCurrentTabChanged(int index);
 
 private:
     void buildUI();
@@ -85,12 +90,18 @@ private:
     QPushButton* m_clearBtn{};
     QPushButton* m_clearExpensesBtn{};
     QPushButton* m_addExpenseAccountBtn{};
+    QPushButton* m_clearOtherRevenuesBtn{};
     QPushButton* m_clearSuppliersBtn{};
+    QPushButton* m_clearSummaryBtn{};
     QComboBox*   m_inventoryModeCombo{};
     QLabel*      m_titleLabel{};
 
     AppData m_data;
     bool    m_hasResults{false};
+    bool    m_suppressAutoRefresh{false};
+    bool    m_summaryDirty{true};
+    bool    m_resultsDirty{true};
+    QTimer* m_refreshTimer{};
     int     m_pendingGraphReplaceCardIndex{-1};
     ChartOrigin m_pendingGraphReplaceOrigin{ChartOrigin::Custom};
     QList<ChartRequest>   m_lastChartRequests;

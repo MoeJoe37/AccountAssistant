@@ -157,7 +157,12 @@ void SummaryWidget::setData(const AppData& data)
 
 void SummaryWidget::clearData()
 {
-    setData(AppData{});
+    m_data = AppData{};
+    if (m_tradingValue) m_tradingValue->setText(QStringLiteral("—"));
+    if (m_otherValue) m_otherValue->setText(QStringLiteral("—"));
+    if (m_expensesValue) m_expensesValue->setText(QStringLiteral("—"));
+    if (m_operatingValue) m_operatingValue->setText(QStringLiteral("—"));
+    if (m_table) m_table->setRowCount(0);
 }
 
 void SummaryWidget::updateCards()

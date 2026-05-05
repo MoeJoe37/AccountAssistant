@@ -195,9 +195,14 @@ inline QString tr_clear_data_4fcd0d() { return T("🗑  Clear Data", "🗑  مس
 inline QString tr_auto_clear_data_entry_7e6a91f0() { return T("Clear Data Entry", "مسح إدخال البيانات"); }
 inline QString tr_auto_clear_expenses_6c70d1bb() { return T("Clear Expenses", "مسح المصروفات"); }
 inline QString tr_auto_clear_suppliers_fce9cf44() { return T("Clear Suppliers", "مسح الموردين"); }
+inline QString tr_auto_clear_other_revenues_4e13b7() { return T("Clear Other Revenues", "مسح الإيرادات الأخرى"); }
+inline QString tr_clear_summary_button_3a70cf() { return T("🗑  Clear Summary", "🗑  مسح الخلاصة"); }
+inline QString tr_auto_clear_summary_a86e1b() { return T("Clear Summary", "مسح الخلاصة"); }
 inline QString tr_auto_clear_data_entry_warning_29d42ac4() { return T("This will erase only the Data Entry tab values. Expenses and Suppliers will not be changed.\n\nAre you sure you want to continue?", "سيتم حذف قيم تبويب إدخال البيانات فقط. لن يتم تغيير المصروفات أو الموردين.\n\nهل أنت متأكد من المتابعة؟"); }
 inline QString tr_auto_clear_expenses_warning_7be9d308() { return T("This will erase only the Expenses tab accounts. Data Entry and Suppliers will not be changed.\n\nAre you sure you want to continue?", "سيتم حذف حسابات تبويب المصروفات فقط. لن يتم تغيير إدخال البيانات أو الموردين.\n\nهل أنت متأكد من المتابعة؟"); }
 inline QString tr_auto_clear_suppliers_warning_0c6309c6() { return T("This will erase only the Suppliers tab data. Data Entry and Expenses will not be changed.\n\nAre you sure you want to continue?", "سيتم حذف بيانات تبويب الموردين فقط. لن يتم تغيير إدخال البيانات أو المصروفات.\n\nهل أنت متأكد من المتابعة؟"); }
+inline QString tr_auto_clear_other_revenues_warning_2b8fe4() { return T("This will erase only the Other Revenues tab values. Data Entry, Expenses, and Suppliers will not be changed.\n\nAre you sure you want to continue?", "سيتم حذف قيم تبويب الإيرادات الأخرى فقط. لن يتم تغيير إدخال البيانات أو المصروفات أو الموردين.\n\nهل أنت متأكد من المتابعة؟"); }
+inline QString tr_auto_clear_summary_warning_121f43() { return T("This will clear only the visible Summary tab output. Source values in Data Entry, Expenses, Other Revenues, and Suppliers will not be changed.\n\nAre you sure you want to continue?", "سيتم مسح عرض تبويب الخلاصة فقط. لن يتم تغيير القيم الأصلية في إدخال البيانات أو المصروفات أو الإيرادات الأخرى أو الموردين.\n\nهل أنت متأكد من المتابعة؟"); }
 inline QString tr_closing_stock_last_period_a0c5b2() { return T("Closing Stock (Last Period)", "اخر المدة"); }
 inline QString tr_cogs_d716f1() { return T("COGS", "تكلفة البضاعة"); }
 inline QString tr_cogs_vs_profit_margin_fd48e9() { return T("COGS vs Trading Result", "تكلفة مقابل نتيجة التداول"); }

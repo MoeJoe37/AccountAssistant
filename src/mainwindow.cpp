@@ -1362,16 +1362,25 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
 
     loadSettings();   // restore globals before building UI
     buildUI();
+
+    m_refreshTimer = new QTimer(this);
+    m_refreshTimer->setSingleShot(true);
+    m_refreshTimer->setInterval(90);
+    connect(m_refreshTimer, &QTimer::timeout, this, &MainWindow::refreshCalculatedViews);
+
     applyTheme();
 
     // Re-apply language direction after building UI
     qApp->setLayoutDirection(g_lang == AppLanguage::Arabic ? Qt::RightToLeft : Qt::LeftToRight);
 
-    // Re-apply saved font size everywhere
-    applyGlobalAppFont(g_fontSize);
+    // applyTheme() already applies the saved font size; do not recurse through all widgets twice at startup.
 
-    loadTableDataLocally(); // restore entered data
-    refreshCalculatedViews();
+    m_suppressAutoRefresh = true;
+    loadTableDataLocally(); // restore entered data without rebuilding results repeatedly
+    m_suppressAutoRefresh = false;
+
+    // Build calculated views lazily after the window is shown so the EXE opens fast.
+    requestCalculatedViewsRefresh();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1695,6 +1704,7 @@ void MainWindow::buildUI()
 
     // ── Tab widget ────────────────────────────────────────────────────────
     m_tabs = new QTabWidget;
+    connect(m_tabs, &QTabWidget::currentChanged, this, &MainWindow::onCurrentTabChanged);
 
     // Tab 0: Data entry
     {
@@ -1750,8 +1760,8 @@ void MainWindow::buildUI()
         m_tableStack = new QStackedWidget(dataTab);
         m_table        = new DataTableWidget(m_tableStack);
         m_classicTable = new ClassicDataTableWidget(m_tableStack);
-        connect(m_table, &DataTableWidget::dataChanged, this, &MainWindow::refreshCalculatedViews);
-        connect(m_classicTable, &ClassicDataTableWidget::dataChanged, this, &MainWindow::refreshCalculatedViews);
+        connect(m_table, &DataTableWidget::dataChanged, this, &MainWindow::requestCalculatedViewsRefresh);
+        connect(m_classicTable, &ClassicDataTableWidget::dataChanged, this, &MainWindow::requestCalculatedViewsRefresh);
         m_tableStack->addWidget(m_table);          // index 0 – card view
         m_tableStack->addWidget(m_classicTable);   // index 1 – classic view
         m_tableStack->setCurrentIndex(g_classicView ? 1 : 0);
@@ -1809,7 +1819,7 @@ void MainWindow::buildUI()
 
         m_accounts = new Accountswidget(expensesTab);
         connect(m_accounts, &Accountswidget::graphRequested, this, &MainWindow::onAccountGraphRequested);
-        connect(m_accounts, &Accountswidget::dataChanged, this, &MainWindow::refreshCalculatedViews);
+        connect(m_accounts, &Accountswidget::dataChanged, this, &MainWindow::requestCalculatedViewsRefresh);
         vl->addWidget(m_accounts, 1);
         m_tabs->addTab(expensesTab, "");
     }
@@ -1822,8 +1832,32 @@ void MainWindow::buildUI()
         vl->setContentsMargins(0,0,0,0);
         vl->setSpacing(0);
 
+        auto* subHdr = new QWidget;
+        subHdr->setObjectName("dataSubHeader");
+        subHdr->setFixedHeight(44);
+        auto* shl = new QHBoxLayout(subHdr);
+        shl->setContentsMargins(24, 0, 20, 0);
+        shl->setSpacing(10);
+        shl->addStretch();
+
+        m_clearOtherRevenuesBtn = new QPushButton(tr_clear_data_4fcd0d());
+        m_clearOtherRevenuesBtn->setCursor(Qt::PointingHandCursor);
+        m_clearOtherRevenuesBtn->setFixedHeight(30);
+        m_clearOtherRevenuesBtn->setStyleSheet(g_lightMode
+            ? "QPushButton{border:1px solid #e74c3c; border-radius:6px; font-weight:700;"
+              " padding:0 16px; background:#fff5f5; color:#c0392b;}"
+              "QPushButton:hover{background:#fde8e8; color:#e74c3c;}"
+              "QPushButton:pressed{background:#f5d0d0;}"
+            : "QPushButton{border:1px solid #c0392b; border-radius:6px; font-weight:700;"
+              " padding:0 16px; background:#1e1010; color:#e74c3c;}"
+              "QPushButton:hover{background:#2c1515; color:#ff6b6b;}"
+              "QPushButton:pressed{background:#3a1a1a;}");
+        connect(m_clearOtherRevenuesBtn, &QPushButton::clicked, this, &MainWindow::onClearOtherRevenuesData);
+        shl->addWidget(m_clearOtherRevenuesBtn);
+        vl->addWidget(subHdr);
+
         m_otherRevenues = new OtherRevenuesWidget(otherRevenuesTab);
-        connect(m_otherRevenues, &OtherRevenuesWidget::dataChanged, this, &MainWindow::refreshCalculatedViews);
+        connect(m_otherRevenues, &OtherRevenuesWidget::dataChanged, this, &MainWindow::requestCalculatedViewsRefresh);
         vl->addWidget(m_otherRevenues, 1);
         m_tabs->addTab(otherRevenuesTab, "");
     }
@@ -1862,15 +1896,46 @@ void MainWindow::buildUI()
 
         m_suppliers = new SuppliersWidget(suppliersTab);
         connect(m_suppliers, &SuppliersWidget::graphRequested, this, &MainWindow::onSupplierGraphRequested);
-        connect(m_suppliers, &SuppliersWidget::dataChanged, this, &MainWindow::refreshCalculatedViews);
+        connect(m_suppliers, &SuppliersWidget::dataChanged, this, &MainWindow::requestCalculatedViewsRefresh);
         vl->addWidget(m_suppliers, 1);
         m_tabs->addTab(suppliersTab, "");
     }
 
     // Tab 4: Summary
     {
-        m_summary = new SummaryWidget;
-        m_tabs->addTab(m_summary, "");
+        auto* summaryTab = new QWidget;
+        summaryTab->setObjectName("dataTab");
+        auto* vl = new QVBoxLayout(summaryTab);
+        vl->setContentsMargins(0,0,0,0);
+        vl->setSpacing(0);
+
+        auto* subHdr = new QWidget;
+        subHdr->setObjectName("dataSubHeader");
+        subHdr->setFixedHeight(44);
+        auto* shl = new QHBoxLayout(subHdr);
+        shl->setContentsMargins(24, 0, 20, 0);
+        shl->setSpacing(10);
+        shl->addStretch();
+
+        m_clearSummaryBtn = new QPushButton(tr_clear_summary_button_3a70cf());
+        m_clearSummaryBtn->setCursor(Qt::PointingHandCursor);
+        m_clearSummaryBtn->setFixedHeight(30);
+        m_clearSummaryBtn->setStyleSheet(g_lightMode
+            ? "QPushButton{border:1px solid #e74c3c; border-radius:6px; font-weight:700;"
+              " padding:0 16px; background:#fff5f5; color:#c0392b;}"
+              "QPushButton:hover{background:#fde8e8; color:#e74c3c;}"
+              "QPushButton:pressed{background:#f5d0d0;}"
+            : "QPushButton{border:1px solid #c0392b; border-radius:6px; font-weight:700;"
+              " padding:0 16px; background:#1e1010; color:#e74c3c;}"
+              "QPushButton:hover{background:#2c1515; color:#ff6b6b;}"
+              "QPushButton:pressed{background:#3a1a1a;}");
+        connect(m_clearSummaryBtn, &QPushButton::clicked, this, &MainWindow::onClearSummaryTab);
+        shl->addWidget(m_clearSummaryBtn);
+        vl->addWidget(subHdr);
+
+        m_summary = new SummaryWidget(summaryTab);
+        vl->addWidget(m_summary, 1);
+        m_tabs->addTab(summaryTab, "");
     }
 
     // Tab 5: Results
@@ -2635,6 +2700,13 @@ void MainWindow::onImportData()
 
 void MainWindow::onExportPdf()
 {
+    // Always export the latest numbers, even when Results was updated lazily for faster startup.
+    refreshCalculatedViews();
+    if (m_results && m_resultsDirty) {
+        m_results->buildResults(m_data);
+        syncResultsState();
+        m_resultsDirty = false;
+    }
     if (!m_hasResults) {
         ThemeBox::info(this,
             tr_export_pdf_2cc36e(),
@@ -2768,7 +2840,7 @@ void MainWindow::onClearData()
     {
         if (m_table)        m_table->clearData();
         if (m_classicTable) m_classicTable->clearData();
-        refreshCalculatedViews();
+        requestCalculatedViewsRefresh();
     }
 }
 
@@ -2779,7 +2851,18 @@ void MainWindow::onClearExpensesData()
             tr_auto_clear_expenses_warning_7be9d308()) == QMessageBox::Yes)
     {
         if (m_accounts) m_accounts->clearData();
-        refreshCalculatedViews();
+        requestCalculatedViewsRefresh();
+    }
+}
+
+void MainWindow::onClearOtherRevenuesData()
+{
+    if (ThemeBox::confirm(this,
+            tr_auto_clear_other_revenues_4e13b7(),
+            tr_auto_clear_other_revenues_warning_2b8fe4()) == QMessageBox::Yes)
+    {
+        if (m_otherRevenues) m_otherRevenues->clearData();
+        requestCalculatedViewsRefresh();
     }
 }
 
@@ -2790,7 +2873,20 @@ void MainWindow::onClearSuppliersData()
             tr_auto_clear_suppliers_warning_0c6309c6()) == QMessageBox::Yes)
     {
         if (m_suppliers) m_suppliers->clearData();
-        refreshCalculatedViews();
+        requestCalculatedViewsRefresh();
+    }
+}
+
+void MainWindow::onClearSummaryTab()
+{
+    if (ThemeBox::confirm(this,
+            tr_auto_clear_summary_a86e1b(),
+            tr_auto_clear_summary_warning_121f43()) == QMessageBox::Yes)
+    {
+        if (m_summary)
+            m_summary->clearData();
+        // Keep the Summary tab visually cleared until source data changes again.
+        m_summaryDirty = false;
     }
 }
 
@@ -2819,10 +2915,8 @@ void MainWindow::onSettings()
         if (currencyChanged) {
             updateTableCurrency();
             if (m_accounts) m_accounts->retranslate();
-            if (m_results && m_hasResults) {
-                m_results->buildResults(m_data);
-                syncResultsState();
-            }
+            m_summaryDirty = true;
+            m_resultsDirty = true;
         }
 
         if (fontChanged) {
@@ -2882,8 +2976,10 @@ void MainWindow::applyTheme()
           "QPushButton:pressed{background:#1e3a8a;}";
     if (m_clearBtn)             m_clearBtn->setStyleSheet(clearDataBtnStyle);
     if (m_addExpenseAccountBtn) m_addExpenseAccountBtn->setStyleSheet(addAccountBtnStyle);
-    if (m_clearExpensesBtn)     m_clearExpensesBtn->setStyleSheet(clearDataBtnStyle);
-    if (m_clearSuppliersBtn)    m_clearSuppliersBtn->setStyleSheet(clearDataBtnStyle);
+    if (m_clearExpensesBtn)       m_clearExpensesBtn->setStyleSheet(clearDataBtnStyle);
+    if (m_clearOtherRevenuesBtn)  m_clearOtherRevenuesBtn->setStyleSheet(clearDataBtnStyle);
+    if (m_clearSuppliersBtn)      m_clearSuppliersBtn->setStyleSheet(clearDataBtnStyle);
+    if (m_clearSummaryBtn)        m_clearSummaryBtn->setStyleSheet(clearDataBtnStyle);
     if (m_inventoryModeCombo) {
         m_inventoryModeCombo->setStyleSheet(g_lightMode
             ? "QComboBox{background:#ffffff;color:#1e2340;border:1px solid #cfd7ea;border-radius:6px;padding:0 10px;font-weight:700;}"
@@ -2900,8 +2996,9 @@ void MainWindow::applyTheme()
     if (m_summary) m_summary->applyTheme();
     if (m_results) m_results->applyTheme();
     if (m_hasResults) {
-        if (m_summary) m_summary->setData(m_data);
-        m_results->buildResults(m_data);
+        m_summaryDirty = true;
+        m_resultsDirty = true;
+        onCurrentTabChanged(m_tabs ? m_tabs->currentIndex() : -1);
     }
 }
 
@@ -2931,8 +3028,12 @@ void MainWindow::retranslate()
         m_addExpenseAccountBtn->setText(tr_add_account_9d4f6c());
     if (m_clearExpensesBtn)
         m_clearExpensesBtn->setText(tr_clear_data_4fcd0d());
+    if (m_clearOtherRevenuesBtn)
+        m_clearOtherRevenuesBtn->setText(tr_clear_data_4fcd0d());
     if (m_clearSuppliersBtn)
         m_clearSuppliersBtn->setText(tr_clear_data_4fcd0d());
+    if (m_clearSummaryBtn)
+        m_clearSummaryBtn->setText(tr_clear_summary_button_3a70cf());
     m_importBtn->setText(
         tr_import_data_fbe7a5());
     m_exportBtn->setText(
@@ -2961,23 +3062,79 @@ void MainWindow::retranslate()
     if (m_results) m_results->retranslate();
 }
 
+void MainWindow::requestCalculatedViewsRefresh()
+{
+    if (m_suppressAutoRefresh)
+        return;
+    if (!m_refreshTimer) {
+        refreshCalculatedViews();
+        return;
+    }
+    // Coalesce rapid spin-box edits and startup restoration into one calculation.
+    m_refreshTimer->start();
+}
+
 void MainWindow::refreshCalculatedViews()
 {
     if (auto* popup = QApplication::activePopupWidget()) {
         Q_UNUSED(popup);
     }
+
     AppData working = collectAllData();
     working.chartRequests = m_lastChartRequests;
     working.hiddenChartRequests = m_lastHiddenChartRequests;
     working.resultFlowOrder = m_lastFlowOrder;
     working.calculate();
+
     m_data = working;
     m_hasResults = true;
-    if (m_summary)
+    m_summaryDirty = true;
+    m_resultsDirty = true;
+
+    const int current = m_tabs ? m_tabs->currentIndex() : -1;
+    const int summaryIndex = (m_tabs && m_summary) ? m_tabs->indexOf(m_summary->parentWidget()) : -1;
+    const int resultsIndex = (m_tabs && m_results) ? m_tabs->indexOf(m_results) : -1;
+
+    if (m_summary && current == summaryIndex) {
         m_summary->setData(m_data);
-    if (m_results) {
+        m_summaryDirty = false;
+    }
+
+    if (m_results && current == resultsIndex) {
         m_results->buildResults(m_data);
         syncResultsState();
+        m_resultsDirty = false;
+    }
+}
+
+void MainWindow::onCurrentTabChanged(int index)
+{
+    const int summaryIndex = (m_tabs && m_summary) ? m_tabs->indexOf(m_summary->parentWidget()) : -1;
+    const int resultsIndex = (m_tabs && m_results) ? m_tabs->indexOf(m_results) : -1;
+
+    if ((index == summaryIndex || index == resultsIndex) && m_refreshTimer && m_refreshTimer->isActive()) {
+        m_refreshTimer->stop();
+        refreshCalculatedViews();
+        return;
+    }
+
+    if (index == summaryIndex && m_summary && m_summaryDirty) {
+        if (!m_hasResults)
+            refreshCalculatedViews();
+        else {
+            m_summary->setData(m_data);
+            m_summaryDirty = false;
+        }
+    }
+
+    if (index == resultsIndex && m_results && m_resultsDirty) {
+        if (!m_hasResults)
+            refreshCalculatedViews();
+        else {
+            m_results->buildResults(m_data);
+            syncResultsState();
+            m_resultsDirty = false;
+        }
     }
 }
 
