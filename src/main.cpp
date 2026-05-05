@@ -14,7 +14,7 @@ int main(int argc, char* argv[])
     QApplication app(argc, argv);
     app.setApplicationName("Account Assistant");
     app.setOrganizationName("AccountAssistant");
-    app.setApplicationVersion("7.2.0");
+    app.setApplicationVersion("7.2.1");
 
     QSurfaceFormat fmt;
     fmt.setSamples(8);

@@ -278,6 +278,94 @@ static QString xlsxAccountTypeName(AccountType type)
     return type == AccountType::Receivable ? tr_account_receivable_59bf34() : tr_account_payable_003206();
 }
 
+static QString normalizedHeaderCell(QString text);
+
+static QString xlsxTerm(const char* en, const char* ar)
+{
+    return isArabic() ? QString::fromUtf8(ar) : QString::fromUtf8(en);
+}
+
+static QString xlsxDataEntrySheetName()      { return xlsxTerm("DATA_ENTRY", "إدخال البيانات"); }
+static QString xlsxExpensesSheetName()       { return xlsxTerm("EXPENSES", "المصروفات"); }
+static QString xlsxOtherRevenuesSheetName()  { return xlsxTerm("OTHER_REVENUES", "إيرادات أخرى"); }
+static QString xlsxSuppliersSheetName()      { return xlsxTerm("SUPPLIERS", "الموردون"); }
+static QString xlsxOverviewSheetName()       { return xlsxTerm("Overview", "نظرة عامة"); }
+static QString xlsxMonthlyResultsSheetName() { return xlsxTerm("Monthly Results", "نتائج الأشهر"); }
+static QString xlsxAccountsSummarySheetName(){ return xlsxTerm("Accounts Summary", "ملخص الحسابات"); }
+
+static QString xlsxDataEntryMarker()     { return xlsxDataEntrySheetName(); }
+static QString xlsxExpensesMarker()      { return xlsxExpensesSheetName(); }
+static QString xlsxOtherRevenuesMarker() { return xlsxOtherRevenuesSheetName(); }
+static QString xlsxSuppliersMarker()     { return xlsxSuppliersSheetName(); }
+
+static QString xlsxHeaderMonth()                  { return tr_month_460756(); }
+static QString xlsxHeaderSales()                  { return tr_sales_4af850(); }
+static QString xlsxHeaderSalesReturn()            { return tr_sales_return_27c2fd(); }
+static QString xlsxHeaderSupplierPurchases()      { return tr_supplier_purchases_f5a1cd(); }
+static QString xlsxHeaderSupplierPayments()       { return tr_supplier_payments_eeef31(); }
+static QString xlsxHeaderInventoryFirst()         { return tr_opening_stock_first_period_ba1057(); }
+static QString xlsxHeaderInventoryLast()          { return tr_closing_stock_last_period_a0c5b2(); }
+static QString xlsxHeaderCogsInput()              { return tr_cogs_input_2a1b7e(); }
+static QString xlsxHeaderAccountName()            { return xlsxTerm("Account Name", "اسم الحساب"); }
+static QString xlsxHeaderAccountType()            { return tr_expense_account_type_field_a870c9(); }
+static QString xlsxHeaderAmount()                 { return tr_expense_amount_field_93a771(); }
+static QString xlsxHeaderSupplierName()           { return tr_supplier_name_5c7e41(); }
+static QString xlsxHeaderPreviousBalance()        { return tr_auto_previous_balance_d6da85a6(); }
+static QString xlsxHeaderPurchases()              { return tr_purchases_00c2b6(); }
+static QString xlsxHeaderTotalDebt()              { return tr_auto_total_debt_b9772183(); }
+static QString xlsxHeaderPayments()               { return tr_auto_payments_726d1e53(); }
+static QString xlsxHeaderPaymentPctPurchases()    { return tr_auto_payment_of_purchases_81a9c0e3(); }
+static QString xlsxHeaderPaymentPctDebt()         { return tr_auto_payment_of_debt_ba7e4d60(); }
+static QString xlsxHeaderSupplierBalance()        { return tr_auto_supplier_balance_74852681(); }
+static QString xlsxHeaderMetric()                 { return xlsxTerm("Metric", "المؤشر"); }
+static QString xlsxHeaderCurrency()               { return tr_currency_88f072(); }
+static QString xlsxHeaderNetSales()               { return tr_net_sales_23a2f1(); }
+static QString xlsxHeaderCogs()                   { return tr_cogs_d716f1(); }
+static QString xlsxHeaderTradingResult()          { return tr_trading_result_b21619(); }
+static QString xlsxHeaderAcquiredPrivilegesRev()  { return xlsxTerm("Acquired Privileges Revenue", "إيراد الامتيازات المكتسبة"); }
+static QString xlsxHeaderMiscRevenue()            { return xlsxTerm("Miscellaneous Revenue", "الإيرادات المتنوعة"); }
+static QString xlsxHeaderOtherRevenuesTotal()     { return xlsxTerm("Other Revenues Total", "إجمالي الإيرادات الأخرى"); }
+static QString xlsxHeaderReceivableAccounts()     { return xlsxTerm("Receivable Accounts (+)", "الحسابات المدينة (+)"); }
+static QString xlsxHeaderPayableAccounts()        { return xlsxTerm("Payable Accounts (-)", "الحسابات الدائنة (-)"); }
+static QString xlsxHeaderSignedExpenses()         { return xlsxTerm("Signed Expenses", "المصروفات الموقعة"); }
+static QString xlsxHeaderOperatingProfit()        { return tr_operating_profit_c87e52(); }
+static QString xlsxHeaderEnteredTotal()           { return xlsxTerm("Entered Total", "إجمالي المدخل"); }
+static QString xlsxHeaderSignedTotal()            { return xlsxTerm("Signed Total", "الإجمالي الموقع"); }
+
+static QString canonicalImportMarker(const QString& text)
+{
+    const QString key = normalizedHeaderCell(text);
+    if (key == normalizedHeaderCell(QStringLiteral("DATA_ENTRY")) || key == normalizedHeaderCell(QStringLiteral("إدخال البيانات")))
+        return QStringLiteral("DATA_ENTRY");
+    if (key == normalizedHeaderCell(QStringLiteral("EXPENSES")) || key == normalizedHeaderCell(QStringLiteral("المصروفات")))
+        return QStringLiteral("EXPENSES");
+    if (key == normalizedHeaderCell(QStringLiteral("OTHER_REVENUES")) || key == normalizedHeaderCell(QStringLiteral("إيرادات أخرى")) || key == normalizedHeaderCell(QStringLiteral("الإيرادات الأخرى")))
+        return QStringLiteral("OTHER_REVENUES");
+    if (key == normalizedHeaderCell(QStringLiteral("SUPPLIERS")) || key == normalizedHeaderCell(QStringLiteral("الموردون")) || key == normalizedHeaderCell(QStringLiteral("الموردين")))
+        return QStringLiteral("SUPPLIERS");
+    if (key == normalizedHeaderCell(QStringLiteral("ALL_DATA")) || key == normalizedHeaderCell(QStringLiteral("كل البيانات")))
+        return QStringLiteral("ALL_DATA");
+    return {};
+}
+
+static void addMonthAliases(QMap<QString, int>& lookup)
+{
+    const QStringList englishMonths = {
+        QStringLiteral("January"), QStringLiteral("February"), QStringLiteral("March"), QStringLiteral("April"),
+        QStringLiteral("May"), QStringLiteral("June"), QStringLiteral("July"), QStringLiteral("August"),
+        QStringLiteral("September"), QStringLiteral("October"), QStringLiteral("November"), QStringLiteral("December")
+    };
+    const QStringList arabicMonths = {
+        QStringLiteral("يناير"), QStringLiteral("فبراير"), QStringLiteral("مارس"), QStringLiteral("أبريل"),
+        QStringLiteral("مايو"), QStringLiteral("يونيو"), QStringLiteral("يوليو"), QStringLiteral("أغسطس"),
+        QStringLiteral("سبتمبر"), QStringLiteral("أكتوبر"), QStringLiteral("نوفمبر"), QStringLiteral("ديسمبر")
+    };
+    for (int i = 0; i < 12; ++i) {
+        lookup[normalizedHeaderCell(englishMonths.value(i))] = i;
+        lookup[normalizedHeaderCell(arabicMonths.value(i))] = i;
+    }
+}
+
 
 static QByteArray makeWorksheetXml(const QStringList& headers, const QList<QStringList>& rows, bool includeSignature = true, bool professionalLayout = false)
 {
@@ -348,7 +436,7 @@ static QByteArray makeWorksheetXml(const QStringList& headers, const QList<QStri
 
     int row = 1;
     if (includeSignature)
-        writeRow(row++, {"ACCOUNT_ASSISTANT_EXPORT", "7.2.0"}, 3);
+        writeRow(row++, {xlsxTerm("ACCOUNT_ASSISTANT_EXPORT", "تصدير مساعد الحسابات"), "7.2.0"}, 3);
     writeRow(row++, headers, 1);
     for (const auto& r : rows)
         writeRow(row++, r, professionalLayout ? 2 : 0);
@@ -521,30 +609,30 @@ static QList<QPair<QString, QByteArray>> buildSheetsForExport(const AppData& dat
     case XlsxSheetKind::DataEntry: {
         const bool ongoing = (data.inventoryMode == InventoryMode::Ongoing);
         QStringList headers = ongoing
-            ? QStringList{"DATA_ENTRY", "Month", "Sales", "Sales Return", "Supplier Purchases", "Supplier Payments", "COGS Input"}
-            : QStringList{"DATA_ENTRY", "Month", "Sales", "Sales Return", "Supplier Purchases", "Supplier Payments", "Inventory First", "Inventory Last"};
+            ? QStringList{xlsxDataEntryMarker(), xlsxHeaderMonth(), xlsxHeaderSales(), xlsxHeaderSalesReturn(), xlsxHeaderSupplierPurchases(), xlsxHeaderSupplierPayments(), xlsxHeaderCogsInput()}
+            : QStringList{xlsxDataEntryMarker(), xlsxHeaderMonth(), xlsxHeaderSales(), xlsxHeaderSalesReturn(), xlsxHeaderSupplierPurchases(), xlsxHeaderSupplierPayments(), xlsxHeaderInventoryFirst(), xlsxHeaderInventoryLast()};
         QList<QStringList> rows;
         const auto months = monthNames();
         for (int i = 0; i < 12; ++i) {
             const auto& m = data.months[i];
             if (ongoing) {
-                rows.push_back({"DATA_ENTRY", months.value(i), xlsxAmount(m.sales), xlsxAmount(m.salesReturn), xlsxAmount(m.supplierPurchases), xlsxAmount(m.supplierPayments), xlsxAmount(m.cogsInput)});
+                rows.push_back({xlsxDataEntryMarker(), months.value(i), xlsxAmount(m.sales), xlsxAmount(m.salesReturn), xlsxAmount(m.supplierPurchases), xlsxAmount(m.supplierPayments), xlsxAmount(m.cogsInput)});
             } else {
-                rows.push_back({"DATA_ENTRY", months.value(i), xlsxAmount(m.sales), xlsxAmount(m.salesReturn), xlsxAmount(m.supplierPurchases), xlsxAmount(m.supplierPayments), xlsxAmount(m.inventoryFirst), xlsxAmount(m.inventoryLast)});
+                rows.push_back({xlsxDataEntryMarker(), months.value(i), xlsxAmount(m.sales), xlsxAmount(m.salesReturn), xlsxAmount(m.supplierPurchases), xlsxAmount(m.supplierPayments), xlsxAmount(m.inventoryFirst), xlsxAmount(m.inventoryLast)});
             }
         }
-        addSheet("DATA_ENTRY", headers, rows);
+        addSheet(xlsxDataEntrySheetName(), headers, rows);
         break;
     }
     case XlsxSheetKind::Expenses: {
-        QStringList headers = {QStringLiteral("EXPENSES"), QStringLiteral("Month"), QStringLiteral("Account Name"), QStringLiteral("Amount"), QStringLiteral("Account Type")};
+        QStringList headers = {xlsxExpensesMarker(), xlsxHeaderMonth(), xlsxHeaderAccountName(), xlsxHeaderAmount(), xlsxHeaderAccountType()};
         QList<QStringList> rows;
         const auto months = monthNames();
         if (hasAnyMonthlyExpenseAccounts(data)) {
             for (int month = 0; month < 12; ++month) {
                 const QList<AccountItem> list = normalizedFixedExpenseAccountsForMonth(data.monthlyAccounts[month]);
                 for (const auto& a : list) {
-                    rows.push_back({QStringLiteral("EXPENSES"),
+                    rows.push_back({xlsxExpensesMarker(),
                                     months.value(month),
                                     a.name,
                                     xlsxAmount(a.amount),
@@ -553,31 +641,31 @@ static QList<QPair<QString, QByteArray>> buildSheetsForExport(const AppData& dat
             }
         } else {
             for (const auto& a : data.accounts) {
-                rows.push_back({QStringLiteral("EXPENSES"),
+                rows.push_back({xlsxExpensesMarker(),
                                 months.value(0),
                                 a.name,
                                 xlsxAmount(a.amount),
                                 a.type == AccountType::Receivable ? tr_account_receivable_59bf34() : tr_account_payable_003206()});
             }
         }
-        addSheet("EXPENSES", headers, rows, false);
+        addSheet(xlsxExpensesSheetName(), headers, rows, false);
         break;
     }
     case XlsxSheetKind::OtherRevenues: {
-        QStringList headers = {QStringLiteral("OTHER_REVENUES"), QStringLiteral("Month"), QStringLiteral("Acquired Privileges"), QStringLiteral("Other Miscellaneous Revenues")};
+        QStringList headers = {xlsxOtherRevenuesMarker(), xlsxHeaderMonth(), tr_acquired_privileges_6a72d2(), tr_other_misc_revenues_a330db()};
         QList<QStringList> rows;
         const auto months = monthNames();
         for (int i = 0; i < 12; ++i) {
-            rows.push_back({QStringLiteral("OTHER_REVENUES"),
+            rows.push_back({xlsxOtherRevenuesMarker(),
                             months.value(i),
                             xlsxAmount(data.otherRevenues[i].acquiredPrivileges),
                             xlsxAmount(data.otherRevenues[i].miscellaneousRevenues)});
         }
-        addSheet("OTHER_REVENUES", headers, rows);
+        addSheet(xlsxOtherRevenuesSheetName(), headers, rows);
         break;
     }
     case XlsxSheetKind::Suppliers: {
-        QStringList headers = {"SUPPLIERS", "Month", "Supplier Name", "Previous Balance", "Purchases", "Total Debt", "Payments", "Payment % of Purchases", "Payment % of Total Debt", "Supplier Balance"};
+        QStringList headers = {xlsxSuppliersMarker(), xlsxHeaderMonth(), xlsxHeaderSupplierName(), xlsxHeaderPreviousBalance(), xlsxHeaderPurchases(), xlsxHeaderTotalDebt(), xlsxHeaderPayments(), xlsxHeaderPaymentPctPurchases(), xlsxHeaderPaymentPctDebt(), xlsxHeaderSupplierBalance()};
         QList<QStringList> rows;
         const auto months = monthNames();
         for (int i = 0; i < 12; ++i) {
@@ -588,13 +676,13 @@ static QList<QPair<QString, QByteArray>> buildSheetsForExport(const AppData& dat
                 e.purchases = data.suppliers[i].purchases;
                 e.payments = data.suppliers[i].payments;
                 e.totalDebt = e.previousBalance + e.purchases;
-                rows.push_back({"SUPPLIERS", months.value(i), e.name, xlsxAmount(e.previousBalance), xlsxAmount(e.purchases), xlsxAmount(e.totalDebt), xlsxAmount(e.payments), QString::number(e.paymentPctOfPurchases(),'f',2), QString::number(e.paymentPctOfTotalDebt(),'f',2), xlsxAmount(e.supplierBalance())});
+                rows.push_back({xlsxSuppliersMarker(), months.value(i), e.name, xlsxAmount(e.previousBalance), xlsxAmount(e.purchases), xlsxAmount(e.totalDebt), xlsxAmount(e.payments), QString::number(e.paymentPctOfPurchases(),'f',2), QString::number(e.paymentPctOfTotalDebt(),'f',2), xlsxAmount(e.supplierBalance())});
             } else {
                 for (const auto& e : entries)
-                    rows.push_back({"SUPPLIERS", months.value(i), e.name, xlsxAmount(e.previousBalance), xlsxAmount(e.purchases), xlsxAmount(e.totalDebt > 0.0 ? e.totalDebt : (e.previousBalance + e.purchases)), xlsxAmount(e.payments), QString::number(e.paymentPctOfPurchases(),'f',2), QString::number(e.paymentPctOfTotalDebt(),'f',2), xlsxAmount(e.supplierBalance())});
+                    rows.push_back({xlsxSuppliersMarker(), months.value(i), e.name, xlsxAmount(e.previousBalance), xlsxAmount(e.purchases), xlsxAmount(e.totalDebt > 0.0 ? e.totalDebt : (e.previousBalance + e.purchases)), xlsxAmount(e.payments), QString::number(e.paymentPctOfPurchases(),'f',2), QString::number(e.paymentPctOfTotalDebt(),'f',2), xlsxAmount(e.supplierBalance())});
             }
         }
-        addSheet("SUPPLIERS", headers, rows);
+        addSheet(xlsxSuppliersSheetName(), headers, rows);
         break;
     }
     case XlsxSheetKind::Summary: {
@@ -608,8 +696,8 @@ static QList<QPair<QString, QByteArray>> buildSheetsForExport(const AppData& dat
         overviewRows.push_back({tr_other_revenues_total_d457cf(), xlsxAmount(calculated.totalOtherRevenues), currency});
         overviewRows.push_back({tr_expenses_total_signed_0f255b(), xlsxAmount(calculated.totalSignedExpenses), currency});
         overviewRows.push_back({tr_operating_profit_c87e52(), xlsxAmount(calculated.totalOperatingProfit), currency});
-        addSheet(QStringLiteral("Overview"),
-                 {QStringLiteral("Metric"), QStringLiteral("Amount"), QStringLiteral("Currency")},
+        addSheet(xlsxOverviewSheetName(),
+                 {xlsxHeaderMetric(), xlsxHeaderAmount(), xlsxHeaderCurrency()},
                  overviewRows,
                  false,
                  true);
@@ -640,8 +728,8 @@ static QList<QPair<QString, QByteArray>> buildSheetsForExport(const AppData& dat
                 currency
             });
         }
-        addSheet(QStringLiteral("Monthly Results"),
-                 {QStringLiteral("Month"), QStringLiteral("Net Sales"), QStringLiteral("COGS"), QStringLiteral("Trading Result"), QStringLiteral("Acquired Privileges Revenue"), QStringLiteral("Miscellaneous Revenue"), QStringLiteral("Other Revenues Total"), QStringLiteral("Receivable Accounts (+)"), QStringLiteral("Payable Accounts (-)"), QStringLiteral("Signed Expenses"), QStringLiteral("Operating Profit"), QStringLiteral("Currency")},
+        addSheet(xlsxMonthlyResultsSheetName(),
+                 {xlsxHeaderMonth(), xlsxHeaderNetSales(), xlsxHeaderCogs(), xlsxHeaderTradingResult(), xlsxHeaderAcquiredPrivilegesRev(), xlsxHeaderMiscRevenue(), xlsxHeaderOtherRevenuesTotal(), xlsxHeaderReceivableAccounts(), xlsxHeaderPayableAccounts(), xlsxHeaderSignedExpenses(), xlsxHeaderOperatingProfit(), xlsxHeaderCurrency()},
                  monthlyRows,
                  false,
                  true);
@@ -671,9 +759,9 @@ static QList<QPair<QString, QByteArray>> buildSheetsForExport(const AppData& dat
             }
         }
 
-        QStringList accountHeaders = {QStringLiteral("Account Name"), QStringLiteral("Account Type")};
+        QStringList accountHeaders = {xlsxHeaderAccountName(), xlsxHeaderAccountType()};
         accountHeaders.append(months);
-        accountHeaders << QStringLiteral("Entered Total") << QStringLiteral("Signed Total") << QStringLiteral("Currency");
+        accountHeaders << xlsxHeaderEnteredTotal() << xlsxHeaderSignedTotal() << xlsxHeaderCurrency();
 
         QList<QStringList> accountRows;
         for (const QString& key : accountKeys) {
@@ -691,7 +779,7 @@ static QList<QPair<QString, QByteArray>> buildSheetsForExport(const AppData& dat
             row << xlsxAmount(enteredTotal) << xlsxAmount(signedTotal) << currency;
             accountRows.push_back(row);
         }
-        addSheet(QStringLiteral("Accounts Summary"), accountHeaders, accountRows, false, true);
+        addSheet(xlsxAccountsSummarySheetName(), accountHeaders, accountRows, false, true);
 
         QList<QStringList> otherRevenueRows;
         for (int month = 0; month < 12; ++month) {
@@ -703,8 +791,8 @@ static QList<QPair<QString, QByteArray>> buildSheetsForExport(const AppData& dat
                 currency
             });
         }
-        addSheet(QStringLiteral("Other Revenues"),
-                 {QStringLiteral("Month"), QStringLiteral("Acquired Privileges Revenue"), QStringLiteral("Miscellaneous Revenue"), QStringLiteral("Other Revenues Total"), QStringLiteral("Currency")},
+        addSheet(xlsxOtherRevenuesSheetName(),
+                 {xlsxHeaderMonth(), xlsxHeaderAcquiredPrivilegesRev(), xlsxHeaderMiscRevenue(), xlsxHeaderOtherRevenuesTotal(), xlsxHeaderCurrency()},
                  otherRevenueRows,
                  false,
                  true);
@@ -1081,8 +1169,7 @@ static bool rowHasAnyData(const QMap<int, QString>& row)
 
 static bool isKnownImportMarker(const QString& text)
 {
-    const QString marker = text.trimmed().toUpper();
-    return marker == QStringLiteral("DATA_ENTRY") || marker == QStringLiteral("EXPENSES") || marker == QStringLiteral("OTHER_REVENUES") || marker == QStringLiteral("SUPPLIERS") || marker == QStringLiteral("ALL_DATA");
+    return !canonicalImportMarker(text).isEmpty();
 }
 
 static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData* data, QString* markerOut)
@@ -1139,9 +1226,8 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
     for (int i = searchStart; i < rows.size() && i < searchStart + 30; ++i) {
         if (!rowHasAnyData(rows[i]))
             continue;
-        const QString first = rows[i].value(0).trimmed().toUpper();
-        if (first == QStringLiteral("DATA_ENTRY") || first == QStringLiteral("EXPENSES") ||
-            first == QStringLiteral("OTHER_REVENUES") || first == QStringLiteral("SUPPLIERS") || first == QStringLiteral("ALL_DATA")) {
+        const QString first = canonicalImportMarker(rows[i].value(0));
+        if (!first.isEmpty()) {
             marker = first;
             headerRowIndex = i;
             break;
@@ -1153,18 +1239,21 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
             headerRowIndex = i;
             break;
         }
-        if (rowContainsHeader(rows[i], QStringLiteral("Acquired Privileges")) && rowContainsHeader(rows[i], QStringLiteral("Other Miscellaneous Revenues"))) {
+        if ((rowContainsHeader(rows[i], QStringLiteral("Acquired Privileges")) || rowContainsHeader(rows[i], QStringLiteral("الامتيازات المكتسبة"))) &&
+            (rowContainsHeader(rows[i], QStringLiteral("Other Miscellaneous Revenues")) || rowContainsHeader(rows[i], QStringLiteral("إيرادات متنوعة أخرى")))) {
             marker = QStringLiteral("OTHER_REVENUES");
             headerRowIndex = i;
             break;
         }
-        if (rowContainsHeader(rows[i], QStringLiteral("Supplier Name")) && rowContainsHeader(rows[i], QStringLiteral("Previous Balance"))) {
+        if ((rowContainsHeader(rows[i], QStringLiteral("Supplier Name")) || rowContainsHeader(rows[i], QStringLiteral("اسم المورد"))) &&
+            (rowContainsHeader(rows[i], QStringLiteral("Previous Balance")) || rowContainsHeader(rows[i], QStringLiteral("الرصيد السابق")))) {
             marker = QStringLiteral("SUPPLIERS");
             headerRowIndex = i;
             break;
         }
-        if (rowContainsHeader(rows[i], QStringLiteral("Month")) && rowContainsHeader(rows[i], QStringLiteral("Sales")) &&
-            rowContainsHeader(rows[i], QStringLiteral("Supplier Purchases"))) {
+        if ((rowContainsHeader(rows[i], QStringLiteral("Month")) || rowContainsHeader(rows[i], QStringLiteral("الشهر"))) &&
+            (rowContainsHeader(rows[i], QStringLiteral("Sales")) || rowContainsHeader(rows[i], QStringLiteral("المبيعات"))) &&
+            (rowContainsHeader(rows[i], QStringLiteral("Supplier Purchases")) || rowContainsHeader(rows[i], QStringLiteral("مشتريات الموردين")))) {
             marker = QStringLiteral("DATA_ENTRY");
             headerRowIndex = i;
             break;
@@ -1199,14 +1288,14 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
     };
 
     if (marker == QStringLiteral("DATA_ENTRY")) {
-        const int cMonth = findColumn(cols, {"Month"});
-        const int cSales = findColumn(cols, {"Sales"});
-        const int cSalesReturn = findColumn(cols, {"Sales Return"});
-        const int cSupplierPurchases = findColumn(cols, {"Supplier Purchases"});
-        const int cSupplierPayments = findColumn(cols, {"Supplier Payments"});
-        const int cInventoryFirst = findColumn(cols, {"Inventory First"});
-        const int cInventoryLast = findColumn(cols, {"Inventory Last"});
-        const int cCogsInput = findColumn(cols, {"COGS Input"});
+        const int cMonth = findColumn(cols, {"Month", QStringLiteral("الشهر")});
+        const int cSales = findColumn(cols, {"Sales", QStringLiteral("المبيعات")});
+        const int cSalesReturn = findColumn(cols, {"Sales Return", QStringLiteral("مردودات المبيعات"), QStringLiteral("مرتجعات المبيعات"), QStringLiteral("مرتجعات")});
+        const int cSupplierPurchases = findColumn(cols, {"Supplier Purchases", QStringLiteral("مشتريات الموردين")});
+        const int cSupplierPayments = findColumn(cols, {"Supplier Payments", QStringLiteral("مدفوعات الموردين"), QStringLiteral("دفعات الموردين")});
+        const int cInventoryFirst = findColumn(cols, {"Inventory First", QStringLiteral("اول المدة"), QStringLiteral("أول المدة"), QStringLiteral("المخزون الافتتاحي")});
+        const int cInventoryLast = findColumn(cols, {"Inventory Last", QStringLiteral("اخر المدة"), QStringLiteral("آخر المدة"), QStringLiteral("المخزون الختامي")});
+        const int cCogsInput = findColumn(cols, {"COGS Input", QStringLiteral("تكلفة البضاعة"), QStringLiteral("COGS")});
         const bool ongoingMode = (cCogsInput >= 0);
 
         if (cMonth < 0 || cSales < 0 || cSalesReturn < 0 || cSupplierPurchases < 0 || cSupplierPayments < 0 ||
@@ -1220,11 +1309,12 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
         QMap<QString, int> monthLookup;
         for (int i = 0; i < months.size(); ++i)
             monthLookup[normalizedHeaderCell(months[i])] = i;
+        addMonthAliases(monthLookup);
 
         for (int r = dataStartRowIndex; r < rows.size(); ++r) {
             const auto& row = rows[r];
             if (!rowHasAnyData(row)) continue;
-            const QString rowMarker = row.value(0).trimmed().toUpper();
+            const QString rowMarker = canonicalImportMarker(row.value(0));
             if (isKnownImportMarker(rowMarker) && rowMarker != marker) continue;
             const int monthIndex = monthLookup.value(normalizedHeaderCell(cell(row, cMonth)), -1);
             if (monthIndex < 0 || monthIndex >= 12) continue;
@@ -1280,13 +1370,14 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
         QMap<QString, int> monthLookup;
         for (int i = 0; i < months.size(); ++i)
             monthLookup[normalizedHeaderCell(months[i])] = i;
+        addMonthAliases(monthLookup);
         for (int i = 0; i < 12; ++i)
             data->monthlyAccounts[i] = defaultFixedExpenseAccounts();
 
         for (int r = dataStartRowIndex; r < rows.size(); ++r) {
             const auto& row = rows[r];
             if (!rowHasAnyData(row)) continue;
-            const QString rowMarker = row.value(0).trimmed().toUpper();
+            const QString rowMarker = canonicalImportMarker(row.value(0));
             if (isKnownImportMarker(rowMarker) && rowMarker != marker) continue;
 
             const int monthIndex = cMonth >= 0 ? monthLookup.value(normalizedHeaderCell(cell(row, cMonth)), 0) : 0;
@@ -1346,10 +1437,11 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
         QMap<QString, int> monthLookup;
         for (int i = 0; i < months.size(); ++i)
             monthLookup[normalizedHeaderCell(months[i])] = i;
+        addMonthAliases(monthLookup);
         for (int r = dataStartRowIndex; r < rows.size(); ++r) {
             const auto& row = rows[r];
             if (!rowHasAnyData(row)) continue;
-            const QString rowMarker = row.value(0).trimmed().toUpper();
+            const QString rowMarker = canonicalImportMarker(row.value(0));
             if (isKnownImportMarker(rowMarker) && rowMarker != marker) continue;
             const int monthIndex = monthLookup.value(normalizedHeaderCell(cell(row, cMonth)), -1);
             if (monthIndex < 0 || monthIndex >= 12) continue;
@@ -1357,12 +1449,12 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
             if (!parseRequiredNumber(row, cMisc, data->otherRevenues[monthIndex].miscellaneousRevenues, QStringLiteral("Other Miscellaneous Revenues"))) return false;
         }
     } else if (marker == QStringLiteral("SUPPLIERS")) {
-        const int cMonth = findColumn(cols, {"Month"});
-        const int cName = findColumn(cols, {"Supplier Name"});
-        const int cPrevious = findColumn(cols, {"Previous Balance"});
-        const int cPurchases = findColumn(cols, {"Purchases"});
-        const int cTotalDebt = findColumn(cols, {"Total Debt"});
-        const int cPayments = findColumn(cols, {"Payments"});
+        const int cMonth = findColumn(cols, {"Month", QStringLiteral("الشهر")});
+        const int cName = findColumn(cols, {"Supplier Name", QStringLiteral("اسم المورد")});
+        const int cPrevious = findColumn(cols, {"Previous Balance", QStringLiteral("الرصيد السابق")});
+        const int cPurchases = findColumn(cols, {"Purchases", QStringLiteral("المشتريات"), QStringLiteral("مشتريات")});
+        const int cTotalDebt = findColumn(cols, {"Total Debt", QStringLiteral("إجمالي الدين")});
+        const int cPayments = findColumn(cols, {"Payments", QStringLiteral("الدفعات")});
         if (cMonth < 0 || cName < 0 || cPrevious < 0 || cPurchases < 0 || cTotalDebt < 0 || cPayments < 0) {
             g_lastImportError = tr_auto_import_failed_the_suppliers_sheet_does_not_c5805d00();
             return false;
@@ -1372,10 +1464,11 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
         QMap<QString, int> monthLookup;
         for (int i = 0; i < months.size(); ++i)
             monthLookup[normalizedHeaderCell(months[i])] = i;
+        addMonthAliases(monthLookup);
         for (int r = dataStartRowIndex; r < rows.size(); ++r) {
             const auto& row = rows[r];
             if (!rowHasAnyData(row)) continue;
-            const QString rowMarker = row.value(0).trimmed().toUpper();
+            const QString rowMarker = canonicalImportMarker(row.value(0));
             if (isKnownImportMarker(rowMarker) && rowMarker != marker) continue;
             const int monthIndex = monthLookup.value(normalizedHeaderCell(cell(row, cMonth)), -1);
             if (monthIndex < 0 || monthIndex >= 12) continue;
@@ -1402,7 +1495,7 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
         }
     } else if (marker == QStringLiteral("ALL_DATA")) {
         // Legacy single-sheet format. New ALL_DATA exports are multi-sheet, but this keeps old files readable.
-        const int cSection = findColumn(cols, {"Section"});
+        const int cSection = findColumn(cols, {"Section", QStringLiteral("القسم")});
         const int cKey1 = findColumn(cols, {"Key 1"});
         const int cValue1 = findColumn(cols, {"Value 1"});
         const int cValue2 = findColumn(cols, {"Value 2"});
@@ -1426,7 +1519,7 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
         for (int r = dataStartRowIndex; r < rows.size(); ++r) {
             const auto& row = rows[r];
             if (!rowHasAnyData(row)) continue;
-            const QString section = cell(row, cSection).toUpper();
+            const QString section = canonicalImportMarker(cell(row, cSection));
             if (section == QStringLiteral("DATA_ENTRY")) {
                 const int monthIndex = monthLookup.value(normalizedHeaderCell(cell(row, cKey1)), -1);
                 if (monthIndex < 0 || monthIndex >= 12) continue;
