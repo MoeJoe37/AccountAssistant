@@ -32,7 +32,9 @@
 #include <QByteArray>
 #include <QBuffer>
 #include <QSettings>
+#include <QLocale>
 #include <zlib.h>
+#include <algorithm>
 
 // ─────────────────────────────────────────────────────────────────────────────
 static const char* kGlobalSS = R"(
@@ -237,7 +239,7 @@ static QString xmlEscape(const QString& s)
     return out;
 }
 
-enum class XlsxSheetKind { DataEntry, Expenses, OtherRevenues, Suppliers, AllData };
+enum class XlsxSheetKind { DataEntry, Expenses, OtherRevenues, Suppliers, Summary, AllData };
 
 static QString accountTypeExpenseExportName(AccountType type)
 {
@@ -259,8 +261,25 @@ static QString accountTypeExpenseExportName(AccountType type)
     return QStringLiteral("حسابات دائنة");
 }
 
+static QString xlsxAmount(double value)
+{
+    QLocale locale(QLocale::English, QLocale::UnitedStates);
+    locale.setNumberOptions(QLocale::DefaultNumberOptions);
+    return locale.toString(value, 'f', g_currency == AppCurrency::IQD ? 0 : 2);
+}
 
-static QByteArray makeWorksheetXml(const QStringList& headers, const QList<QStringList>& rows, bool includeSignature = true)
+static QString xlsxCurrencyCode()
+{
+    return g_currency == AppCurrency::IQD ? QStringLiteral("IQD") : QStringLiteral("USD");
+}
+
+static QString xlsxAccountTypeName(AccountType type)
+{
+    return type == AccountType::Receivable ? tr_account_receivable_59bf34() : tr_account_payable_003206();
+}
+
+
+static QByteArray makeWorksheetXml(const QStringList& headers, const QList<QStringList>& rows, bool includeSignature = true, bool professionalLayout = false)
 {
     QByteArray ba;
     QBuffer buffer(&ba);
@@ -270,11 +289,39 @@ static QByteArray makeWorksheetXml(const QStringList& headers, const QList<QStri
     w.writeStartDocument();
     w.writeStartElement("worksheet");
     w.writeDefaultNamespace("http://schemas.openxmlformats.org/spreadsheetml/2006/main");
+
+    const int columnCount = std::max(int(headers.size()), rows.isEmpty() ? 0 : [&]() {
+        int maxCols = 0;
+        for (const auto& r : rows)
+            maxCols = std::max(maxCols, int(r.size()));
+        return maxCols;
+    }());
+
+    if (professionalLayout && columnCount > 0) {
+        w.writeStartElement("cols");
+        for (int i = 0; i < columnCount; ++i) {
+            int maxLen = i < headers.size() ? headers.value(i).size() : 10;
+            for (const auto& r : rows)
+                if (i < r.size())
+                    maxLen = std::max(maxLen, int(r.value(i).size()));
+            const double width = qBound(12.0, double(maxLen + 4), 34.0);
+            w.writeStartElement("col");
+            w.writeAttribute("min", QString::number(i + 1));
+            w.writeAttribute("max", QString::number(i + 1));
+            w.writeAttribute("width", QString::number(width, 'f', 1));
+            w.writeAttribute("customWidth", "1");
+            w.writeEndElement();
+        }
+        w.writeEndElement();
+    }
+
     w.writeStartElement("sheetData");
 
-    auto writeTextCell = [&](const QString& ref, const QString& text) {
+    auto writeTextCell = [&](const QString& ref, const QString& text, int styleIndex) {
         w.writeStartElement("c");
         w.writeAttribute("r", ref);
+        if (styleIndex > 0)
+            w.writeAttribute("s", QString::number(styleIndex));
         w.writeAttribute("t", "inlineStr");
         w.writeStartElement("is");
         w.writeTextElement("t", text);
@@ -282,9 +329,11 @@ static QByteArray makeWorksheetXml(const QStringList& headers, const QList<QStri
         w.writeEndElement();
     };
 
-    auto writeRow = [&](int rowNum, const QStringList& cols) {
+    auto writeRow = [&](int rowNum, const QStringList& cols, int styleIndex = 0) {
         w.writeStartElement("row");
         w.writeAttribute("r", QString::number(rowNum));
+        if (styleIndex == 1 || styleIndex == 3)
+            w.writeAttribute("ht", styleIndex == 1 ? "22" : "20");
         for (int i = 0; i < cols.size(); ++i) {
             QString col;
             int n = i;
@@ -292,17 +341,17 @@ static QByteArray makeWorksheetXml(const QStringList& headers, const QList<QStri
                 col.prepend(QChar('A' + (n % 26)));
                 n = n / 26 - 1;
             } while (n >= 0);
-            writeTextCell(QString("%1%2").arg(col).arg(rowNum), cols[i]);
+            writeTextCell(QString("%1%2").arg(col).arg(rowNum), cols[i], styleIndex);
         }
         w.writeEndElement();
     };
 
     int row = 1;
     if (includeSignature)
-        writeRow(row++, {"ACCOUNT_ASSISTANT_EXPORT", "6.0.0"});
-    writeRow(row++, headers);
+        writeRow(row++, {"ACCOUNT_ASSISTANT_EXPORT", "7.2.0"}, 3);
+    writeRow(row++, headers, 1);
     for (const auto& r : rows)
-        writeRow(row++, r);
+        writeRow(row++, r, professionalLayout ? 2 : 0);
 
     w.writeEndElement();
     w.writeEndElement();
@@ -328,6 +377,7 @@ static QByteArray makeWorkbookRelsXml(const QStringList& sheetNames)
     QString rels;
     for (int i = 0; i < sheetNames.size(); ++i)
         rels += QString("  <Relationship Id=\"rId%1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet\" Target=\"worksheets/sheet%1.xml\"/>\n").arg(i + 1);
+    rels += QString("  <Relationship Id=\"rId%1\" Type=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles\" Target=\"styles.xml\"/>\n").arg(sheetNames.size() + 1);
     return QString(R"xml(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 %1</Relationships>)xml").arg(rels).toUtf8();
@@ -351,7 +401,37 @@ static QByteArray makeContentTypesXml(const QStringList& sheetNames)
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
   <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
 %1</Types>)xml").arg(overrides).toUtf8();
+}
+
+static QByteArray makeStylesXml()
+{
+    return QByteArray(R"xml(<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="3">
+    <font><sz val="11"/><name val="Segoe UI"/></font>
+    <font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Segoe UI"/></font>
+    <font><b/><sz val="12"/><color rgb="FF1F4E79"/><name val="Segoe UI"/></font>
+  </fonts>
+  <fills count="3">
+    <fill><patternFill patternType="none"/></fill>
+    <fill><patternFill patternType="gray125"/></fill>
+    <fill><patternFill patternType="solid"><fgColor rgb="FF1F4E79"/><bgColor indexed="64"/></patternFill></fill>
+  </fills>
+  <borders count="2">
+    <border><left/><right/><top/><bottom/><diagonal/></border>
+    <border><left style="thin"><color rgb="FFD9E2F3"/></left><right style="thin"><color rgb="FFD9E2F3"/></right><top style="thin"><color rgb="FFD9E2F3"/></top><bottom style="thin"><color rgb="FFD9E2F3"/></bottom><diagonal/></border>
+  </borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="4">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/>
+    <xf numFmtId="0" fontId="1" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"/>
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"/>
+    <xf numFmtId="0" fontId="2" fillId="0" borderId="1" xfId="0" applyFont="1" applyBorder="1"/>
+  </cellXfs>
+  <cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>
+</styleSheet>)xml");
 }
 
 static void writeU16(QDataStream& out, quint16 v) { out << v; }
@@ -424,6 +504,7 @@ static bool saveWorkbookXlsx(const QString& path, const QList<QPair<QString, QBy
     entries.push_back({"_rels/.rels", makeRootRelsXml()});
     entries.push_back({"xl/workbook.xml", makeWorkbookXml(sheetNames)});
     entries.push_back({"xl/_rels/workbook.xml.rels", makeWorkbookRelsXml(sheetNames)});
+    entries.push_back({"xl/styles.xml", makeStylesXml()});
     for (int i = 0; i < sheets.size(); ++i)
         entries.push_back({QString("xl/worksheets/sheet%1.xml").arg(i + 1), sheets[i].second});
     return writeStoredZip(path, entries);
@@ -432,8 +513,8 @@ static bool saveWorkbookXlsx(const QString& path, const QList<QPair<QString, QBy
 static QList<QPair<QString, QByteArray>> buildSheetsForExport(const AppData& data, XlsxSheetKind kind)
 {
     QList<QPair<QString, QByteArray>> sheets;
-    auto addSheet = [&](const QString& sheetName, const QStringList& headers, const QList<QStringList>& rows, bool includeSignature = true) {
-        sheets.push_back({sheetName, makeWorksheetXml(headers, rows, includeSignature)});
+    auto addSheet = [&](const QString& sheetName, const QStringList& headers, const QList<QStringList>& rows, bool includeSignature = true, bool professionalLayout = false) {
+        sheets.push_back({sheetName, makeWorksheetXml(headers, rows, includeSignature, professionalLayout)});
     };
 
     switch (kind) {
@@ -447,9 +528,9 @@ static QList<QPair<QString, QByteArray>> buildSheetsForExport(const AppData& dat
         for (int i = 0; i < 12; ++i) {
             const auto& m = data.months[i];
             if (ongoing) {
-                rows.push_back({"DATA_ENTRY", months.value(i), QString::number(m.sales, 'f', 2), QString::number(m.salesReturn, 'f', 2), QString::number(m.supplierPurchases, 'f', 2), QString::number(m.supplierPayments, 'f', 2), QString::number(m.cogsInput, 'f', 2)});
+                rows.push_back({"DATA_ENTRY", months.value(i), xlsxAmount(m.sales), xlsxAmount(m.salesReturn), xlsxAmount(m.supplierPurchases), xlsxAmount(m.supplierPayments), xlsxAmount(m.cogsInput)});
             } else {
-                rows.push_back({"DATA_ENTRY", months.value(i), QString::number(m.sales, 'f', 2), QString::number(m.salesReturn, 'f', 2), QString::number(m.supplierPurchases, 'f', 2), QString::number(m.supplierPayments, 'f', 2), QString::number(m.inventoryFirst, 'f', 2), QString::number(m.inventoryLast, 'f', 2)});
+                rows.push_back({"DATA_ENTRY", months.value(i), xlsxAmount(m.sales), xlsxAmount(m.salesReturn), xlsxAmount(m.supplierPurchases), xlsxAmount(m.supplierPayments), xlsxAmount(m.inventoryFirst), xlsxAmount(m.inventoryLast)});
             }
         }
         addSheet("DATA_ENTRY", headers, rows);
@@ -466,7 +547,7 @@ static QList<QPair<QString, QByteArray>> buildSheetsForExport(const AppData& dat
                     rows.push_back({QStringLiteral("EXPENSES"),
                                     months.value(month),
                                     a.name,
-                                    QString::number(a.amount, 'f', 2),
+                                    xlsxAmount(a.amount),
                                     a.type == AccountType::Receivable ? tr_account_receivable_59bf34() : tr_account_payable_003206()});
                 }
             }
@@ -475,7 +556,7 @@ static QList<QPair<QString, QByteArray>> buildSheetsForExport(const AppData& dat
                 rows.push_back({QStringLiteral("EXPENSES"),
                                 months.value(0),
                                 a.name,
-                                QString::number(a.amount, 'f', 2),
+                                xlsxAmount(a.amount),
                                 a.type == AccountType::Receivable ? tr_account_receivable_59bf34() : tr_account_payable_003206()});
             }
         }
@@ -489,8 +570,8 @@ static QList<QPair<QString, QByteArray>> buildSheetsForExport(const AppData& dat
         for (int i = 0; i < 12; ++i) {
             rows.push_back({QStringLiteral("OTHER_REVENUES"),
                             months.value(i),
-                            QString::number(data.otherRevenues[i].acquiredPrivileges, 'f', 2),
-                            QString::number(data.otherRevenues[i].miscellaneousRevenues, 'f', 2)});
+                            xlsxAmount(data.otherRevenues[i].acquiredPrivileges),
+                            xlsxAmount(data.otherRevenues[i].miscellaneousRevenues)});
         }
         addSheet("OTHER_REVENUES", headers, rows);
         break;
@@ -507,13 +588,126 @@ static QList<QPair<QString, QByteArray>> buildSheetsForExport(const AppData& dat
                 e.purchases = data.suppliers[i].purchases;
                 e.payments = data.suppliers[i].payments;
                 e.totalDebt = e.previousBalance + e.purchases;
-                rows.push_back({"SUPPLIERS", months.value(i), e.name, QString::number(e.previousBalance,'f',2), QString::number(e.purchases,'f',2), QString::number(e.totalDebt,'f',2), QString::number(e.payments,'f',2), QString::number(e.paymentPctOfPurchases(),'f',2), QString::number(e.paymentPctOfTotalDebt(),'f',2), QString::number(e.supplierBalance(),'f',2)});
+                rows.push_back({"SUPPLIERS", months.value(i), e.name, xlsxAmount(e.previousBalance), xlsxAmount(e.purchases), xlsxAmount(e.totalDebt), xlsxAmount(e.payments), QString::number(e.paymentPctOfPurchases(),'f',2), QString::number(e.paymentPctOfTotalDebt(),'f',2), xlsxAmount(e.supplierBalance())});
             } else {
                 for (const auto& e : entries)
-                    rows.push_back({"SUPPLIERS", months.value(i), e.name, QString::number(e.previousBalance,'f',2), QString::number(e.purchases,'f',2), QString::number(e.totalDebt > 0.0 ? e.totalDebt : (e.previousBalance + e.purchases),'f',2), QString::number(e.payments,'f',2), QString::number(e.paymentPctOfPurchases(),'f',2), QString::number(e.paymentPctOfTotalDebt(),'f',2), QString::number(e.supplierBalance(),'f',2)});
+                    rows.push_back({"SUPPLIERS", months.value(i), e.name, xlsxAmount(e.previousBalance), xlsxAmount(e.purchases), xlsxAmount(e.totalDebt > 0.0 ? e.totalDebt : (e.previousBalance + e.purchases)), xlsxAmount(e.payments), QString::number(e.paymentPctOfPurchases(),'f',2), QString::number(e.paymentPctOfTotalDebt(),'f',2), xlsxAmount(e.supplierBalance())});
             }
         }
         addSheet("SUPPLIERS", headers, rows);
+        break;
+    }
+    case XlsxSheetKind::Summary: {
+        AppData calculated = data;
+        calculated.calculate();
+        const auto months = monthNames();
+        const QString currency = xlsxCurrencyCode();
+
+        QList<QStringList> overviewRows;
+        overviewRows.push_back({tr_trading_result_b21619(), xlsxAmount(calculated.totalProfit), currency});
+        overviewRows.push_back({tr_other_revenues_total_d457cf(), xlsxAmount(calculated.totalOtherRevenues), currency});
+        overviewRows.push_back({tr_expenses_total_signed_0f255b(), xlsxAmount(calculated.totalSignedExpenses), currency});
+        overviewRows.push_back({tr_operating_profit_c87e52(), xlsxAmount(calculated.totalOperatingProfit), currency});
+        addSheet(QStringLiteral("Overview"),
+                 {QStringLiteral("Metric"), QStringLiteral("Amount"), QStringLiteral("Currency")},
+                 overviewRows,
+                 false,
+                 true);
+
+        QList<QStringList> monthlyRows;
+        for (int month = 0; month < 12; ++month) {
+            double receivable = 0.0;
+            double payable = 0.0;
+            const QList<AccountItem> accounts = normalizedFixedExpenseAccountsForMonth(calculated.monthlyAccounts[month]);
+            for (const auto& item : accounts) {
+                if (item.type == AccountType::Receivable)
+                    receivable += item.amount;
+                else
+                    payable += item.amount;
+            }
+            monthlyRows.push_back({
+                months.value(month),
+                xlsxAmount(calculated.netSales[month]),
+                xlsxAmount(calculated.cogs[month]),
+                xlsxAmount(calculated.profitMargin[month]),
+                xlsxAmount(calculated.otherRevenues[month].acquiredPrivileges),
+                xlsxAmount(calculated.otherRevenues[month].miscellaneousRevenues),
+                xlsxAmount(calculated.otherRevenueTotals[month]),
+                xlsxAmount(receivable),
+                xlsxAmount(-payable),
+                xlsxAmount(calculated.signedExpenses[month]),
+                xlsxAmount(calculated.operatingProfit[month]),
+                currency
+            });
+        }
+        addSheet(QStringLiteral("Monthly Results"),
+                 {QStringLiteral("Month"), QStringLiteral("Net Sales"), QStringLiteral("COGS"), QStringLiteral("Trading Result"), QStringLiteral("Acquired Privileges Revenue"), QStringLiteral("Miscellaneous Revenue"), QStringLiteral("Other Revenues Total"), QStringLiteral("Receivable Accounts (+)"), QStringLiteral("Payable Accounts (-)"), QStringLiteral("Signed Expenses"), QStringLiteral("Operating Profit"), QStringLiteral("Currency")},
+                 monthlyRows,
+                 false,
+                 true);
+
+        QStringList accountKeys;
+        QMap<QString, QString> accountNames;
+        QMap<QString, AccountType> accountTypes;
+        QMap<QString, QVector<double>> accountMonthlySigned;
+        QMap<QString, QVector<double>> accountMonthlyEntered;
+        for (int month = 0; month < 12; ++month) {
+            const QList<AccountItem> accounts = normalizedFixedExpenseAccountsForMonth(calculated.monthlyAccounts[month]);
+            for (const auto& item : accounts) {
+                const QString key = normalizedAccountKey(item);
+                if (key.trimmed().isEmpty())
+                    continue;
+                if (!accountKeys.contains(key)) {
+                    accountKeys << key;
+                    accountNames[key] = expenseAccountDisplayName(item);
+                    accountTypes[key] = item.type;
+                    accountMonthlySigned[key] = QVector<double>(12, 0.0);
+                    accountMonthlyEntered[key] = QVector<double>(12, 0.0);
+                }
+                accountTypes[key] = item.type;
+                accountNames[key] = expenseAccountDisplayName(item);
+                accountMonthlyEntered[key][month] = item.amount;
+                accountMonthlySigned[key][month] = (item.type == AccountType::Receivable) ? item.amount : -item.amount;
+            }
+        }
+
+        QStringList accountHeaders = {QStringLiteral("Account Name"), QStringLiteral("Account Type")};
+        accountHeaders.append(months);
+        accountHeaders << QStringLiteral("Entered Total") << QStringLiteral("Signed Total") << QStringLiteral("Currency");
+
+        QList<QStringList> accountRows;
+        for (const QString& key : accountKeys) {
+            QStringList row;
+            row << accountNames.value(key) << xlsxAccountTypeName(accountTypes.value(key, AccountType::Payable));
+            double enteredTotal = 0.0;
+            double signedTotal = 0.0;
+            const QVector<double> entered = accountMonthlyEntered.value(key, QVector<double>(12, 0.0));
+            const QVector<double> signedValues = accountMonthlySigned.value(key, QVector<double>(12, 0.0));
+            for (int month = 0; month < 12; ++month) {
+                row << xlsxAmount(signedValues.value(month));
+                enteredTotal += entered.value(month);
+                signedTotal += signedValues.value(month);
+            }
+            row << xlsxAmount(enteredTotal) << xlsxAmount(signedTotal) << currency;
+            accountRows.push_back(row);
+        }
+        addSheet(QStringLiteral("Accounts Summary"), accountHeaders, accountRows, false, true);
+
+        QList<QStringList> otherRevenueRows;
+        for (int month = 0; month < 12; ++month) {
+            otherRevenueRows.push_back({
+                months.value(month),
+                xlsxAmount(calculated.otherRevenues[month].acquiredPrivileges),
+                xlsxAmount(calculated.otherRevenues[month].miscellaneousRevenues),
+                xlsxAmount(calculated.otherRevenueTotals[month]),
+                currency
+            });
+        }
+        addSheet(QStringLiteral("Other Revenues"),
+                 {QStringLiteral("Month"), QStringLiteral("Acquired Privileges Revenue"), QStringLiteral("Miscellaneous Revenue"), QStringLiteral("Other Revenues Total"), QStringLiteral("Currency")},
+                 otherRevenueRows,
+                 false,
+                 true);
         break;
     }
     case XlsxSheetKind::AllData:
@@ -733,6 +927,14 @@ static bool strictToDouble(const QString& text, double* out)
     t.replace(QChar(0x202F), QChar(' '));
     t.replace(QChar(0x2007), QChar(' '));
     t = t.trimmed();
+    t.remove(QStringLiteral("USD"), Qt::CaseInsensitive);
+    t.remove(QStringLiteral("IQD"), Qt::CaseInsensitive);
+    t.remove(QStringLiteral("$"));
+    t.remove(QStringLiteral("دع"));
+    t.remove(QStringLiteral("د.ع"));
+    t.remove(QStringLiteral("دينار"));
+    t.remove(QChar(0x061C));
+    t = t.trimmed();
     if (t.startsWith('='))
         t.remove(0, 1);
     if (t.startsWith(QChar('\'')))
@@ -749,13 +951,17 @@ static bool strictToDouble(const QString& text, double* out)
         double v = QLocale::c().toDouble(s, &ok);
         if (!ok) v = QLocale(QLocale::English, QLocale::UnitedStates).toDouble(s, &ok);
         if (!ok) v = QLocale().toDouble(s, &ok);
+        if (!ok) v = QLocale(QLocale::Arabic, QLocale::Iraq).toDouble(s, &ok);
         if (!ok) {
             QString compact = s;
             compact.remove(' ');
+            compact.remove(QChar(0x066C)); // Arabic thousands separator
+            compact.replace(QChar(0x066B), QChar('.')); // Arabic decimal separator
             v = QLocale::c().toDouble(compact, &ok);
             if (!ok) {
                 QString noCommas = compact;
                 noCommas.remove(',');
+                noCommas.remove(QChar('\''));
                 v = QLocale::c().toDouble(noCommas, &ok);
             }
             if (!ok) {
@@ -2265,15 +2471,9 @@ void MainWindow::onChartRemoved(const ChartRequest& removed)
 
 void MainWindow::onClearResultsTab()
 {
-    QMessageBox box(this);
-    box.setIcon(QMessageBox::Warning);
-    box.setWindowTitle(tr_auto_clear_results_118d7c());
-    box.setText(tr_auto_clear_results_warning_778aa1());
-    QPushButton* clearBtn = box.addButton(tr_auto_clear_results_118d7c(), QMessageBox::AcceptRole);
-    QPushButton* cancelBtn = box.addButton(tr_cancel_8d40ef(), QMessageBox::RejectRole);
-    box.setDefaultButton(cancelBtn);
-    box.exec();
-    if (box.clickedButton() != clearBtn)
+    if (ThemeBox::confirm(this,
+            tr_auto_clear_results_118d7c(),
+            tr_auto_clear_results_warning_778aa1()) != QMessageBox::Yes)
         return;
 
     m_hasResults = false;
@@ -2489,6 +2689,7 @@ void MainWindow::onSaveData()
     else if (m_tabs && m_tabs->currentIndex() == 1) kind = XlsxSheetKind::Expenses;
     else if (m_tabs && m_tabs->currentIndex() == 2) kind = XlsxSheetKind::OtherRevenues;
     else if (m_tabs && m_tabs->currentIndex() == 3) kind = XlsxSheetKind::Suppliers;
+    else if (m_tabs && m_tabs->currentIndex() == 4) kind = XlsxSheetKind::Summary;
     if (!saveAppDataXlsx(path, data, kind)) {
         ThemeBox::critical(this, tr_save_data_ee42b8(), tr_unable_to_write_the_xlsx_file_da2b9b());
         return;

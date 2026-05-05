@@ -457,19 +457,30 @@ void Accountswidget::renderCurrentMonth()
         connect(typeCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, [this, i](int) {
             if (m_loadingRows || m_currentMonth < 0 || m_currentMonth >= 12)
                 return;
-            QList<AccountItem> month = normalizedFixedExpenseAccountsForMonth(m_monthlyAccounts[m_currentMonth]);
-            if (i >= 0 && i < month.size()) {
-                const RowWidgets* found = nullptr;
-                for (const auto& r : m_rows) {
-                    if (r.accountIndex == i) { found = &r; break; }
-                }
-                if (found && found->type)
-                    month[i].type = accountTypeFromCombo(found->type);
-                m_monthlyAccounts[m_currentMonth] = month;
-                emit dataChanged();
-                if (!accountMatchesFilter(month[i].type, currentGroupFilter()))
-                    renderCurrentMonth();
+
+            QList<AccountItem> currentMonth = normalizedFixedExpenseAccountsForMonth(m_monthlyAccounts[m_currentMonth]);
+            if (i < 0 || i >= currentMonth.size())
+                return;
+
+            const QString key = normalizedAccountKey(currentMonth[i]);
+            const RowWidgets* found = nullptr;
+            for (const auto& r : m_rows) {
+                if (r.accountIndex == i) { found = &r; break; }
             }
+            const AccountType newType = (found && found->type) ? accountTypeFromCombo(found->type) : AccountType::Payable;
+
+            for (auto& monthAccounts : m_monthlyAccounts) {
+                QList<AccountItem> normalized = normalizedFixedExpenseAccountsForMonth(monthAccounts);
+                for (auto& account : normalized) {
+                    if (normalizedAccountKey(account) == key)
+                        account.type = newType;
+                }
+                monthAccounts = normalized;
+            }
+
+            emit dataChanged();
+            if (!accountMatchesFilter(newType, currentGroupFilter()))
+                renderCurrentMonth();
         });
 
         m_rowsLayout->insertWidget(qMax(0, m_rowsLayout->count() - 1), rowW);

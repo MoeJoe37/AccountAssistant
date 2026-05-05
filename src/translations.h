@@ -69,11 +69,11 @@ inline QString tr_acquired_privileges_6a72d2() { return T("Acquired privileges",
 inline QString tr_other_misc_revenues_a330db() { return T("Other miscellaneous revenues", "إيرادات متنوعة أخرى"); }
 inline QString tr_summary_tab_b5e2f1() { return T("Summary", "الخلاصة"); }
 inline QString tr_summary_title_891b2d() { return T("Summary", "الخلاصة"); }
-inline QString tr_summary_subtitle_9bd0cf() { return T("Operating Profit = Trading Result + Other Revenues + signed Expenses. Payable accounts are negative; receivable accounts are positive.", "الربح التشغيلي = نتيجة التداول + الإيرادات الأخرى + المصروفات الموقعة. الحساب الدائن يكون سالباً والحساب المدين يكون موجباً."); }
-inline QString tr_trading_result_b21619() { return T("Trading Result", "نتيجة التداول"); }
+inline QString tr_summary_subtitle_9bd0cf() { return T("Operating Profit = Trading Result + Other Revenues + signed Expenses. Payable accounts are negative; receivable accounts are positive.", "نتيجة النشاط = نتيجة المتاجرة + الإيرادات الأخرى + المصروفات الموقعة. الحساب الدائن يكون سالباً والحساب المدين يكون موجباً."); }
+inline QString tr_trading_result_b21619() { return T("Trading Result", "نتيجة المتاجرة"); }
 inline QString tr_other_revenues_total_d457cf() { return T("Other Revenues", "الإيرادات الأخرى"); }
 inline QString tr_expenses_total_signed_0f255b() { return T("Expenses Total", "إجمالي المصروفات"); }
-inline QString tr_operating_profit_c87e52() { return T("Operating Profit", "الربح التشغيلي"); }
+inline QString tr_operating_profit_c87e52() { return T("Operating Profit", "نتيجة النشاط"); }
 inline QString tr_account_result_e5033d() { return T("Result", "النتيجة"); }
 inline QString tr_create_graph_2047ac() { return T("📊  Create Graph", "📊  إنشاء رسم"); }
 
@@ -205,7 +205,7 @@ inline QString tr_auto_clear_other_revenues_warning_2b8fe4() { return T("This wi
 inline QString tr_auto_clear_summary_warning_121f43() { return T("This will clear only the visible Summary tab output. Source values in Data Entry, Expenses, Other Revenues, and Suppliers will not be changed.\n\nAre you sure you want to continue?", "سيتم مسح عرض تبويب الخلاصة فقط. لن يتم تغيير القيم الأصلية في إدخال البيانات أو المصروفات أو الإيرادات الأخرى أو الموردين.\n\nهل أنت متأكد من المتابعة؟"); }
 inline QString tr_closing_stock_last_period_a0c5b2() { return T("Closing Stock (Last Period)", "اخر المدة"); }
 inline QString tr_cogs_d716f1() { return T("COGS", "تكلفة البضاعة"); }
-inline QString tr_cogs_vs_profit_margin_fd48e9() { return T("COGS vs Trading Result", "تكلفة مقابل نتيجة التداول"); }
+inline QString tr_cogs_vs_profit_margin_fd48e9() { return T("COGS vs Trading Result", "تكلفة مقابل نتيجة المتاجرة"); }
 inline QString tr_comparison_title_optional_fae13e() { return T("Comparison title (optional)", "عنوان اختياري"); }
 inline QString tr_cost_of_goods_sold_31b73d() { return T("Cost of Goods Sold", "\u062a\u0643\u0644\u0641\u0629 \u0627\u0644\u0628\u0636\u0627\u0639\u0629"); }
 inline QString tr_cost_of_goods_sold_55196f() { return T("Cost of Goods Sold", "\u062A\u0643\u0644\u0641\u0629 \u0627\u0644\u0628\u0636\u0627\u0639\u0629"); }
@@ -229,7 +229,7 @@ inline QString tr_deselect_all_5e3e31() { return T("Deselect all", "إلغاء �
 inline QString tr_drag_to_reorder_right_click_a__b70e11() { return T("Drag to reorder. Right-click a chart to hide it.", "اسحب للترتيب. انقر بالزر الأيمن لإخفاء الرسم."); }
 inline QString tr_duplicate_47648b() { return T("Duplicate", "تكرار"); }
 inline QString tr_duplicate_account_e404c5() { return T("Duplicate account", "حساب مكرر"); }
-inline QString tr_each_month_appears_as_a_dragga_9d0352() { return T("Each month appears as a draggable summary card with net sales, COGS, and trading result.", "كل شهر يظهر كبطاقة ملخص قابلة للسحب مع صافي المبيعات وتكلفة البضاعة ونتيجة التداول"); }
+inline QString tr_each_month_appears_as_a_dragga_9d0352() { return T("Each month appears as a draggable summary card with net sales, COGS, and trading result.", "كل شهر يظهر كبطاقة ملخص قابلة للسحب مع صافي المبيعات وتكلفة البضاعة ونتيجة المتاجرة"); }
 inline QString tr_each_month_is_shown_as_an_indi_81dc38() { return T("Each month is shown as an individual summary card.", "كل شهر يظهر ببطاقة مستقلة"); }
 inline QString tr_edit_chart_9932e2() { return T("Edit chart", "تعديل الرسم"); }
 inline QString tr_enter_monthly_figures_below_cl_e7d622() { return T("Enter monthly figures below. Click a month to expand it.", "أدخل الأرقام الشهرية أدناه. انقر على الشهر لتوسيعه."); }
@@ -311,10 +311,10 @@ inline QString tr_pie_97ce50() { return T("Pie", "دائري"); }
 inline QString tr_pie_chart_9d4e04() { return T("Pie chart", "مخطط دائري"); }
 inline QString tr_please_calculate_first_then_ex_3d96fc() { return T("Please calculate first, then export.", "يرجى الحساب أولاً ثم التصدير."); }
 inline QString tr_portrait_247c2f() { return T("Portrait", "عمودي"); }
-inline QString tr_profit_margin_56b595() { return T("Trading Result", "نتيجة التداول"); }
-inline QString tr_profit_margin_dafda2() { return T("TRADING RESULT", "نتيجة التداول"); }
-inline QString tr_profit_margin_ec3b22() { return T("Trading Result", "نتيجة التداول"); }
-inline QString tr_profit_margin_ff57d3() { return T("Trading Result", "نتيجة التداول"); }
+inline QString tr_profit_margin_56b595() { return T("Trading Result", "نتيجة المتاجرة"); }
+inline QString tr_profit_margin_dafda2() { return T("TRADING RESULT", "نتيجة المتاجرة"); }
+inline QString tr_profit_margin_ec3b22() { return T("Trading Result", "نتيجة المتاجرة"); }
+inline QString tr_profit_margin_ff57d3() { return T("Trading Result", "نتيجة المتاجرة"); }
 inline QString tr_purch_1e85b9() { return T("Purch.", "\u0634\u0631\u0627\u0621"); }
 inline QString tr_purchases_00c2b6() { return T("Purchases", "\u0627\u0644\u0645\u0634\u062a\u0631\u064a\u0627\u062a"); }
 inline QString tr_purchases_16236c() { return T("Purchases", "مشتريات"); }
@@ -359,7 +359,7 @@ inline QString tr_periodic_inventory_8a4f19() { return T("Periodic Inventory", "
 inline QString tr_ongoing_inventory_4f9f2c() { return T("Ongoing Inventory", "الجرد المستمر"); }
 inline QString tr_cogs_input_2a1b7e() { return T("COGS", "تكلفة البضاعة"); }
 inline QString tr_net_sales_ongoing_b63f87() { return T("Net Sales", "صافي المبيعات"); }
-inline QString tr_profit_margin_ongoing_fdb18a() { return T("Trading Result", "نتيجة التداول"); }
+inline QString tr_profit_margin_ongoing_fdb18a() { return T("Trading Result", "نتيجة المتاجرة"); }
 inline QString tr_switch_between_the_card_based__d92db3() { return T("Switch between the card-based input view (default) and the classic spreadsheet table.", "\u0627\u0644\u062a\u0628\u062f\u064a\u0644 \u0628\u064a\u0646 \u0639\u0631\u0636 \u0627\u0644\u0628\u0637\u0627\u0642\u0627\u062a \u0648\u0627\u0644\u062c\u062f\u0648\u0644 \u0627\u0644\u0643\u0644\u0627\u0633\u064a\u0643\u064a."); }
 inline QString tr_text_size_5b8d4f() { return T("Text Size:", "\u062d\u062c\u0645 \u0627\u0644\u062e\u0637:"); }
 inline QString tr_the_pdf_report_was_exported_su_37f5d4() { return T("The PDF report was exported successfully.", "تم تصدير تقرير PDF بنجاح."); }
@@ -420,8 +420,8 @@ inline QStringList monthNames()
     };
 }
 // Centralized translations moved from UI/source files.
-inline QString tr_auto_clear_results_118d7c() { return T("Clear Results", "\u0645\u0633\u062D \u0627\u0644\u0646\u062A\u0627\u0626\u062C"); }
-inline QString tr_auto_clear_results_warning_778aa1() { return T("This will clear all result numbers and all charts. Are you sure you want to continue?", "\u0633\u064A\u062A\u0645 \u0645\u0633\u062D \u062C\u0645\u064A\u0639 \u0623\u0631\u0642\u0627\u0645 \u0627\u0644\u0646\u062A\u0627\u0626\u062C \u0648\u062C\u0645\u064A\u0639 \u0627\u0644\u0631\u0633\u0648\u0645. \u0647\u0644 \u0623\u0646\u062A \u0645\u062A\u0623\u0643\u062F \u0623\u0646\u0643 \u062A\u0631\u064A\u062F \u0627\u0644\u0645\u062A\u0627\u0628\u0639\u0629\u061F"); }
+inline QString tr_auto_clear_results_118d7c() { return T("Delete Results", "حذف النتائج"); }
+inline QString tr_auto_clear_results_warning_778aa1() { return T("This will delete all result numbers and all charts. Source data in Data Entry, Expenses, Other Revenues, and Suppliers will not be changed.\n\nAre you sure you want to continue?", "سيتم حذف جميع أرقام النتائج وجميع الرسوم. لن يتم تغيير القيم الأصلية في إدخال البيانات أو المصروفات أو الإيرادات الأخرى أو الموردين.\n\nهل أنت متأكد من المتابعة؟"); }
 inline QString tr_auto_summary_7c91cb2b() { return T("Summary", "الملخص"); }
 inline QString tr_auto_add_a_summary_total_at_the_end_of_the_grap_fc422aba() { return T("Add a summary total at the end of the graph.", "إضافة مجموع ملخص في نهاية الرسم البياني."); }
 inline QString tr_auto_graph_metrics_b363616c() { return T("Graph metrics", "مقاييس الرسم"); }

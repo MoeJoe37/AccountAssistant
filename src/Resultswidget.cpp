@@ -400,6 +400,18 @@ QTableWidget::item:selected { background:#eef0fa; }
 QLabel#emptyMsg { color:#8aa0c8; font-weight:700; }
 )";
 
+static QString resultsDeleteButtonStyle()
+{
+    return g_lightMode
+        ? QStringLiteral("QToolButton#clearResultsBtn{border:1px solid #e74c3c; border-radius:5px; font-weight:700; padding:0 14px; min-height:30px; background:#fff5f5; color:#c0392b;}"
+                         "QToolButton#clearResultsBtn:hover{background:#fde8e8; color:#e74c3c;}"
+                         "QToolButton#clearResultsBtn:pressed{background:#f5d0d0;}")
+        : QStringLiteral("QToolButton#clearResultsBtn{border:1px solid #c0392b; border-radius:5px; font-weight:700; padding:0 14px; min-height:30px; background:#1e1010; color:#e74c3c;}"
+                         "QToolButton#clearResultsBtn:hover{background:#2c1515; color:#ff6b6b;}"
+                         "QToolButton#clearResultsBtn:pressed{background:#3a1a1a;}");
+}
+
+
 static QString themedPopupMenuStyle()
 {
     return g_lightMode
@@ -1245,6 +1257,8 @@ ResultsWidget::ResultsWidget(QWidget* parent) : QWidget(parent)
     m_clearResultsBtn->setObjectName("clearResultsBtn");
     m_clearResultsBtn->setText(tr_auto_clear_results_118d7c());
     m_clearResultsBtn->setCursor(Qt::PointingHandCursor);
+    m_clearResultsBtn->setFixedHeight(30);
+    m_clearResultsBtn->setStyleSheet(resultsDeleteButtonStyle());
     connect(m_clearResultsBtn, &QToolButton::clicked, this, [this]() { emit clearResultsRequested(); });
     bl->addWidget(m_clearResultsBtn, 0, Qt::AlignVCenter);
 
@@ -1373,7 +1387,7 @@ void ResultsWidget::applyTheme()
     if (m_hiddenBtn) m_hiddenBtn->setStyleSheet(g_lightMode ? kResultsSSLight : kResultsSSDark);
     if (m_monthBtn) m_monthBtn->setStyleSheet(g_lightMode ? kResultsSSLight : kResultsSSDark);
     if (m_orientBtn) m_orientBtn->setStyleSheet(g_lightMode ? kResultsSSLight : kResultsSSDark);
-    if (m_clearResultsBtn) m_clearResultsBtn->setStyleSheet(g_lightMode ? kResultsSSLight : kResultsSSDark);
+    if (m_clearResultsBtn) m_clearResultsBtn->setStyleSheet(resultsDeleteButtonStyle());
     if (m_scroll) m_scroll->setStyleSheet(g_lightMode
         ? "QScrollArea{background:#f4f6fb;}QScrollArea QWidget{background:transparent;}QScrollBar:vertical{background:#f4f6fb;width:8px;border-radius:4px;}QScrollBar::handle:vertical{background:#c8d0ed;border-radius:4px;min-height:30px;}QScrollBar::handle:vertical:hover{background:#4f86f7;}"
         : "QScrollArea{background:#0d1020;}QScrollArea QWidget{background:transparent;}QScrollBar:vertical{background:#0d1020;width:8px;border-radius:4px;}QScrollBar::handle:vertical{background:#2e3860;border-radius:4px;min-height:30px;}QScrollBar::handle:vertical:hover{background:#4f86f7;}");
