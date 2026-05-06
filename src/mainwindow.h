@@ -45,6 +45,7 @@ private slots:
     void onSupplierGraphRequested(const ChartRequest& request);
     void onInventoryModeChanged(int index);
     void syncResultsState();
+    void markCalculatedViewsDirty();
     void requestCalculatedViewsRefresh();
     void refreshCalculatedViews();
     void onCurrentTabChanged(int index);
@@ -101,6 +102,7 @@ private:
     bool    m_suppressAutoRefresh{false};
     bool    m_summaryDirty{true};
     bool    m_resultsDirty{true};
+    bool    m_refreshingCalculatedViews{false};
     QTimer* m_refreshTimer{};
     int     m_pendingGraphReplaceCardIndex{-1};
     ChartOrigin m_pendingGraphReplaceOrigin{ChartOrigin::Custom};

@@ -32,9 +32,12 @@
 #include <QByteArray>
 #include <QBuffer>
 #include <QSettings>
+#include <QVariant>
 #include <QLocale>
+#include <QScopeGuard>
 #include <zlib.h>
 #include <algorithm>
+#include <cmath>
 
 // ─────────────────────────────────────────────────────────────────────────────
 static const char* kGlobalSS = R"(
@@ -198,6 +201,50 @@ QLineEdit:focus, QDoubleSpinBox:focus, QAbstractSpinBox:focus { border-color:#4f
 )";
 
 namespace {
+
+
+static constexpr int kMaxSavedExpenseAccountsPerMonth = 160;
+static constexpr int kMaxSavedLegacyExpenseAccounts = 240;
+static constexpr int kMaxSavedSupplierRowsPerMonth = 80;
+static constexpr double kMaxReasonableMoneyValue = 1.0e15;
+
+static double safeSettingDouble(const QVariant& value, double fallback = 0.0)
+{
+    bool ok = false;
+    const double d = value.toDouble(&ok);
+    if (!ok || !std::isfinite(d) || std::abs(d) > kMaxReasonableMoneyValue)
+        return fallback;
+    return d;
+}
+
+static int safeSettingInt(const QVariant& value, int fallback, int minValue, int maxValue)
+{
+    bool ok = false;
+    int n = value.toInt(&ok);
+    if (!ok)
+        n = fallback;
+    return qBound(minValue, n, maxValue);
+}
+
+static QString safeSettingText(const QVariant& value, int maxLen = 180)
+{
+    QString text = value.toString().trimmed();
+    if (text.size() > maxLen)
+        text = text.left(maxLen);
+    return text;
+}
+
+static AccountType safeExpenseAccountType(const QVariant& value)
+{
+    const int n = safeSettingInt(value, int(AccountType::Payable), int(AccountType::Payable), int(AccountType::CurrentLiabilities));
+    return (n == int(AccountType::Receivable)) ? AccountType::Receivable : AccountType::Payable;
+}
+
+static InventoryMode safeInventoryMode(const QVariant& value)
+{
+    const int n = safeSettingInt(value, int(InventoryMode::Periodic), int(InventoryMode::Periodic), int(InventoryMode::Ongoing));
+    return static_cast<InventoryMode>(n);
+}
 
 struct ZipEntry {
     QString name;
@@ -436,7 +483,7 @@ static QByteArray makeWorksheetXml(const QStringList& headers, const QList<QStri
 
     int row = 1;
     if (includeSignature)
-        writeRow(row++, {xlsxTerm("ACCOUNT_ASSISTANT_EXPORT", "تصدير مساعد الحسابات"), "7.2.0"}, 3);
+        writeRow(row++, {xlsxTerm("ACCOUNT_ASSISTANT_EXPORT", "تصدير مساعد الحسابات"), "7.2.1"}, 3);
     writeRow(row++, headers, 1);
     for (const auto& r : rows)
         writeRow(row++, r, professionalLayout ? 2 : 0);
@@ -1660,6 +1707,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
     }
 
     loadSettings();   // restore globals before building UI
+
+    QSettings startupGuard(QStringLiteral("AccountAssistant"), QStringLiteral("AccountAssistant"));
+    const bool previousStartupDidNotFinish = startupGuard.value(QStringLiteral("startup/restoreInProgress"), false).toBool();
+    startupGuard.setValue(QStringLiteral("startup/restoreInProgress"), true);
+    startupGuard.sync();
+
     buildUI();
 
     m_refreshTimer = new QTimer(this);
@@ -1674,12 +1727,30 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
 
     // applyTheme() already applies the saved font size; do not recurse through all widgets twice at startup.
 
-    m_suppressAutoRefresh = true;
-    loadTableDataLocally(); // restore entered data without rebuilding results repeatedly
-    m_suppressAutoRefresh = false;
+    // Do not restore saved data synchronously in the constructor.
+    // Let the native window appear first, then restore input widgets only.
+    // Summary/Results are calculated on demand when those tabs are opened so
+    // startup and data entry stay responsive on all Windows 11 machines.
+    QTimer::singleShot(700, this, [this, previousStartupDidNotFinish]() {
+        qInfo() << "Deferred data restore started" << "previousBadStart=" << previousStartupDidNotFinish;
+        m_suppressAutoRefresh = true;
+        if (!previousStartupDidNotFinish) {
+            loadTableDataLocally(); // restore entered data only; calculated tabs are refreshed on demand.
+        } else {
+            qWarning() << "Previous startup did not finish cleanly; skipping local data restore for this run.";
+        }
+        m_suppressAutoRefresh = false;
+        m_hasResults = false;
+        m_summaryDirty = true;
+        m_resultsDirty = true;
+        if (m_refreshTimer && m_refreshTimer->isActive())
+            m_refreshTimer->stop();
 
-    // Build calculated views lazily after the window is shown so the EXE opens fast.
-    requestCalculatedViewsRefresh();
+        QSettings startupGuard(QStringLiteral("AccountAssistant"), QStringLiteral("AccountAssistant"));
+        startupGuard.setValue(QStringLiteral("startup/restoreInProgress"), false);
+        startupGuard.sync();
+        qInfo() << "Deferred data restore finished";
+    });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1688,10 +1759,10 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
 void MainWindow::loadSettings()
 {
     QSettings s(QStringLiteral("AccountAssistant"), QStringLiteral("AccountAssistant"));
-    g_lang        = static_cast<AppLanguage>(s.value(QStringLiteral("language"),    0).toInt());
+    g_lang        = static_cast<AppLanguage>(safeSettingInt(s.value(QStringLiteral("language"), 0), 0, 0, 1));
     g_lightMode   = s.value(QStringLiteral("lightMode"),   false).toBool();
-    g_currency    = static_cast<AppCurrency>(s.value(QStringLiteral("currency"),    0).toInt());
-    g_fontSize    = s.value(QStringLiteral("fontSize"),    12).toInt();
+    g_currency    = static_cast<AppCurrency>(safeSettingInt(s.value(QStringLiteral("currency"), 0), 0, 0, 1));
+    g_fontSize    = safeSettingInt(s.value(QStringLiteral("fontSize"), 12), 12, 9, 20);
     g_classicView = s.value(QStringLiteral("classicView"), false).toBool();
 }
 
@@ -1780,7 +1851,7 @@ void MainWindow::saveTableDataLocally()
     s.endGroup();
 
     s.beginGroup(QStringLiteral("suppliersData"));
-    s.setValue(QStringLiteral("hasData"), m_suppliers != nullptr);
+    s.setValue(QStringLiteral("hasData"), appDataHasUserEntries(data));
     for (int i = 0; i < 12; ++i) {
         const auto& sm = data.suppliers[i];
         s.beginGroup(QString::number(i));
@@ -1807,113 +1878,138 @@ void MainWindow::saveTableDataLocally()
 void MainWindow::loadTableDataLocally()
 {
     QSettings s(QStringLiteral("AccountAssistant"), QStringLiteral("AccountAssistant"));
+
+    bool restoredAnything = false;
+
     s.beginGroup(QStringLiteral("tableData"));
     const bool hasData = s.value(QStringLiteral("hasData"), false).toBool();
-
-    AppData data;
     if (hasData) {
-        data.inventoryMode = static_cast<InventoryMode>(s.value(QStringLiteral("inventoryMode"), 0).toInt());
+        AppData data;
+        data.inventoryMode = safeInventoryMode(s.value(QStringLiteral("inventoryMode"), int(InventoryMode::Periodic)));
         for (int i = 0; i < 12; ++i) {
             auto& m = data.months[i];
             s.beginGroup(QString::number(i));
-            m.sales             = s.value(QStringLiteral("sales"),             0.0).toDouble();
-            m.salesReturn       = s.value(QStringLiteral("salesReturn"),       0.0).toDouble();
-            m.supplierPurchases = s.value(QStringLiteral("supplierPurchases"), 0.0).toDouble();
-            m.supplierPayments  = s.value(QStringLiteral("supplierPayments"),  0.0).toDouble();
-            m.supplierName      = s.value(QStringLiteral("supplierName"),      QString()).toString();
-            m.expenseAccount    = s.value(QStringLiteral("expenseAccount"),    QString()).toString();
-            m.expenseAmount     = s.value(QStringLiteral("expenseAmount"),     0.0).toDouble();
-            m.inventoryFirst    = s.value(QStringLiteral("inventoryFirst"),    0.0).toDouble();
-            m.inventoryLast     = s.value(QStringLiteral("inventoryLast"),     0.0).toDouble();
-            m.cogsInput         = s.value(QStringLiteral("cogsInput"),         0.0).toDouble();
+            m.sales             = safeSettingDouble(s.value(QStringLiteral("sales"),             0.0));
+            m.salesReturn       = safeSettingDouble(s.value(QStringLiteral("salesReturn"),       0.0));
+            m.supplierPurchases = safeSettingDouble(s.value(QStringLiteral("supplierPurchases"), 0.0));
+            m.supplierPayments  = safeSettingDouble(s.value(QStringLiteral("supplierPayments"),  0.0));
+            m.supplierName      = safeSettingText(s.value(QStringLiteral("supplierName"),      QString()));
+            m.expenseAccount    = safeSettingText(s.value(QStringLiteral("expenseAccount"),    QString()));
+            m.expenseAmount     = safeSettingDouble(s.value(QStringLiteral("expenseAmount"),     0.0));
+            m.inventoryFirst    = safeSettingDouble(s.value(QStringLiteral("inventoryFirst"),    0.0));
+            m.inventoryLast     = safeSettingDouble(s.value(QStringLiteral("inventoryLast"),     0.0));
+            m.cogsInput         = safeSettingDouble(s.value(QStringLiteral("cogsInput"),         0.0));
             s.endGroup();
         }
         setTableData(data);
+        restoredAnything = true;
     }
     s.endGroup();
 
     s.beginGroup(QStringLiteral("accountsData"));
     const bool hasAccounts = s.value(QStringLiteral("hasData"), false).toBool();
-    AppData accountsData;
-    if (hasAccounts && s.value(QStringLiteral("monthlyFixed"), false).toBool()) {
-        for (int month = 0; month < 12; ++month) {
-            QList<AccountItem> monthAccounts;
-            s.beginGroup(QStringLiteral("month_") + QString::number(month));
-            const int count = s.value(QStringLiteral("count"), 0).toInt();
+    if (hasAccounts) {
+        AppData accountsData;
+        if (s.value(QStringLiteral("monthlyFixed"), false).toBool()) {
+            for (int month = 0; month < 12; ++month) {
+                QList<AccountItem> monthAccounts;
+                s.beginGroup(QStringLiteral("month_") + QString::number(month));
+                const int count = safeSettingInt(s.value(QStringLiteral("count"), 0), 0, 0, kMaxSavedExpenseAccountsPerMonth);
+                for (int i = 0; i < count; ++i) {
+                    s.beginGroup(QStringLiteral("account_") + QString::number(i));
+                    AccountItem a;
+                    a.code = safeSettingText(s.value(QStringLiteral("code"), fixedExpenseAccountCode(i)), 80);
+                    a.name = safeSettingText(s.value(QStringLiteral("name"), fixedExpenseAccountNames().value(i)), 180);
+                    a.type = safeExpenseAccountType(s.value(QStringLiteral("type"), int(AccountType::Payable)));
+                    a.allowSettlement = s.value(QStringLiteral("allowSettlement"), false).toBool();
+                    a.currency = safeSettingText(s.value(QStringLiteral("currency"), QString()), 8);
+                    a.amount = safeSettingDouble(s.value(QStringLiteral("amount"), 0.0));
+                    monthAccounts.append(a);
+                    s.endGroup();
+                }
+                s.endGroup();
+                accountsData.monthlyAccounts[month] = normalizedFixedExpenseAccountsForMonth(monthAccounts);
+            }
+        } else {
+            QList<AccountItem> accounts;
+            const int count = safeSettingInt(s.value(QStringLiteral("count"), 0), 0, 0, kMaxSavedLegacyExpenseAccounts);
             for (int i = 0; i < count; ++i) {
-                s.beginGroup(QStringLiteral("account_") + QString::number(i));
+                s.beginGroup(QString::number(i));
                 AccountItem a;
-                a.code = s.value(QStringLiteral("code"), fixedExpenseAccountCode(i)).toString();
-                a.name = s.value(QStringLiteral("name"), fixedExpenseAccountNames().value(i)).toString();
-                a.type = static_cast<AccountType>(s.value(QStringLiteral("type"), int(AccountType::Payable)).toInt());
+                a.code = safeSettingText(s.value(QStringLiteral("code"), QString()), 80);
+                a.name = safeSettingText(s.value(QStringLiteral("name"), QString()), 180);
+                a.type = safeExpenseAccountType(s.value(QStringLiteral("type"), int(AccountType::Payable)));
                 a.allowSettlement = s.value(QStringLiteral("allowSettlement"), false).toBool();
-                a.currency = s.value(QStringLiteral("currency"), QString()).toString();
-                a.amount = s.value(QStringLiteral("amount"), 0.0).toDouble();
-                monthAccounts.append(a);
+                a.currency = safeSettingText(s.value(QStringLiteral("currency"), QString()), 8);
+                a.amount = safeSettingDouble(s.value(QStringLiteral("amount"), 0.0));
+                accounts.append(a);
                 s.endGroup();
             }
-            s.endGroup();
-            accountsData.monthlyAccounts[month] = normalizedFixedExpenseAccountsForMonth(monthAccounts);
+            accountsData.accounts = accounts;
         }
-    } else if (hasAccounts) {
-        QList<AccountItem> accounts;
-        const int count = s.value(QStringLiteral("count"), 0).toInt();
-        for (int i = 0; i < count; ++i) {
-            s.beginGroup(QString::number(i));
-            AccountItem a;
-            a.code = s.value(QStringLiteral("code"), QString()).toString();
-            a.name = s.value(QStringLiteral("name"), QString()).toString();
-            a.type = static_cast<AccountType>(s.value(QStringLiteral("type"), 0).toInt());
-            a.allowSettlement = s.value(QStringLiteral("allowSettlement"), false).toBool();
-            a.currency = s.value(QStringLiteral("currency"), QString()).toString();
-            a.amount = s.value(QStringLiteral("amount"), 0.0).toDouble();
-            accounts.append(a);
-            s.endGroup();
-        }
-        accountsData.accounts = accounts;
+        if (m_accounts)
+            m_accounts->setData(accountsData);
+        restoredAnything = true;
     }
     s.endGroup();
 
-    AppData otherRevenueData;
     s.beginGroup(QStringLiteral("otherRevenuesData"));
-    if (s.value(QStringLiteral("hasData"), false).toBool()) {
+    const bool hasOtherRevenues = s.value(QStringLiteral("hasData"), false).toBool();
+    if (hasOtherRevenues) {
+        AppData otherRevenueData;
         for (int i = 0; i < 12; ++i) {
             s.beginGroup(QString::number(i));
-            otherRevenueData.otherRevenues[i].acquiredPrivileges = s.value(QStringLiteral("acquiredPrivileges"), 0.0).toDouble();
-            otherRevenueData.otherRevenues[i].miscellaneousRevenues = s.value(QStringLiteral("miscellaneousRevenues"), 0.0).toDouble();
+            otherRevenueData.otherRevenues[i].acquiredPrivileges = safeSettingDouble(s.value(QStringLiteral("acquiredPrivileges"), 0.0));
+            otherRevenueData.otherRevenues[i].miscellaneousRevenues = safeSettingDouble(s.value(QStringLiteral("miscellaneousRevenues"), 0.0));
             s.endGroup();
         }
+        if (m_otherRevenues)
+            m_otherRevenues->setData(otherRevenueData);
+        restoredAnything = true;
     }
     s.endGroup();
 
-    AppData supData;
     s.beginGroup(QStringLiteral("suppliersData"));
-    if (s.value(QStringLiteral("hasData"), false).toBool()) {
+    const bool hasSuppliers = s.value(QStringLiteral("hasData"), false).toBool();
+    if (hasSuppliers) {
+        AppData supData;
+        bool hasRealSupplierData = false;
         for (int i = 0; i < 12; ++i) {
             s.beginGroup(QString::number(i));
-            supData.suppliers[i].supplierName = s.value(QStringLiteral("supplierName"), QString()).toString();
-            supData.suppliers[i].purchases    = s.value(QStringLiteral("purchases"), 0.0).toDouble();
-            supData.suppliers[i].payments     = s.value(QStringLiteral("payments"), 0.0).toDouble();
-            const int entryCount = s.value(QStringLiteral("entryCount"), 0).toInt();
+            supData.suppliers[i].supplierName = safeSettingText(s.value(QStringLiteral("supplierName"), QString()), 180);
+            supData.suppliers[i].purchases    = safeSettingDouble(s.value(QStringLiteral("purchases"), 0.0));
+            supData.suppliers[i].payments     = safeSettingDouble(s.value(QStringLiteral("payments"), 0.0));
+            if (!supData.suppliers[i].supplierName.isEmpty()
+                || supData.suppliers[i].purchases != 0.0
+                || supData.suppliers[i].payments != 0.0) {
+                hasRealSupplierData = true;
+            }
+            const int entryCount = safeSettingInt(s.value(QStringLiteral("entryCount"), 0), 0, 0, kMaxSavedSupplierRowsPerMonth);
             for (int j = 0; j < entryCount; ++j) {
                 s.beginGroup(QStringLiteral("entry_") + QString::number(j));
                 SupplierEntry e;
-                e.name = s.value(QStringLiteral("name"), QString()).toString();
-                e.previousBalance = s.value(QStringLiteral("previousBalance"), 0.0).toDouble();
-                e.purchases = s.value(QStringLiteral("purchases"), 0.0).toDouble();
-                e.totalDebt = s.value(QStringLiteral("totalDebt"), 0.0).toDouble();
-                e.payments = s.value(QStringLiteral("payments"), 0.0).toDouble();
+                e.name = safeSettingText(s.value(QStringLiteral("name"), QString()), 180);
+                e.previousBalance = safeSettingDouble(s.value(QStringLiteral("previousBalance"), 0.0));
+                e.purchases = safeSettingDouble(s.value(QStringLiteral("purchases"), 0.0));
+                e.totalDebt = safeSettingDouble(s.value(QStringLiteral("totalDebt"), 0.0));
+                e.payments = safeSettingDouble(s.value(QStringLiteral("payments"), 0.0));
+                if (!e.name.isEmpty() || e.previousBalance != 0.0 || e.purchases != 0.0 || e.totalDebt != 0.0 || e.payments != 0.0)
+                    hasRealSupplierData = true;
                 supData.supplierEntries[i].append(e);
                 s.endGroup();
             }
             s.endGroup();
         }
+        if (m_suppliers && hasRealSupplierData) {
+            m_suppliers->setData(supData);
+            restoredAnything = true;
+        } else {
+            qInfo() << "Skipped empty supplier restore";
+        }
     }
     s.endGroup();
 
-    if (m_accounts) { m_accounts->setData(accountsData); }
-    if (m_otherRevenues) { m_otherRevenues->setData(otherRevenueData); }
-    if (m_suppliers) { m_suppliers->setData(supData); }
+    qInfo() << "Local data restore finished. restored=" << restoredAnything;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1921,6 +2017,9 @@ void MainWindow::closeEvent(QCloseEvent* event)
 {
     saveSettings();
     saveTableDataLocally();
+    QSettings startupGuard(QStringLiteral("AccountAssistant"), QStringLiteral("AccountAssistant"));
+    startupGuard.setValue(QStringLiteral("startup/restoreInProgress"), false);
+    startupGuard.sync();
     QMainWindow::closeEvent(event);
 }
 
@@ -2059,8 +2158,8 @@ void MainWindow::buildUI()
         m_tableStack = new QStackedWidget(dataTab);
         m_table        = new DataTableWidget(m_tableStack);
         m_classicTable = new ClassicDataTableWidget(m_tableStack);
-        connect(m_table, &DataTableWidget::dataChanged, this, &MainWindow::requestCalculatedViewsRefresh);
-        connect(m_classicTable, &ClassicDataTableWidget::dataChanged, this, &MainWindow::requestCalculatedViewsRefresh);
+        connect(m_table, &DataTableWidget::dataChanged, this, &MainWindow::markCalculatedViewsDirty);
+        connect(m_classicTable, &ClassicDataTableWidget::dataChanged, this, &MainWindow::markCalculatedViewsDirty);
         m_tableStack->addWidget(m_table);          // index 0 – card view
         m_tableStack->addWidget(m_classicTable);   // index 1 – classic view
         m_tableStack->setCurrentIndex(g_classicView ? 1 : 0);
@@ -2118,7 +2217,7 @@ void MainWindow::buildUI()
 
         m_accounts = new Accountswidget(expensesTab);
         connect(m_accounts, &Accountswidget::graphRequested, this, &MainWindow::onAccountGraphRequested);
-        connect(m_accounts, &Accountswidget::dataChanged, this, &MainWindow::requestCalculatedViewsRefresh);
+        connect(m_accounts, &Accountswidget::dataChanged, this, &MainWindow::markCalculatedViewsDirty);
         vl->addWidget(m_accounts, 1);
         m_tabs->addTab(expensesTab, "");
     }
@@ -2156,7 +2255,7 @@ void MainWindow::buildUI()
         vl->addWidget(subHdr);
 
         m_otherRevenues = new OtherRevenuesWidget(otherRevenuesTab);
-        connect(m_otherRevenues, &OtherRevenuesWidget::dataChanged, this, &MainWindow::requestCalculatedViewsRefresh);
+        connect(m_otherRevenues, &OtherRevenuesWidget::dataChanged, this, &MainWindow::markCalculatedViewsDirty);
         vl->addWidget(m_otherRevenues, 1);
         m_tabs->addTab(otherRevenuesTab, "");
     }
@@ -2195,7 +2294,7 @@ void MainWindow::buildUI()
 
         m_suppliers = new SuppliersWidget(suppliersTab);
         connect(m_suppliers, &SuppliersWidget::graphRequested, this, &MainWindow::onSupplierGraphRequested);
-        connect(m_suppliers, &SuppliersWidget::dataChanged, this, &MainWindow::requestCalculatedViewsRefresh);
+        connect(m_suppliers, &SuppliersWidget::dataChanged, this, &MainWindow::markCalculatedViewsDirty);
         vl->addWidget(m_suppliers, 1);
         m_tabs->addTab(suppliersTab, "");
     }
@@ -2742,15 +2841,14 @@ void MainWindow::onInventoryModeChanged(int index)
         }
 
         clearTableData();
-        refreshCalculatedViews();
+        requestCalculatedViewsRefresh();
     }
 
     AppData d;
     d.inventoryMode = mode;
-    d.calculate();
     setTableData(d);
     m_data = d;
-    refreshCalculatedViews();
+    requestCalculatedViewsRefresh();
 }
 
 void MainWindow::onSaveData()
@@ -2982,11 +3080,14 @@ void MainWindow::onImportData()
         }
     }
 
+    m_suppressAutoRefresh = true;
     if (m_accounts) m_accounts->setData(merged);
     if (m_otherRevenues) m_otherRevenues->setData(merged);
+    if (m_suppliers) m_suppliers->setData(merged);
     setTableData(merged);
-    m_data = collectAllData();
-    refreshCalculatedViews();
+    m_suppressAutoRefresh = false;
+    m_data = merged;
+    requestCalculatedViewsRefresh();
     ThemeBox::info(this,
         tr_import_data_8de4db(),
         tr_data_imported_successfully_c05a52());
@@ -3041,6 +3142,10 @@ AppData MainWindow::collectTableData() const
 }
 void MainWindow::setTableData(const AppData& d)
 {
+    // Only update the Data Entry widgets here. Updating Other Revenues, Suppliers,
+    // or Summary from a partial Data Entry snapshot was the startup crash path on
+    // some Windows 11 machines because it forced hidden calculated widgets to rebuild
+    // while the UI was still restoring saved state.
     if (m_table) {
         m_table->setData(d);
         m_table->setInventoryMode(d.inventoryMode);
@@ -3049,9 +3154,6 @@ void MainWindow::setTableData(const AppData& d)
         m_classicTable->setInventoryMode(d.inventoryMode);
         m_classicTable->setData(d);
     }
-    if (m_otherRevenues) m_otherRevenues->setData(d);
-    if (m_suppliers)    m_suppliers->setData(d);
-    if (m_summary)      m_summary->setData(d);
     if (m_inventoryModeCombo) {
         QSignalBlocker blocker(m_inventoryModeCombo);
         m_inventoryModeCombo->setCurrentIndex(int(d.inventoryMode));
@@ -3081,7 +3183,6 @@ AppData MainWindow::collectAllData() const
         AppData rev = m_otherRevenues->collectData();
         d.otherRevenues = rev.otherRevenues;
     }
-    d.calculate();
     return d;
 }
 
@@ -3197,7 +3298,7 @@ void MainWindow::onSettings()
         g_fontSize  = dlg.selectedFontSize();
 
         if (classicViewChanged) {
-            AppData current = collectAllData();
+            AppData current = collectTableData();
             g_classicView = dlg.isClassicView();
             switchTableView(g_classicView);
             setTableData(current);
@@ -3217,7 +3318,7 @@ void MainWindow::onSettings()
             applyGlobalAppFont(g_fontSize);
         }
 
-        refreshCalculatedViews();
+        requestCalculatedViewsRefresh();
         saveSettings(); // persist immediately
     }
 }
@@ -3356,24 +3457,57 @@ void MainWindow::retranslate()
     if (m_results) m_results->retranslate();
 }
 
+void MainWindow::markCalculatedViewsDirty()
+{
+    if (m_suppressAutoRefresh)
+        return;
+
+    m_summaryDirty = true;
+    m_resultsDirty = true;
+
+    if (m_refreshTimer && m_refreshTimer->isActive())
+        m_refreshTimer->stop();
+}
+
 void MainWindow::requestCalculatedViewsRefresh()
 {
     if (m_suppressAutoRefresh)
         return;
-    if (!m_refreshTimer) {
-        refreshCalculatedViews();
-        return;
+
+    m_summaryDirty = true;
+    m_resultsDirty = true;
+
+    const int current = m_tabs ? m_tabs->currentIndex() : -1;
+    const int summaryIndex = (m_tabs && m_summary) ? m_tabs->indexOf(m_summary->parentWidget()) : -1;
+    const int resultsIndex = (m_tabs && m_results) ? m_tabs->indexOf(m_results) : -1;
+
+    // Do not calculate while the user is entering data in Data Entry, Expenses,
+    // Other Revenues, or Suppliers. Only refresh immediately when the calculated
+    // tab is already open; otherwise refresh when Summary/Results is opened.
+    if (current == summaryIndex || current == resultsIndex) {
+        if (!m_refreshTimer) {
+            refreshCalculatedViews();
+            return;
+        }
+        m_refreshTimer->start();
+    } else if (m_refreshTimer && m_refreshTimer->isActive()) {
+        m_refreshTimer->stop();
     }
-    // Coalesce rapid spin-box edits and startup restoration into one calculation.
-    m_refreshTimer->start();
 }
 
 void MainWindow::refreshCalculatedViews()
 {
+    if (m_suppressAutoRefresh || m_refreshingCalculatedViews)
+        return;
+
+    m_refreshingCalculatedViews = true;
+    auto refreshGuard = qScopeGuard([this] { m_refreshingCalculatedViews = false; });
+
     if (auto* popup = QApplication::activePopupWidget()) {
         Q_UNUSED(popup);
     }
 
+    qInfo() << "Calculated view refresh started";
     AppData working = collectAllData();
     working.chartRequests = m_lastChartRequests;
     working.hiddenChartRequests = m_lastHiddenChartRequests;
@@ -3399,6 +3533,7 @@ void MainWindow::refreshCalculatedViews()
         syncResultsState();
         m_resultsDirty = false;
     }
+    qInfo() << "Calculated view refresh finished";
 }
 
 void MainWindow::onCurrentTabChanged(int index)
@@ -3406,29 +3541,18 @@ void MainWindow::onCurrentTabChanged(int index)
     const int summaryIndex = (m_tabs && m_summary) ? m_tabs->indexOf(m_summary->parentWidget()) : -1;
     const int resultsIndex = (m_tabs && m_results) ? m_tabs->indexOf(m_results) : -1;
 
-    if ((index == summaryIndex || index == resultsIndex) && m_refreshTimer && m_refreshTimer->isActive()) {
-        m_refreshTimer->stop();
+    if (index == summaryIndex && m_summary && (m_summaryDirty || !m_hasResults)) {
+        if (m_refreshTimer && m_refreshTimer->isActive())
+            m_refreshTimer->stop();
         refreshCalculatedViews();
         return;
     }
 
-    if (index == summaryIndex && m_summary && m_summaryDirty) {
-        if (!m_hasResults)
-            refreshCalculatedViews();
-        else {
-            m_summary->setData(m_data);
-            m_summaryDirty = false;
-        }
-    }
-
-    if (index == resultsIndex && m_results && m_resultsDirty) {
-        if (!m_hasResults)
-            refreshCalculatedViews();
-        else {
-            m_results->buildResults(m_data);
-            syncResultsState();
-            m_resultsDirty = false;
-        }
+    if (index == resultsIndex && m_results && (m_resultsDirty || !m_hasResults)) {
+        if (m_refreshTimer && m_refreshTimer->isActive())
+            m_refreshTimer->stop();
+        refreshCalculatedViews();
+        return;
     }
 }
 

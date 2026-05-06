@@ -9,6 +9,7 @@ set(CMAKE_AUTOUIC ON)
 
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Charts PrintSupport Svg)
 find_package(ZLIB REQUIRED)
+include(GNUInstallDirs)
 
 set(SOURCES
     src/main.cpp
@@ -67,16 +68,30 @@ target_link_libraries(AccountAssistant PRIVATE
     Qt6::Charts Qt6::PrintSupport Qt6::Svg
     ZLIB::ZLIB)
 
-# Windows: auto-deploy Qt DLLs after build
+# Windows: auto-deploy Qt DLLs, plugins, compiler runtime, and software OpenGL.
+# Do not exclude opengl32sw.dll or D3D helper DLLs; on some Windows 11 hybrid-GPU PCs
+# the app can start as a background process without showing a window if these fallbacks
+# are missing or if the GPU driver cannot create the requested context.
 if(WIN32)
     find_program(WINDEPLOYQT windeployqt
         HINTS "${Qt6_DIR}/../../../bin")
     if(WINDEPLOYQT)
         add_custom_command(TARGET AccountAssistant POST_BUILD
             COMMAND ${WINDEPLOYQT}
-                --no-translations --no-system-d3d-compiler --no-opengl-sw
+                --compiler-runtime
                 $<TARGET_FILE:AccountAssistant>
-            COMMENT "windeployqt...")
+            COMMENT "windeployqt with Windows 11 compatibility fallbacks...")
+
+        get_filename_component(QT_BIN_DIR "${WINDEPLOYQT}" DIRECTORY)
+        foreach(_qt_runtime_dll opengl32sw.dll d3dcompiler_47.dll D3DCompiler_47.dll)
+            if(EXISTS "${QT_BIN_DIR}/${_qt_runtime_dll}")
+                add_custom_command(TARGET AccountAssistant POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        "${QT_BIN_DIR}/${_qt_runtime_dll}"
+                        "$<TARGET_FILE_DIR:AccountAssistant>/${_qt_runtime_dll}"
+                    COMMENT "Copy Windows graphics fallback ${_qt_runtime_dll}")
+            endif()
+        endforeach()
     endif()
 endif()
 
