@@ -4,10 +4,14 @@
 #include <QScrollArea>
 #include <QVBoxLayout>
 #include <QGridLayout>
+#include <QFrame>
 #include <QComboBox>
 #include <QDoubleSpinBox>
 #include <QLabel>
+#include <QHBoxLayout>
+#include <QToolButton>
 #include <QVector>
+#include <QEvent>
 #include <array>
 #include "appdata.h"
 
@@ -29,6 +33,9 @@ signals:
     void graphRequested(const ChartRequest& request);
     void dataChanged();
 
+protected:
+    bool eventFilter(QObject* obj, QEvent* event) override;
+
 private:
     struct RowWidgets {
         QWidget* row{};
@@ -37,7 +44,23 @@ private:
         QLabel* typeCaption{};
         QDoubleSpinBox* amount{};
         QComboBox* type{};
+        int monthIndex = -1;
         int accountIndex = -1;
+    };
+
+    struct MonthWidgets {
+        QFrame* card{};
+        QWidget* header{};
+        QLabel* monthLabel{};
+        QLabel* chevron{};
+        QWidget* content{};
+        QLabel* accountHeader{};
+        QLabel* amountHeader{};
+        QLabel* typeHeader{};
+        QVBoxLayout* rowsLayout{};
+        QVector<RowWidgets> rows;
+        bool expanded{false};
+        int monthIndex{-1};
     };
 
     void buildUi();
@@ -46,29 +69,28 @@ private:
     void renderCurrentMonth();
     void clearRows();
     void updateRowTexts();
+    void updateMonthCardText(MonthWidgets& card);
+    void setMonthExpanded(int month, bool expanded);
     void setComboToAccountType(QComboBox* combo, AccountType type) const;
     AccountType accountTypeFromCombo(const QComboBox* combo) const;
     QString accountTypeLabel(AccountType type) const;
     AccountTypeFilter currentGroupFilter() const;
     QString nextCustomAccountCode() const;
-    void deleteAccountAtIndex(int accountIndex);
+    void deleteAccountAtIndex(int monthIndex, int accountIndex);
+    void onShowGraphs();
 
-    QComboBox*   m_monthCombo{};
     QComboBox*   m_groupCombo{};
     QLabel*      m_title{};
     QLabel*      m_subtitle{};
-    QLabel*      m_monthLabel{};
     QLabel*      m_groupLabel{};
-    QLabel*      m_accountHeader{};
-    QLabel*      m_amountHeader{};
-    QLabel*      m_typeHeader{};
+    QToolButton* m_graphBtn{};
     QScrollArea* m_scroll{};
-    QGridLayout*  m_tableHeaderLayout{};
+    QHBoxLayout* m_titleRow{};
     QWidget*     m_container{};
-    QVBoxLayout* m_rowsLayout{};
+    QVBoxLayout* m_cardsLayout{};
 
     mutable std::array<QList<AccountItem>, 12> m_monthlyAccounts{};
-    QVector<RowWidgets> m_rows;
+    QVector<MonthWidgets> m_monthCards;
     int  m_currentMonth = 0;
     bool m_loadingRows = false;
 };

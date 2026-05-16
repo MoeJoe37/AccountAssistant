@@ -35,6 +35,16 @@ static const char* kMonthLblLight = "color:#1e2340;font-weight:800;background:tr
 static const char* kChevronDark = "color:#8892b8;background:transparent;font-weight:800;";
 static const char* kChevronLight = "color:#6b7280;background:transparent;font-weight:800;";
 
+static QString formatSupplierPercent(double value)
+{
+    QString text = QString::number(value, 'f', 2);
+    while (text.contains(QChar('.')) && text.endsWith(QChar('0')))
+        text.chop(1);
+    if (text.endsWith(QChar('.')))
+        text.chop(1);
+    return text + QStringLiteral("%");
+}
+
 class SupplierStayOpenMenu : public QMenu {
 public:
     using QMenu::QMenu;
@@ -687,8 +697,8 @@ void SupplierMonthCard::refreshComputedValues(const QList<SupplierEntry>* previo
         const double pctPurch = r.purchases->value() > 0.0 ? (r.payments->value() / r.purchases->value()) * 100.0 : 0.0;
         const double pctDebt = debt > 0.0 ? (r.payments->value() / debt) * 100.0 : 0.0;
         const double bal = debt - r.payments->value();
-        r.pctPurchases->setText(QString::number(pctPurch, 'f', 2) + "%");
-        r.pctDebt->setText(QString::number(pctDebt, 'f', 2) + "%");
+        r.pctPurchases->setText(formatSupplierPercent(pctPurch));
+        r.pctDebt->setText(formatSupplierPercent(pctDebt));
         r.balance->setText(formatMoneyText(bal));
     }
     if (m_expanded) {

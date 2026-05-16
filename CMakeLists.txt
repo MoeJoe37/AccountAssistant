@@ -7,6 +7,49 @@ set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
 set(CMAKE_AUTOUIC ON)
 
+# Make Qt discovery more reliable on Windows.
+# The usual command-line option is still supported:
+#   -DCMAKE_PREFIX_PATH="C:/Qt/<version>/msvc2022_64"
+# If that path is missing or CMake has no cached Qt6_DIR, this block tries common
+# Qt Online Installer locations and then prints a useful diagnostic instead of a
+# generic "Qt6Config.cmake not found" error.
+if(WIN32)
+    set(_ACCOUNTASSISTANT_QT_CANDIDATES
+        "$ENV{QTDIR}"
+        "C:/Qt/6.11.0/msvc2022_64"
+        "C:/Qt/6.10.0/msvc2022_64"
+        "C:/Qt/6.9.3/msvc2022_64"
+        "C:/Qt/6.9.2/msvc2022_64"
+        "C:/Qt/6.9.1/msvc2022_64"
+        "C:/Qt/6.9.0/msvc2022_64"
+        "C:/Qt/6.8.3/msvc2022_64"
+        "C:/Qt/6.8.2/msvc2022_64"
+        "C:/Qt/6.8.1/msvc2022_64"
+        "C:/Qt/6.8.0/msvc2022_64"
+        "C:/Qt/6.7.3/msvc2022_64"
+        "C:/Qt/6.7.2/msvc2022_64"
+        "C:/Qt/6.7.1/msvc2022_64"
+        "C:/Qt/6.7.0/msvc2022_64"
+        "C:/Qt/6.6.3/msvc2022_64"
+        "C:/Qt/6.6.2/msvc2022_64"
+        "C:/Qt/6.6.1/msvc2022_64"
+        "C:/Qt/6.6.0/msvc2022_64"
+        "C:/Qt/6.5.3/msvc2022_64"
+        "C:/Qt/6.5.2/msvc2022_64"
+        "C:/Qt/6.5.1/msvc2022_64"
+        "C:/Qt/6.5.0/msvc2022_64"
+    )
+
+    foreach(_qt_candidate IN LISTS _ACCOUNTASSISTANT_QT_CANDIDATES)
+        if(_qt_candidate AND EXISTS "${_qt_candidate}/lib/cmake/Qt6/Qt6Config.cmake")
+            list(PREPEND CMAKE_PREFIX_PATH "${_qt_candidate}")
+            set(Qt6_DIR "${_qt_candidate}/lib/cmake/Qt6" CACHE PATH "Qt6 package directory" FORCE)
+            message(STATUS "Using Qt6 from: ${_qt_candidate}")
+            break()
+        endif()
+    endforeach()
+endif()
+
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets Charts PrintSupport Svg)
 find_package(ZLIB REQUIRED)
 include(GNUInstallDirs)

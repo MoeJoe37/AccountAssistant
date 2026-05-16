@@ -369,7 +369,7 @@ static QString xlsxHeaderCurrency()               { return tr_currency_88f072();
 static QString xlsxHeaderNetSales()               { return tr_net_sales_23a2f1(); }
 static QString xlsxHeaderCogs()                   { return tr_cogs_d716f1(); }
 static QString xlsxHeaderTradingResult()          { return tr_trading_result_b21619(); }
-static QString xlsxHeaderAcquiredPrivilegesRev()  { return xlsxTerm("Acquired Privileges Revenue", "إيراد الامتيازات المكتسبة"); }
+static QString xlsxHeaderAcquiredPrivilegesRev()  { return xlsxTerm("Acquired Privileges Revenue", "إيراد السماحات المكتسبة"); }
 static QString xlsxHeaderMiscRevenue()            { return xlsxTerm("Miscellaneous Revenue", "الإيرادات المتنوعة"); }
 static QString xlsxHeaderOtherRevenuesTotal()     { return xlsxTerm("Other Revenues Total", "إجمالي الإيرادات الأخرى"); }
 static QString xlsxHeaderReceivableAccounts()     { return xlsxTerm("Receivable Accounts (+)", "الحسابات المدينة (+)"); }
@@ -1286,7 +1286,7 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
             headerRowIndex = i;
             break;
         }
-        if ((rowContainsHeader(rows[i], QStringLiteral("Acquired Privileges")) || rowContainsHeader(rows[i], QStringLiteral("الامتيازات المكتسبة"))) &&
+        if ((rowContainsHeader(rows[i], QStringLiteral("Acquired Privileges")) || rowContainsHeader(rows[i], QStringLiteral("السماحات المكتسبة")) || rowContainsHeader(rows[i], QStringLiteral("الامتيازات المكتسبة"))) &&
             (rowContainsHeader(rows[i], QStringLiteral("Other Miscellaneous Revenues")) || rowContainsHeader(rows[i], QStringLiteral("إيرادات متنوعة أخرى")))) {
             marker = QStringLiteral("OTHER_REVENUES");
             headerRowIndex = i;
@@ -1474,7 +1474,7 @@ static bool parseSingleSheetRows(const QList<QMap<int, QString>>& rows, AppData*
         }
     } else if (marker == QStringLiteral("OTHER_REVENUES")) {
         const int cMonth = findColumn(cols, {"Month", QStringLiteral("الشهر")});
-        const int cPriv = findColumn(cols, {"Acquired Privileges", QStringLiteral("الامتيازات المكتسبة")});
+        const int cPriv = findColumn(cols, {"Acquired Privileges", "Acquired Privileges Revenue", QStringLiteral("السماحات المكتسبة"), QStringLiteral("إيراد السماحات المكتسبة"), QStringLiteral("الامتيازات المكتسبة"), QStringLiteral("إيراد الامتيازات المكتسبة")});
         const int cMisc = findColumn(cols, {"Other Miscellaneous Revenues", QStringLiteral("إيرادات متنوعة أخرى")});
         if (cMonth < 0 || cPriv < 0 || cMisc < 0) {
             g_lastImportError = tr_auto_import_failed_the_workbook_format_does_not_ac2d8f1c();

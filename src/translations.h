@@ -64,8 +64,8 @@ inline QString T(const char* en, const char* ar)
 
 inline QString tr_other_revenues_tab_3c7a11() { return T("Other Revenues", "إيرادات أخرى"); }
 inline QString tr_other_revenues_title_19ce34() { return T("Other Revenues", "إيرادات أخرى"); }
-inline QString tr_other_revenues_subtitle_4f60a1() { return T("Select a month, then enter acquired privileges and other miscellaneous revenues.", "اختر الشهر ثم أدخل الامتيازات المكتسبة والإيرادات المتنوعة الأخرى."); }
-inline QString tr_acquired_privileges_6a72d2() { return T("Acquired privileges", "الامتيازات المكتسبة"); }
+inline QString tr_other_revenues_subtitle_4f60a1() { return T("Select a month, then enter acquired privileges and other miscellaneous revenues.", "اختر الشهر ثم أدخل السماحات المكتسبة والإيرادات المتنوعة الأخرى."); }
+inline QString tr_acquired_privileges_6a72d2() { return T("Acquired privileges", "السماحات المكتسبة"); }
 inline QString tr_other_misc_revenues_a330db() { return T("Other miscellaneous revenues", "إيرادات متنوعة أخرى"); }
 inline QString tr_summary_tab_b5e2f1() { return T("Summary", "الخلاصة"); }
 inline QString tr_summary_title_891b2d() { return T("Summary", "الخلاصة"); }
