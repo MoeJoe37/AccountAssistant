@@ -40,6 +40,7 @@ private:
     struct RowWidgets {
         QWidget* row{};
         QLabel* accountLabel{};
+        QLabel* accountCaption{};
         QLabel* amountCaption{};
         QLabel* typeCaption{};
         QDoubleSpinBox* amount{};

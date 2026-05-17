@@ -3,6 +3,10 @@
 #include <QWidget>
 #include <QLabel>
 #include <QTableWidget>
+#include <QToolButton>
+#include <QMenu>
+#include <QAction>
+#include <QVector>
 #include "appdata.h"
 
 class SummaryWidget : public QWidget
@@ -20,6 +24,10 @@ private:
     void buildUi();
     void rebuildTable();
     void updateCards();
+    void buildMonthMenu();
+    void updateMonthButton();
+    QList<int> selectedMonths() const;
+    QList<int> selectedMonthsFromMenu() const;
 
     QLabel* m_title{};
     QLabel* m_subtitle{};
@@ -32,6 +40,11 @@ private:
     QLabel* m_operatingTitle{};
     QLabel* m_operatingValue{};
     QLabel* m_tableTitle{};
+    QLabel* m_monthLabel{};
+    QToolButton* m_monthBtn{};
+    QMenu* m_monthMenu{};
+    QVector<QAction*> m_monthActions;
+    QList<int> m_selectedMonths;
     QTableWidget* m_table{};
     AppData m_data;
 };

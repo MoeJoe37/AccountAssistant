@@ -105,9 +105,23 @@ static void styleComboPopup(QComboBox* combo)
     combo->view()->setAttribute(Qt::WA_StyledBackground, true);
 }
 
+static Qt::Alignment expenseVisualTextAlignment()
+{
+    // Use AlignAbsolute so Arabic labels are placed on the physical right edge
+    // of their own field, matching the Data Entry month-card layout.
+    return (isArabic() ? (Qt::AlignAbsolute | Qt::AlignRight)
+                       : (Qt::AlignAbsolute | Qt::AlignLeft)) | Qt::AlignVCenter;
+}
+
 static Qt::Alignment expenseCellTextAlignment()
 {
-    return (isArabic() ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignVCenter;
+    return expenseVisualTextAlignment();
+}
+
+static Qt::Alignment expenseFieldCaptionAlignment()
+{
+    return (isArabic() ? (Qt::AlignAbsolute | Qt::AlignRight)
+                       : (Qt::AlignAbsolute | Qt::AlignLeft)) | Qt::AlignBottom;
 }
 
 static void applyExpenseLabelDirection(QLabel* label)
@@ -115,7 +129,19 @@ static void applyExpenseLabelDirection(QLabel* label)
     if (!label)
         return;
     label->setLayoutDirection(appLayoutDirection());
-    label->setAlignment(expenseCellTextAlignment());
+    label->setAlignment(expenseVisualTextAlignment());
+    label->setContentsMargins(0, 0, 0, 0);
+    label->setMinimumWidth(0);
+}
+
+static void applyExpenseCaptionDirection(QLabel* label)
+{
+    if (!label)
+        return;
+    label->setLayoutDirection(appLayoutDirection());
+    label->setAlignment(expenseFieldCaptionAlignment());
+    label->setContentsMargins(0, 0, 0, 0);
+    label->setMinimumWidth(0);
 }
 
 static void applyExpenseSpinDirection(QDoubleSpinBox* spin)
@@ -123,7 +149,7 @@ static void applyExpenseSpinDirection(QDoubleSpinBox* spin)
     if (!spin)
         return;
     spin->setLayoutDirection(appLayoutDirection());
-    spin->setAlignment(expenseCellTextAlignment());
+    spin->setAlignment(expenseVisualTextAlignment());
 }
 
 static void applyExpenseComboDirection(QComboBox* combo)
@@ -131,12 +157,45 @@ static void applyExpenseComboDirection(QComboBox* combo)
     if (!combo)
         return;
     combo->setLayoutDirection(appLayoutDirection());
+    combo->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
     for (int i = 0; i < combo->count(); ++i)
-        combo->setItemData(i, int(expenseCellTextAlignment()), Qt::TextAlignmentRole);
+        combo->setItemData(i, int(expenseVisualTextAlignment()), Qt::TextAlignmentRole);
     if (combo->lineEdit()) {
         combo->lineEdit()->setLayoutDirection(appLayoutDirection());
-        combo->lineEdit()->setAlignment(expenseCellTextAlignment());
+        combo->lineEdit()->setAlignment(expenseVisualTextAlignment());
     }
+}
+
+static QWidget* makeExpenseFieldBox(QWidget* parent, QLabel* caption, QWidget* field)
+{
+    // Same field construction pattern as Data Entry: a vertical block where
+    // the caption sits immediately above the control/value. The box keeps the
+    // active application direction so Arabic captions anchor to the top-right
+    // of their own field instead of behaving like a table header.
+    auto* box = new QWidget(parent);
+    box->setLayoutDirection(appLayoutDirection());
+    box->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+
+    auto* layout = new QVBoxLayout(box);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(4);
+
+    if (caption) {
+        caption->setParent(box);
+        caption->setObjectName("expenseFieldCaption");
+        caption->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        applyExpenseCaptionDirection(caption);
+        layout->addWidget(caption);
+    }
+
+    if (field) {
+        field->setParent(box);
+        field->setLayoutDirection(appLayoutDirection());
+        field->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        layout->addWidget(field);
+    }
+
+    return box;
 }
 
 
@@ -507,35 +566,12 @@ void Accountswidget::buildUi()
         card.content->setObjectName("expenseMonthContent");
         card.content->setAttribute(Qt::WA_StyledBackground, true);
         auto* contentLayout = new QVBoxLayout(card.content);
-        contentLayout->setContentsMargins(14, 12, 14, 14);
+        contentLayout->setContentsMargins(4, 12, 4, 14);
         contentLayout->setSpacing(9);
 
-        auto* tableHeader = new QWidget(card.content);
-        tableHeader->setObjectName("expenseTableHeaderWidget");
-        tableHeader->setLayoutDirection(Qt::LeftToRight);
-        auto* headerGrid = new QGridLayout(tableHeader);
-        headerGrid->setContentsMargins(0, 0, 0, 4);
-        headerGrid->setHorizontalSpacing(12);
-        headerGrid->setVerticalSpacing(0);
-        headerGrid->setOriginCorner(Qt::TopLeftCorner);
-
-        card.accountHeader = new QLabel(tableHeader);
-        card.accountHeader->setObjectName("expensesTableHeader");
-        card.amountHeader = new QLabel(tableHeader);
-        card.amountHeader->setObjectName("expensesTableHeader");
-        card.typeHeader = new QLabel(tableHeader);
-        card.typeHeader->setObjectName("expensesTableHeader");
-
-        const int accountCol = isArabic() ? 2 : 0;
-        const int amountCol = 1;
-        const int typeCol = isArabic() ? 0 : 2;
-        headerGrid->addWidget(card.accountHeader, 0, accountCol, expenseCellTextAlignment());
-        headerGrid->addWidget(card.amountHeader, 0, amountCol, expenseCellTextAlignment());
-        headerGrid->addWidget(card.typeHeader, 0, typeCol, expenseCellTextAlignment());
-        headerGrid->setColumnStretch(accountCol, 2);
-        headerGrid->setColumnStretch(amountCol, 1);
-        headerGrid->setColumnStretch(typeCol, 1);
-        contentLayout->addWidget(tableHeader);
+        // Each account row now owns its field captions. This matches the Data Entry
+        // tab pattern: caption on top, field underneath, with Arabic captions aligned
+        // to the top-right of their own field instead of floating as a separate table header.
 
         card.rowsLayout = new QVBoxLayout;
         card.rowsLayout->setContentsMargins(0, 0, 0, 0);
@@ -741,12 +777,16 @@ void Accountswidget::renderCurrentMonth()
 
             auto* rowW = new QWidget(card.content ? card.content : m_container);
             rowW->setObjectName("expenseRow");
+            // Keep the row grid in physical left-to-right coordinates so
+            // Arabic column order is explicit: Account on the far right,
+            // Amount in the middle, Account Type on the far left. Text
+            // direction/alignment is still applied per field below.
             rowW->setLayoutDirection(Qt::LeftToRight);
             rowW->setContextMenuPolicy(Qt::CustomContextMenu);
 
             auto* rowLayout = new QGridLayout(rowW);
-            rowLayout->setContentsMargins(14, 10, 14, 10);
-            rowLayout->setHorizontalSpacing(12);
+            rowLayout->setContentsMargins(16, 14, 16, 14);
+            rowLayout->setHorizontalSpacing(14);
             rowLayout->setVerticalSpacing(0);
             rowLayout->setOriginCorner(Qt::TopLeftCorner);
 
@@ -776,12 +816,22 @@ void Accountswidget::renderCurrentMonth()
             styleComboPopup(typeCombo);
             applyExpenseComboDirection(typeCombo);
 
+            auto* accountCaption = new QLabel(tr_fixed_expense_account_header_a13bcd(), rowW);
+            auto* amountCaption = new QLabel(tr_expense_amount_field_93a771(), rowW);
+            auto* typeCaption = new QLabel(tr_expense_account_type_field_a870c9(), rowW);
+            applyExpenseCaptionDirection(accountCaption);
+            applyExpenseCaptionDirection(amountCaption);
+            applyExpenseCaptionDirection(typeCaption);
+            auto* accountField = makeExpenseFieldBox(rowW, accountCaption, accountLabel);
+            auto* amountField = makeExpenseFieldBox(rowW, amountCaption, amountSpin);
+            auto* typeField = makeExpenseFieldBox(rowW, typeCaption, typeCombo);
+
             const int accountCol = isArabic() ? 2 : 0;
             const int amountCol = 1;
             const int typeCol = isArabic() ? 0 : 2;
-            rowLayout->addWidget(accountLabel, 0, accountCol, expenseCellTextAlignment());
-            rowLayout->addWidget(amountSpin, 0, amountCol);
-            rowLayout->addWidget(typeCombo, 0, typeCol);
+            rowLayout->addWidget(accountField, 0, accountCol);
+            rowLayout->addWidget(amountField, 0, amountCol);
+            rowLayout->addWidget(typeField, 0, typeCol);
             rowLayout->setColumnStretch(accountCol, 2);
             rowLayout->setColumnStretch(amountCol, 1);
             rowLayout->setColumnStretch(typeCol, 1);
@@ -789,8 +839,9 @@ void Accountswidget::renderCurrentMonth()
             RowWidgets widgets;
             widgets.row = rowW;
             widgets.accountLabel = accountLabel;
-            widgets.amountCaption = nullptr;
-            widgets.typeCaption = nullptr;
+            widgets.accountCaption = accountCaption;
+            widgets.amountCaption = amountCaption;
+            widgets.typeCaption = typeCaption;
             widgets.amount = amountSpin;
             widgets.type = typeCombo;
             widgets.monthIndex = month;
@@ -867,14 +918,24 @@ void Accountswidget::updateRowTexts()
         const int month = qBound(0, card.monthIndex, 11);
         const QList<AccountItem> items = normalizedFixedExpenseAccountsForMonth(m_monthlyAccounts[month]);
         for (auto& row : card.rows) {
+            if (row.row)
+                row.row->setLayoutDirection(appLayoutDirection());
             if (row.accountLabel && row.accountIndex >= 0 && row.accountIndex < items.size()) {
                 row.accountLabel->setText(expenseAccountDisplayName(items.value(row.accountIndex)));
                 applyExpenseLabelDirection(row.accountLabel);
             }
-            if (row.amountCaption)
+            if (row.accountCaption) {
+                row.accountCaption->setText(tr_fixed_expense_account_header_a13bcd());
+                applyExpenseCaptionDirection(row.accountCaption);
+            }
+            if (row.amountCaption) {
                 row.amountCaption->setText(tr_expense_amount_field_93a771());
-            if (row.typeCaption)
+                applyExpenseCaptionDirection(row.amountCaption);
+            }
+            if (row.typeCaption) {
                 row.typeCaption->setText(tr_expense_account_type_field_a870c9());
+                applyExpenseCaptionDirection(row.typeCaption);
+            }
             if (row.amount) {
                 row.amount->setPrefix(currencyPrefix());
                 row.amount->setSuffix(currencySuffix());
@@ -941,6 +1002,7 @@ void Accountswidget::updateMonthCardText(MonthWidgets& card)
         if (!grid)
             return;
         grid->setOriginCorner(Qt::TopLeftCorner);
+        grid->setContentsMargins(14, 0, 14, 4);
         tableHeader->setLayoutDirection(Qt::LeftToRight);
         grid->removeWidget(accountHeader);
         grid->removeWidget(amountHeader);

@@ -66,9 +66,21 @@ QScrollBar::handle:vertical { background:#c8d0ed; border-radius:4px; min-height:
 QScrollBar::handle:vertical:hover { background:#4f86f7; }
 )";
 
+static Qt::Alignment revenueVisualTextAlignment()
+{
+    return (isArabic() ? (Qt::AlignAbsolute | Qt::AlignRight)
+                       : (Qt::AlignAbsolute | Qt::AlignLeft)) | Qt::AlignVCenter;
+}
+
 static Qt::Alignment revenueTextAlignment()
 {
-    return (isArabic() ? Qt::AlignRight : Qt::AlignLeft) | Qt::AlignVCenter;
+    return revenueVisualTextAlignment();
+}
+
+static Qt::Alignment revenueCaptionAlignment()
+{
+    return (isArabic() ? (Qt::AlignAbsolute | Qt::AlignRight)
+                       : (Qt::AlignAbsolute | Qt::AlignLeft)) | Qt::AlignBottom;
 }
 
 static void applyRevenueLabelDirection(QLabel* label)
@@ -76,7 +88,9 @@ static void applyRevenueLabelDirection(QLabel* label)
     if (!label)
         return;
     label->setLayoutDirection(appLayoutDirection());
-    label->setAlignment(revenueTextAlignment());
+    label->setAlignment(revenueCaptionAlignment());
+    label->setContentsMargins(0, 0, 0, 0);
+    label->setMinimumWidth(0);
 }
 
 static void applyRevenueSpinDirection(QDoubleSpinBox* spin)
@@ -84,7 +98,34 @@ static void applyRevenueSpinDirection(QDoubleSpinBox* spin)
     if (!spin)
         return;
     spin->setLayoutDirection(appLayoutDirection());
-    spin->setAlignment(revenueTextAlignment());
+    spin->setAlignment(revenueVisualTextAlignment());
+}
+
+static QWidget* makeRevenueFieldBox(QWidget* parent, QLabel* caption, QWidget* field)
+{
+    auto* box = new QWidget(parent);
+    box->setLayoutDirection(appLayoutDirection());
+    box->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+
+    auto* layout = new QVBoxLayout(box);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(4);
+
+    if (caption) {
+        caption->setParent(box);
+        caption->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        applyRevenueLabelDirection(caption);
+        layout->addWidget(caption);
+    }
+
+    if (field) {
+        field->setParent(box);
+        field->setLayoutDirection(appLayoutDirection());
+        field->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+        layout->addWidget(field);
+    }
+
+    return box;
 }
 }
 
@@ -193,11 +234,12 @@ void OtherRevenuesWidget::buildUi()
         card.content = new QWidget(card.card);
         card.content->setObjectName("otherRevenueMonthContent");
         card.content->setAttribute(Qt::WA_StyledBackground, true);
-        auto* grid = new QGridLayout(card.content);
-        grid->setContentsMargins(16, 14, 16, 16);
-        grid->setHorizontalSpacing(14);
-        grid->setVerticalSpacing(8);
-        grid->setOriginCorner(isArabic() ? Qt::TopRightCorner : Qt::TopLeftCorner);
+        card.content->setLayoutDirection(appLayoutDirection());
+        auto* fieldsLayout = new QGridLayout(card.content);
+        fieldsLayout->setContentsMargins(16, 14, 16, 16);
+        fieldsLayout->setHorizontalSpacing(14);
+        fieldsLayout->setVerticalSpacing(0);
+        fieldsLayout->setOriginCorner(Qt::TopLeftCorner);
 
         card.privilegesLabel = new QLabel(card.content);
         card.privilegesLabel->setObjectName("orLabel");
@@ -206,12 +248,14 @@ void OtherRevenuesWidget::buildUi()
         card.privileges = makeSpin(card.content);
         card.misc = makeSpin(card.content);
 
-        grid->addWidget(card.privilegesLabel, 0, 0);
-        grid->addWidget(card.miscLabel, 0, 1);
-        grid->addWidget(card.privileges, 1, 0);
-        grid->addWidget(card.misc, 1, 1);
-        grid->setColumnStretch(0, 1);
-        grid->setColumnStretch(1, 1);
+        auto* privilegesField = makeRevenueFieldBox(card.content, card.privilegesLabel, card.privileges);
+        auto* miscField = makeRevenueFieldBox(card.content, card.miscLabel, card.misc);
+        const int privilegesCol = isArabic() ? 1 : 0;
+        const int miscCol = isArabic() ? 0 : 1;
+        fieldsLayout->addWidget(privilegesField, 0, privilegesCol);
+        fieldsLayout->addWidget(miscField, 0, miscCol);
+        fieldsLayout->setColumnStretch(privilegesCol, 1);
+        fieldsLayout->setColumnStretch(miscCol, 1);
 
         cardLayout->addWidget(card.content);
         m_cardsLayout->addWidget(card.card);
@@ -305,8 +349,25 @@ void OtherRevenuesWidget::updateMonthCardText(MonthWidgets& card)
         card.chevron->setText(arrow);
     if (card.content) {
         card.content->setLayoutDirection(appLayoutDirection());
-        if (auto* grid = dynamic_cast<QGridLayout*>(card.content->layout()))
-            grid->setOriginCorner(isArabic() ? Qt::TopRightCorner : Qt::TopLeftCorner);
+        if (auto* fields = dynamic_cast<QGridLayout*>(card.content->layout())) {
+            fields->setOriginCorner(Qt::TopLeftCorner);
+            // Reposition the two field blocks explicitly so Arabic does not depend on
+            // QBoxLayout mirroring. This keeps each label directly above its own field.
+            QWidget* privilegesBox = card.privilegesLabel ? card.privilegesLabel->parentWidget() : nullptr;
+            QWidget* miscBox = card.miscLabel ? card.miscLabel->parentWidget() : nullptr;
+            if (privilegesBox && miscBox) {
+                fields->removeWidget(privilegesBox);
+                fields->removeWidget(miscBox);
+                const int privilegesCol = isArabic() ? 1 : 0;
+                const int miscCol = isArabic() ? 0 : 1;
+                fields->addWidget(privilegesBox, 0, privilegesCol);
+                fields->addWidget(miscBox, 0, miscCol);
+                fields->setColumnStretch(privilegesCol, 1);
+                fields->setColumnStretch(miscCol, 1);
+                privilegesBox->setLayoutDirection(appLayoutDirection());
+                miscBox->setLayoutDirection(appLayoutDirection());
+            }
+        }
     }
     if (card.privilegesLabel) {
         card.privilegesLabel->setText(tr_acquired_privileges_6a72d2());
